@@ -1,0 +1,117 @@
+{
+  "schema_version": "1.0.0",
+  "generated_at": "2026-08-21T01:48:17Z",
+  "status": "CLOSED",
+  "build_enabled": false,
+  "conditions": {
+    "FEATURE_STEP_COVERAGE": {
+      "required": 100,
+      "actual": 100.0,
+      "pass": true
+    },
+    "CRITICAL_FEATURE_STEP_COVERAGE": {
+      "required": 100,
+      "actual": 100.0,
+      "pass": true
+    },
+    "CRITICAL_SOURCE_TRACEABILITY": {
+      "required": 100,
+      "actual": {
+        "registry_and_domain_source_refs": 100.0,
+        "feature_level_canonical_semantics_independently_verified": 100
+      },
+      "pass": true,
+      "reason": "Validator V42 independently checks strict journey semantics and bridge Feature selection; every critical Feature also carries registry and owning-domain sources."
+    },
+    "CRITICAL_ACCEPTANCE_CRITERIA": {
+      "required": 100,
+      "actual": 100.0,
+      "measurement": "presence_coverage",
+      "pass": true,
+      "reason": "Presence is measured here; semantic sufficiency remains subject to the independent Pre-Build Auditor."
+    },
+    "CRITICAL_VERIFICATION_CONTRACTS": {
+      "required": 100,
+      "actual": 100.0,
+      "measurement": "presence_coverage",
+      "pass": true,
+      "reason": "Presence is measured here; semantic sufficiency remains subject to the independent Pre-Build Auditor."
+    },
+    "DEPENDENCY_CYCLES": {
+      "required": 0,
+      "actual": 0,
+      "pass": true
+    },
+    "CRITICAL_UNRESOLVED_ARCHITECTURE_GAPS": {
+      "required": 0,
+      "actual": 0,
+      "pass": true
+    },
+    "CRITICAL_UNRESOLVED_SECURITY_GAPS": {
+      "required": 0,
+      "actual": 0,
+      "pass": true
+    },
+    "BLOCKING_ADRS": {
+      "required": 0,
+      "actual": 0,
+      "pass": true
+    },
+    "FOUNDATION_STEP_LOCAL_BLOCKERS": {
+      "required": 0,
+      "actual": 0,
+      "pass": true,
+      "step_ids": []
+    },
+    "LATER_STAGE_SCOPED_DECISIONS": {
+      "required": "SCOPED",
+      "actual": 46,
+      "pass": true
+    },
+    "BACKEND_INVENTORY": {
+      "required": "COMPLETE",
+      "actual": "COMPLETE_ABSENCE_VERIFIED",
+      "pass": true
+    },
+    "BACKEND_COVERAGE_MATRIX": {
+      "required": 100,
+      "actual": 100.0,
+      "pass": true
+    },
+    "STEPPER_GAUNTLET": {
+      "required": "PASS",
+      "actual": "PASS",
+      "pass": true
+    },
+    "BACKEND_GAUNTLET": {
+      "required": "PASS",
+      "actual": "PASS",
+      "pass": true
+    },
+    "INDEPENDENT_PRE_BUILD_AUDIT": {
+      "required": "OPEN",
+      "actual": "PASS",
+      "pass": true,
+      "evidence": ".agk/autodev/prebuild-audit/GENERATION_MANIFEST.json",
+      "audit_generated_at": "2026-08-21T01:48:26Z"
+    },
+    "OPERATOR_SNAPSHOT_RATIFICATION": {
+      "required": "RATIFIED",
+      "actual": "DECLINED",
+      "pass": false,
+      "evidence": "Hermes session message 7716"
+    }
+  },
+  "failed_conditions": [
+    "OPERATOR_SNAPSHOT_RATIFICATION"
+  ],
+  "blocking_adr_ids": [],
+  "open_blocker_count": 1,
+  "recommendation": "KEEP_CLOSED",
+  "reason": "The independent audit passed, but the operator explicitly declined this exact snapshot and instructed the Build Gate to remain closed.",
+  "execution_scope": {
+    "mode": "NONE",
+    "admitted_step_ids": [],
+    "rule": "No Builder Step is authorized."
+  }
+}

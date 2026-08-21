@@ -1,0 +1,75 @@
+schema_version: 1.0.0
+baseline:
+  hermes_commit: 8794e5a21c980a0f26532cb4883284b786cb3f25
+  agk_commit: a0a3284edfb21eeeec77d9e185b98ef05dbada0a
+  operator_prompt_sha256: 6e003f053b03e0c912fac8a4a50cd57a899593f2f86cd54eb4b1e0936181e207
+phase: architecture_analysis
+production_implementation_allowed: false
+build_gate:
+  source: agentik-os/AGK-OS:.agk/autodev/BUILD_GATE.json
+  status: CLOSED
+  reason: operator_exact_snapshot_ratification_declined
+canonical_surfaces:
+  - id: learn
+    label: Learn
+    operator_label_candidate: Collectif
+  - id: build
+    label: Build
+  - id: deals
+    label: Deals
+  - id: self
+    label: Self
+classifications:
+  - REUSE
+  - EXTEND
+  - WRAP
+  - ADAPT
+  - REPLACE
+  - NEW
+  - DEFER
+sections:
+  hermes_audit:
+    path: 01-hermes-audit
+    status: complete
+  agk_spec:
+    path: 02-agk-spec
+    status: complete
+  gap_analysis:
+    path: 03-gap-analysis
+    status: complete
+  upstream_strategy:
+    path: 04-upstream-strategy
+    status: complete
+  roadmap:
+    path: 05-roadmap
+    status: complete
+  implementation_tasks:
+    path: 06-implementation
+    status: complete
+  post_stepper_alignment:
+    path: 07-post-stepper-alignment
+    status: validated_planning_only
+root_deliverables:
+  - README.md
+  - ARCHITECTURE_MANIFEST.yaml
+  - DECISIONS.md
+  - TRACEABILITY.md
+  - PROMPT_COMPLETION_MATRIX.md
+  - PROMPT_COMPLETION_MATRIX.json
+  - agk-hermes-map.yaml
+  - AGK_HERMES_MASTER_BLUEPRINT.md
+  - AGK_POST_STEPPER_ALIGNMENT_REPORT.md
+validation:
+  required:
+    - named_artifact_presence
+    - source_reference_resolution
+    - yaml_and_json_parse
+    - canonical_vocabulary
+    - canonical_contract_semantics
+    - mapping_classification
+    - ontology_coherence
+    - runtime_boundary
+    - privacy_boundaries
+    - upstream_compatibility
+    - no_product_implementation
+    - implementation_task_dag_and_security_ordering
