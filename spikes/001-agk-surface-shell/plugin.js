@@ -455,10 +455,11 @@ function installStyles(ctx) {
   const style = document.createElement('style')
   style.id = STYLE_ID
   style.textContent = `
-.agk-prototype-switcher{display:flex;align-items:center;gap:4px;padding:3px;border-radius:999px;background:var(--ui-bg-quaternary);box-shadow:inset 0 0 0 1px var(--ui-stroke-tertiary)}
-.agk-prototype-surface-pill{appearance:none;border:0;background:transparent;color:var(--ui-text-tertiary);font:inherit;font-size:12px;font-weight:650;line-height:1;padding:6px 11px;border-radius:999px;cursor:pointer;transition:background 120ms ease,color 120ms ease,box-shadow 120ms ease}
-.agk-prototype-surface-pill:hover{color:var(--ui-text-primary)}
-.agk-prototype-surface-pill[data-active='true']{background:var(--ui-surface-background);color:var(--ui-text-primary);box-shadow:0 1px 3px color-mix(in srgb,var(--ui-text-primary) 12%,transparent)}
+.agk-prototype-switcher{display:flex;align-items:center;gap:2px;padding:0;border-radius:999px;background:transparent;box-shadow:none}
+.agk-prototype-surface-pill{appearance:none;border:0;background:transparent;color:var(--ui-text-tertiary);font:inherit;font-size:12.5px;font-weight:560;letter-spacing:-0.01em;line-height:1;padding:7px 13px;border-radius:999px;cursor:pointer;transition:background 140ms ease,color 140ms ease,box-shadow 140ms ease}
+.agk-prototype-surface-pill:hover:not([data-active='true']){background:color-mix(in srgb,var(--ui-text-primary) 5%,transparent);color:var(--ui-text-secondary)}
+.agk-prototype-surface-pill:focus-visible{outline:2px solid color-mix(in srgb,var(--ui-text-primary) 28%,transparent);outline-offset:2px}
+.agk-prototype-surface-pill[data-active='true']{background:var(--ui-surface-background);color:var(--ui-text-primary);font-weight:640;box-shadow:0 1px 2px color-mix(in srgb,var(--ui-text-primary) 10%,transparent),0 0 0 0.5px color-mix(in srgb,var(--ui-text-primary) 8%,transparent)}
 .agk-prototype-root{display:grid;grid-template-columns:190px minmax(0,1fr) 250px;height:100%;min-height:0;overflow:hidden;background:var(--ui-surface-background);color:var(--ui-text-primary)}
 .agk-prototype-nav,.agk-prototype-context{min-height:0;background:var(--ui-widget-surface-background);padding:18px}
 .agk-prototype-nav{display:flex;flex-direction:column;gap:20px;border-right:1px solid var(--ui-stroke-tertiary)}
