@@ -1,0 +1,47 @@
+{
+  "schema_version": "1.0.0",
+  "generated_at": "2026-08-21T01:48:26Z",
+  "audit_result": "PASS",
+  "build_recommendation": "OPEN",
+  "product_build_disabled": true,
+  "coverage": {
+    "canonical_requirements": 6441,
+    "features": 6441,
+    "mapped_features": 6441,
+    "steps": 1197,
+    "critical_steps_ready": 0,
+    "critical_steps_total": 188,
+    "contracts_ready": 29,
+    "contracts_total": 29,
+    "critical_user_journeys_covered": 38,
+    "critical_user_journeys_total": 38,
+    "critical_failure_journeys_covered": 28,
+    "critical_failure_journeys_total": 28,
+    "all_named_user_journeys_covered": 50,
+    "all_named_user_journeys_total": 50,
+    "all_named_failure_journeys_covered": 37,
+    "all_named_failure_journeys_total": 37
+  },
+  "finding_counts": {},
+  "blocking_findings": 0,
+  "recommended_initial_step_ids": [
+    "AGK-STEP-000001"
+  ],
+  "recommendation_scope": "Initial dependency-free Step admission, not unrestricted Foundation execution.",
+  "strongest_areas": [
+    "Feature ID accounting is complete and independently re-parsed from the append-only capture.",
+    "The dependency graph has no structural cycle or missing target.",
+    "Repository absence is recorded honestly rather than counted as implementation.",
+    "Every independent gate condition passes."
+  ],
+  "weakest_areas": [],
+  "blocking_adr_count": 0,
+  "later_stage_decision_count": 46,
+  "critical_gap_ids": [],
+  "step_statuses": {
+    "PLANNED": 1126,
+    "NEEDS_DECISION": 71
+  },
+  "stepper_gauntlet": "PASS",
+  "backend_gauntlet": "PASS"
+}

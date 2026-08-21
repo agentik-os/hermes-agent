@@ -1,0 +1,55 @@
+schema_version: 1.0.0
+production_implementation_allowed: false
+phases:
+  - id: P0A
+    name: evidence_and_alignment
+    depends_on: []
+    outputs: [hermes_audit, agk_spec, gap_analysis, master_blueprint, alignment_report, architecture_validation]
+  - id: P0B
+    name: shared_contracts
+    depends_on: [P0A]
+    outputs: [object_contract, identity_contract, authorization_contract, event_contract, outbox_contract, artifact_contract, knowledge_memory_context_contract, package_trust_root]
+  - id: P0C
+    name: control_plane_spine
+    depends_on: [P0B]
+    outputs: [objects_api, relationship_commands, event_ledger, projections, project, agent_definition, mission_plan_task_run_spine, session_contract, registries]
+  - id: P0D
+    name: runtime_contract_and_security_boundary
+    depends_on: [P0C]
+    outputs: [runtime_contract, sandbox_lifecycle, signed_runtime_bundle, supervisor_transport, effect_broker, context_firewall_adapter, runtime_event_journal]
+  - id: P0E
+    name: executable_hermes_adapter
+    depends_on: [P0D]
+    outputs: [runtime_adapter, routing_adapter, tool_skill_mcp_mapping, session_binding, checkpoint_recovery, run_span_events]
+  - id: P0F
+    name: os_oracle
+    depends_on: [P0E]
+    outputs: [os_definition, os_installation, dependency_resolution, oracle, os_setup]
+  - id: P1A
+    name: teams_workforces
+    depends_on: [P0F]
+    outputs: [team, workforce, communication, organization_canvas_model]
+  - id: P1B
+    name: quality_packages_deployment
+    depends_on: [P0F]
+    outputs: [eval, verification, package, automation_adapter, deployment_snapshot, upgrade_simulation]
+  - id: P1C
+    name: web_tauri_shell_canvas
+    depends_on: [P1A, P1B]
+    outputs: [surface_switcher, contextual_layouts, inspector, recursive_canvas, runtime_drawer, bounded_mobile_projection]
+  - id: P1D
+    name: architect_foundation
+    depends_on: [P1A, P1B, P1C]
+    outputs: [proposal, dependency_resolution, graph_diff, validation, approved_apply]
+  - id: P2
+    name: bounded_product_foundations
+    depends_on: [P1D]
+    outputs: [learn_bridge, community_bridge, deals_delivery_bridge, self_private_foundation]
+  - id: P3
+    name: ecosystem
+    depends_on: [P2]
+    outputs: [marketplace, certification, capability_graph, referrals, matching]
+  - id: P4
+    name: future
+    depends_on: [P3]
+    outputs: [advanced_labs, regulated_payments, advanced_reputation, alternative_runtimes]

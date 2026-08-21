@@ -1,0 +1,427 @@
+schema_version: 1.0.0
+baseline_commit: 8794e5a21c980a0f26532cb4883284b786cb3f25
+decision_axes:
+  mechanics_disposition: treatment of the existing Hermes implementation
+  agk_strategy: complete AGK capability strategy from agk-hermes-map.yaml
+  maps_to: AGK capability key used for deterministic crosswalk
+capabilities:
+  agent_loop:
+    status: native
+    implementation:
+      files: [run_agent.py, agent/conversation_loop.py, agent/system_prompt.py, model_tools.py]
+      classes: [AIAgent]
+      functions: [AIAgent.run_conversation, AIAgent._invoke_tool, AIAgent.interrupt, get_tool_definitions, handle_function_call]
+    capabilities: [multi-turn tool loop, interruption, retries, fallback, streaming, callbacks, budget tracking]
+    limitations: [large central class, synchronous orchestration core, no AGK domain identity]
+    agk_relevance: critical
+    maps_to: agent
+    agk_strategy: EXTEND
+    mechanics_disposition: REUSE
+  prompt_assembly:
+    status: native
+    implementation:
+      files: [agent/system_prompt.py, agent/prompt_builder.py, agent/prompt_caching.py]
+      classes: []
+      functions: [build_system_prompt_parts, build_system_prompt]
+    capabilities: [stable-context-volatile tiers, project context files, memory snapshots, platform hints, cache markers]
+    limitations: [system prompt is frozen per conversation, hard revocation requires interruption]
+    agk_relevance: critical
+    maps_to: prompt
+    agk_strategy: ADAPT
+    mechanics_disposition: REUSE
+  provider_routing:
+    status: native
+    implementation:
+      files: [hermes_cli/runtime_provider.py, hermes_cli/auth.py, agent/auxiliary_client.py, providers/__init__.py, providers/base.py, plugins/model-providers]
+      classes: [ProviderProfile]
+      functions: [resolve_provider, resolve_runtime_provider, register_provider, get_provider_profile]
+    capabilities: [provider plugins, native and compatible APIs, fallback chains, auxiliary routing, custom endpoints]
+    limitations: [AGK Budget and Organization policy are absent, governed calls require an external inference broker]
+    agk_relevance: critical
+    maps_to: model_routing
+    agk_strategy: ADAPT
+    mechanics_disposition: ADAPT
+  credential_pools:
+    status: native
+    implementation:
+      files: [agent/credential_pool.py, hermes_cli/auth.py, agent/secret_scope.py]
+      classes: [CredentialPool]
+      functions: [load_pool]
+    capabilities: [credential rotation, exhaustion, refresh, profile scoping]
+    limitations: [not an AGK Provider Account or secret broker]
+    agk_relevance: high
+    maps_to: model_routing
+    agk_strategy: ADAPT
+    mechanics_disposition: ADAPT
+  tool_registry:
+    status: native
+    implementation:
+      files: [tools/registry.py, model_tools.py, toolsets.py]
+      classes: [ToolRegistry, ToolEntry]
+      functions: [ToolRegistry.register, ToolRegistry.get_definitions, ToolRegistry.dispatch, discover_builtin_tools]
+    capabilities: [literal built-in registrations, availability gates, toolsets, plugin tools, dynamic MCP tools]
+    limitations: [availability is not authorization, availability may retain last-known-good briefly after probe failure, model schema stability constrains mid-session changes]
+    agk_relevance: critical
+    maps_to: tool
+    agk_strategy: REUSE
+    mechanics_disposition: REUSE
+  skills:
+    status: native
+    implementation:
+      files: [tools/skills_tool.py, agent/skill_commands.py, hermes_cli/skills_hub.py, hermes_cli/skills_config.py]
+      classes: []
+      functions: [scan_skill_commands, get_skill_commands]
+    capabilities: [SKILL.md loading, platform gates, setup metadata, hub install, optional skills, curator integration]
+    limitations: [no AGK object identity or OS Skill Binding]
+    agk_relevance: critical
+    maps_to: skill
+    agk_strategy: REUSE
+    mechanics_disposition: REUSE
+  memory:
+    status: native_personal
+    implementation:
+      files: [agent/memory_provider.py, agent/memory_manager.py, tools/memory_tool.py, plugins/memory]
+      classes: [MemoryStore, MemoryProvider, MemoryManager]
+      functions: [MemoryManager.build_system_prompt, MemoryManager.handle_tool_call]
+    capabilities: [separate local MemoryStore and user profile, optional one-external-provider MemoryManager, provider tools, turn sync and prefetch]
+    limitations: [personal profile scope, not a governed Organization memory graph, no first-class Knowledge]
+    agk_relevance: critical
+    maps_to: memory
+    agk_strategy: ADAPT
+    mechanics_disposition: ADAPT
+  context_engine:
+    status: native
+    implementation:
+      files: [agent/context_engine.py, agent/context_compressor.py, plugins/context_engine]
+      classes: [ContextEngine, ContextCompressor]
+      functions: [ContextEngine.compress, ContextCompressor.compress]
+    capabilities: [pluggable compression, summarization, context preservation, cache-aware rebuild]
+    limitations: [conversation context engine is not AGK Context Firewall or Context Manifest]
+    agk_relevance: high
+    maps_to: memory
+    agk_strategy: ADAPT
+    mechanics_disposition: ADAPT
+  session_storage:
+    status: native
+    implementation:
+      files: [hermes_state.py, hermes_state_common.py, hermes_state_search.py, hermes_state_portability.py]
+      classes: [SessionDB]
+      functions: [SessionDB.create_session, SessionDB.append_message, SessionDB.get_messages_as_conversation, SessionDB.search_messages]
+    capabilities: [SQLite WAL, FTS5, lineage, usage attribution, async delegation records, migrations, explicit session export and import]
+    limitations: [runtime conversation truth only, not canonical AGK Session or event ledger]
+    agk_relevance: critical
+    maps_to: session
+    agk_strategy: ADAPT
+    mechanics_disposition: ADAPT
+  projects:
+    status: native_semantic_conflict
+    implementation:
+      files: [hermes_cli/projects_db.py, hermes_cli/projects_cmd.py, tui_gateway/project_tree.py, apps/desktop/src/store/projects.ts]
+      classes: [Project, ProjectFolder]
+      functions: [create_project, build_tree]
+    capabilities: [named multi-folder workspaces, session grouping, repo and worktree lanes, kanban binding]
+    limitations: [not outcome-oriented, not Organization scoped, name collides with AGK Project]
+    agk_relevance: high
+    maps_to: project
+    agk_strategy: NEW
+    mechanics_disposition: ADAPT
+  subagents:
+    status: native
+    implementation:
+      files: [tools/delegate_tool.py, agent/subagent_lifecycle.py]
+      classes: [SubagentLifecycleService, SubagentHandle, SubagentLaunchRequest]
+      functions: [SubagentLifecycleService.launch, SubagentLifecycleService.wait, SubagentLifecycleService.cancel, SubagentLifecycleService.result]
+    capabilities: [leaf and orchestrator roles, parallel batches, narrowed toolsets, cost rollup, cancellation]
+    limitations: [process-local execution, one-hour public lifecycle result retention, durable background records do not resume a dead child, no restart reconnection]
+    agk_relevance: critical
+    maps_to: subagents
+    agk_strategy: REUSE
+    mechanics_disposition: REUSE
+  kanban:
+    status: native
+    implementation:
+      files: [hermes_cli/kanban_db.py, gateway/kanban_watchers.py, tools/kanban_tools.py, plugins/kanban]
+      classes: []
+      functions: []
+    capabilities: [durable task board, dependencies, comments, attachments, dispatcher, profiles and workspaces]
+    limitations: [Task and Project semantics conflict with AGK, separate authoritative store, board tenant is soft namespace, default macOS worker cap can be absent unless configured]
+    agk_relevance: medium
+    maps_to: kanban
+    agk_strategy: DEFER
+    mechanics_disposition: DEFER
+  cron:
+    status: native
+    implementation:
+      files: [cron/jobs.py, cron/scheduler.py, cron/scheduler_provider.py, tools/cronjob_tools.py]
+      classes: [CronScheduler, InProcessCronScheduler]
+      functions: [run_job, run_one_job, resolve_cron_scheduler]
+    capabilities: [relative, interval, cron and ISO schedules, scripts, Skills, delivery, provider plugins]
+    limitations: [jobs.json is independent authority, fresh sessions, no AGK Automation identity, crash after dispatch can remain unknown and is not an automatic retry]
+    agk_relevance: high
+    maps_to: scheduler
+    agk_strategy: ADAPT
+    mechanics_disposition: DEFER
+  session_goals_and_loops:
+    status: native
+    implementation:
+      files: [hermes_cli/goals.py, hermes_cli/loops.py, cli.py, gateway/run.py]
+      classes: []
+      functions: []
+    capabilities: [judge-driven goals, quality gates, wait barriers, recurring loops, persisted session state]
+    limitations: [session controllers, not AGK Goal or Loop Definitions]
+    agk_relevance: medium
+    maps_to: scheduler
+    agk_strategy: ADAPT
+    mechanics_disposition: ADAPT
+  mcp:
+    status: native
+    implementation:
+      files: [tools/mcp_tool.py, tools/mcp_oauth_manager.py, hermes_cli/mcp_config.py, hermes_cli/mcp_catalog.py]
+      classes: []
+      functions: [discover_mcp_tools]
+    capabilities: [stdio, remote HTTP, OAuth, catalog, per-profile management, dynamic toolsets]
+    limitations: [external server trust remains operator responsibility, stdio secret environment is broader than a per-server AGK grant]
+    agk_relevance: critical
+    maps_to: mcp
+    agk_strategy: ADAPT
+    mechanics_disposition: ADAPT
+  native_plugins:
+    status: native
+    implementation:
+      files: [hermes_cli/plugins.py, hermes_cli/plugin_capabilities.py, hermes_cli/middleware.py]
+      classes: [PluginManager, PluginContext, PluginManifest, PluginState]
+      functions: [discover_plugins, invoke_hook]
+    capabilities: [tools, hooks, CLI commands, state, middleware, events, capability consent]
+    limitations: [in-process full privilege, not a sandbox, ordinary hooks generally have no deadline, middleware can mutate cache-sensitive requests, large implementation module]
+    agk_relevance: critical
+    maps_to: packages
+    agk_strategy: EXTEND
+    mechanics_disposition: ADAPT
+  portable_agent_plugins:
+    status: partial_standard
+    implementation:
+      files: [hermes_cli/agent_plugins.py]
+      classes: []
+      functions: []
+    capabilities: [Skills, stdio MCP, streamable HTTP MCP, namespaced loading]
+    limitations: [subset only, no trust or permissions in standard, not full AGK package]
+    agk_relevance: medium
+    maps_to: packages
+    agk_strategy: EXTEND
+    mechanics_disposition: ADAPT
+  execution_environments:
+    status: native
+    implementation:
+      files: [tools/environments/base.py, tools/environments/local.py, tools/environments/docker.py, tools/environments/ssh.py, tools/environments/singularity.py, tools/environments/modal.py, tools/environments/managed_modal.py, tools/environments/daytona.py, tools/environments/vercel_sandbox.py]
+      classes: [BaseEnvironment, LocalEnvironment, DockerEnvironment, SSHEnvironment, SingularityEnvironment, ModalEnvironment, ManagedModalEnvironment, DaytonaEnvironment, VercelSandboxEnvironment]
+      functions: []
+    capabilities: [foreground and background execution, PTY, cwd, process control, remote and cloud backends]
+    limitations: [terminal-backend isolation does not contain in-process plugins, MCP or code execution, remote support-file sync can write sandbox changes back to host]
+    agk_relevance: critical
+    maps_to: machine_and_environment
+    agk_strategy: ADAPT
+    mechanics_disposition: ADAPT
+  filesystem:
+    status: native
+    implementation:
+      files: [tools/file_tools.py, tools/environments/base.py]
+      classes: []
+      functions: []
+    capabilities: [read, write, patch, search, backend routing, syntax checks]
+    limitations: [filesystem actions are work mechanics, not Artifact or Knowledge lifecycle]
+    agk_relevance: high
+    maps_to: tool
+    agk_strategy: REUSE
+    mechanics_disposition: REUSE
+  browser:
+    status: native
+    implementation:
+      files: [tools/browser_tool.py, tools/browser_cdp_tool.py, agent/browser_provider.py, plugins/browser]
+      classes: []
+      functions: []
+    capabilities: [local and cloud automation, CDP, downloads, dialogs, provider plugins]
+    limitations: [browser session identity and security require AGK Runtime bindings, browser_exec is arbitrary Python rather than a browser sandbox, raw CDP and current-page probes have fail-open edges]
+    agk_relevance: high
+    maps_to: tool
+    agk_strategy: REUSE
+    mechanics_disposition: ADAPT
+  gateway:
+    status: native
+    implementation:
+      files: [gateway/run.py, gateway/platforms/base.py, gateway/delivery.py, gateway/session.py, gateway/platform_registry.py, plugins/platforms]
+      classes: [GatewayRunner, BasePlatformAdapter, MessageEvent, SessionStore]
+      functions: []
+    capabilities: [many channels, normalized inbound events, delivery, session routing, allowlists, pairing, streaming]
+    limitations: [single-instance trust model, authorized callers are not capability-separated, no AGK Actor or Organization semantics, A2A outbound URL and bearer handling require an egress fix]
+    agk_relevance: high
+    maps_to: communication
+    agk_strategy: ADAPT
+    mechanics_disposition: ADAPT
+  hooks_and_events:
+    status: fragmented_native
+    implementation:
+      files: [hermes_cli/plugins.py, gateway/hooks.py, agent/shell_hooks.py, agent/monitoring, cron/executions.py, agent/verification_evidence.py, hermes_cli/kanban_db.py, gateway/delivery_ledger.py]
+      classes: [PluginManager]
+      functions: [invoke_hook]
+    capabilities: [tool, model, session, subagent and gateway lifecycle hooks, cron attempt ledger, verification evidence, kanban event ledger, delivery obligations]
+    limitations: [not one versioned durable semantic event envelope]
+    agk_relevance: critical
+    maps_to: events
+    agk_strategy: EXTEND
+    mechanics_disposition: ADAPT
+  desktop:
+    status: native
+    implementation:
+      files: [apps/desktop, apps/shared, tui_gateway]
+      classes: []
+      functions: []
+    capabilities: [Electron shell, React renderer, panes, routes, titlebar, status bar, terminal, files, git, previews, projects, plugin SDK]
+    limitations: [Hermes branded Electron Runtime console, not the canonical AGK Web and Tauri client, no AGK object graph or recursive organization Canvas]
+    agk_relevance: critical
+    maps_to: product_surfaces
+    agk_strategy: NEW
+    mechanics_disposition: ADAPT
+  desktop_plugin_sdk:
+    status: native
+    implementation:
+      files: [apps/desktop/src/contrib, apps/desktop/src/sdk/index.ts, apps/desktop/src/app/routes.ts]
+      classes: []
+      functions: [registry.register]
+    capabilities: [panes, routes, sidebar, titlebar, status bar, palette, keybinds, themes, composer and transcript directives]
+    limitations: [does not by itself replace product name, app id or every shell assumption, cannot programmatically apply an existing layout preset through the public SDK]
+    agk_relevance: critical
+    maps_to: product_surfaces
+    agk_strategy: NEW
+    mechanics_disposition: REUSE
+  web_dashboard:
+    status: native
+    implementation:
+      files: [web, hermes_cli/web_server.py, hermes_cli/web_routers]
+      classes: []
+      functions: []
+    capabilities: [admin UI, chat, REST, WebSocket, plugin surfaces]
+    limitations: [not AGK product control plane]
+    agk_relevance: medium
+    maps_to: product_surfaces
+    agk_strategy: NEW
+    mechanics_disposition: DEFER
+  tui:
+    status: native
+    implementation:
+      files: [ui-tui, tui_gateway]
+      classes: []
+      functions: []
+    capabilities: [Ink interface, JSON-RPC, streaming, prompts, sessions, commands and widgets]
+    limitations: [runtime surface rather than AGK domain UI]
+    agk_relevance: medium
+    maps_to: runtime
+    agk_strategy: ADAPT
+    mechanics_disposition: REUSE
+  acp:
+    status: native
+    implementation:
+      files: [acp_adapter]
+      classes: []
+      functions: []
+    capabilities: [editor-native agent over stdio and JSON-RPC]
+    limitations: [no AGK organization semantics]
+    agk_relevance: medium
+    maps_to: runtime
+    agk_strategy: ADAPT
+    mechanics_disposition: REUSE
+  profiles:
+    status: native
+    implementation:
+      files: [hermes_cli/profiles.py, hermes_cli/main.py, hermes_constants.py]
+      classes: []
+      functions: [_apply_profile_override, get_hermes_home]
+    capabilities: [isolated config, secrets, memory, sessions, Skills and gateway state]
+    limitations: [not tenancy, process can still have full user privileges]
+    agk_relevance: critical
+    maps_to: runtime
+    agk_strategy: ADAPT
+    mechanics_disposition: ADAPT
+  logging_and_monitoring:
+    status: native_partial
+    implementation:
+      files: [hermes_logging.py, agent/monitoring, gateway/status.py, plugins/observability]
+      classes: []
+      functions: [setup_logging, emit_runtime_status_transition]
+    capabilities: [profile-aware logs, gateway health, structured monitoring and plugin observability]
+    limitations: [not canonical AGK Run and Span hierarchy]
+    agk_relevance: high
+    maps_to: observability
+    agk_strategy: EXTEND
+    mechanics_disposition: REUSE
+  trajectories_and_evals:
+    status: partial
+    implementation:
+      files: [agent/trajectory.py, batch_runner.py, evals, agent/verify/runner.py, hermes_cli/goals.py]
+      classes: []
+      functions: []
+    capabilities: [trajectory capture, batch execution, project verify, model judge and eval assets]
+    limitations: [no universal Eval object, dataset governance, promotion authority or independent Verification service]
+    agk_relevance: high
+    maps_to: evaluation
+    agk_strategy: EXTEND
+    mechanics_disposition: REUSE
+  artifacts:
+    status: minimal
+    implementation:
+      files: [tools/file_tools.py, tools/tool_result_storage.py, tools/checkpoint_manager.py, tui_gateway/methods_prompt.py, apps/desktop/src/store/artifacts.ts]
+      classes: []
+      functions: []
+    capabilities: [files, attachments, large Tool-result persistence, filesystem snapshots and UI projections]
+    limitations: [no stable AGK Artifact identity, lifecycle, scope or complete provenance]
+    agk_relevance: critical
+    maps_to: artifact
+    agk_strategy: NEW
+    mechanics_disposition: REUSE
+  knowledge:
+    status: absent_as_domain
+    implementation:
+      files: [agent/prompt_builder.py, agent/context_engine.py, tools/file_tools.py]
+      classes: []
+      functions: []
+    capabilities: [context and file inputs only]
+    limitations: [no governed reusable truth, maturity, citations or relationship graph]
+    agk_relevance: critical
+    maps_to: knowledge
+    agk_strategy: NEW
+    mechanics_disposition: NEW
+  organizations_oracles_workforces_os:
+    status: absent
+    implementation:
+      files: []
+      classes: []
+      functions: []
+    capabilities: []
+    limitations: [Hermes intentionally focuses on personal agent runtime rather than AGK higher-order product ontology]
+    agk_relevance: critical
+    maps_to: organization
+    agk_strategy: NEW
+    mechanics_disposition: NEW
+  code_execution:
+    status: native_uncontained
+    implementation:
+      files: [tools/code_execution_tool.py]
+      classes: []
+      functions: [execute_code]
+    capabilities: [Python child process, Tool RPC, call and time bounds, environment scrubbing]
+    limitations: [not an OS sandbox, explicit empty nested-Tool intersection falls back to all RPC Tools in the audited snapshot]
+    agk_relevance: high
+    maps_to: tool
+    agk_strategy: REUSE
+    mechanics_disposition: ADAPT
+  background_processes:
+    status: native
+    implementation:
+      files: [tools/process_registry.py]
+      classes: [ProcessRegistry, ProcessSession]
+      functions: [spawn_local, spawn_via_env]
+    capabilities: [tracked background commands, output buffers, wait, kill, stdin, host PID adoption]
+    limitations: [control operations need stronger owner-principal validation, non-host processes are not restart-recoverable]
+    agk_relevance: high
+    maps_to: runtime
+    agk_strategy: ADAPT
+    mechanics_disposition: ADAPT
