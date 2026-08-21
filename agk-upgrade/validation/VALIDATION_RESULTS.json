@@ -1,0 +1,119 @@
+{
+  "schema_version": "2.0.0",
+  "status": "PASS",
+  "passed": 22,
+  "failed": 0,
+  "production_implementation_allowed": false,
+  "checks": [
+    {
+      "id": "A01_REQUIRED_ARTIFACTS",
+      "status": "PASS",
+      "evidence": "missing=[]"
+    },
+    {
+      "id": "A02_MACHINE_FORMATS_AND_UNIQUE_KEYS",
+      "status": "PASS",
+      "evidence": "errors=[]"
+    },
+    {
+      "id": "A03_ARCHITECTURE_MANIFEST",
+      "status": "PASS",
+      "evidence": "surfaces=['learn', 'build', 'deals', 'self'], sections={'hermes_audit': 'complete', 'agk_spec': 'complete', 'gap_analysis': 'complete', 'upstream_strategy': 'complete', 'roadmap': 'complete', 'implementation_tasks': 'complete', 'post_stepper_alignment': 'validated_planning_only'}"
+    },
+    {
+      "id": "A04_CANONICAL_CONTRACT_SNAPSHOT",
+      "status": "PASS",
+      "evidence": "errors=[]"
+    },
+    {
+      "id": "A05_SOURCE_PROVENANCE",
+      "status": "PASS",
+      "evidence": "errors=[]"
+    },
+    {
+      "id": "A06_CLOSED_BUILD_GATE",
+      "status": "PASS",
+      "evidence": "gate=CLOSED"
+    },
+    {
+      "id": "A07_AGK_HERMES_MAPPING",
+      "status": "PASS",
+      "evidence": "entries=32, errors=[]"
+    },
+    {
+      "id": "A08_HERMES_CAPABILITY_REGISTRY",
+      "status": "PASS",
+      "evidence": "entries=35, errors=[]"
+    },
+    {
+      "id": "A09_REPOSITORY_INVENTORY",
+      "status": "PASS",
+      "evidence": "observed={'tracked_file_count': 9938, 'literal_builtin_tool_count': 92, 'model_provider_plugin_directory_count': 36, 'memory_provider_directory_count': 8, 'platform_plugin_directory_count': 22, 'concrete_environment_count': 8}"
+    },
+    {
+      "id": "A10_INDEPENDENT_AUDIT_EVIDENCE",
+      "status": "PASS",
+      "evidence": "reports=10, errors=[]"
+    },
+    {
+      "id": "A10B_SOURCE_REFERENCES",
+      "status": "PASS",
+      "evidence": "errors=[]"
+    },
+    {
+      "id": "A11_DOCUMENT_QUALITY",
+      "status": "PASS",
+      "evidence": "quality=[], placeholders=[], dashes=[]"
+    },
+    {
+      "id": "A12_CANONICAL_VOCABULARY",
+      "status": "PASS",
+      "evidence": "retired=[], forbidden=[]"
+    },
+    {
+      "id": "A13_CANONICAL_SEMANTICS",
+      "status": "PASS",
+      "evidence": "errors=[]"
+    },
+    {
+      "id": "A14_IMPLEMENTATION_TASKS_AND_DAG",
+      "status": "PASS",
+      "evidence": "count=36, errors=[]"
+    },
+    {
+      "id": "A15_ROADMAP_DAG",
+      "status": "PASS",
+      "evidence": "phases=13, errors=[]"
+    },
+    {
+      "id": "A16_DECISION_LOG",
+      "status": "PASS",
+      "evidence": "entries=10, errors=[]"
+    },
+    {
+      "id": "A17_MASTER_DELIVERABLE_SECTIONS",
+      "status": "PASS",
+      "evidence": "errors=[]"
+    },
+    {
+      "id": "A18_TEST_EVIDENCE_SHAPE",
+      "status": "PASS",
+      "evidence": "keys=['architecture_validator', 'desktop_contribution_tests', 'git_diff_check', 'hermes_targeted_python_tests', 'note', 'product_implementation_allowed', 'python_lint', 'schema_version', 'validator_mutation_tests']"
+    },
+    {
+      "id": "A18B_FINAL_INDEPENDENT_REVIEW",
+      "status": "PASS",
+      "evidence": "areas=['canon', 'validator', 'audit', 'runtime']"
+    },
+    {
+      "id": "A19_NO_PRODUCT_IMPLEMENTATION",
+      "status": "PASS",
+      "evidence": "ssot_code=[], outside=[], committed=[], hidden=[]"
+    },
+    {
+      "id": "A20_UPSTREAM_MODIFICATION_REGISTER",
+      "status": "PASS",
+      "evidence": "outside=[], committed=[]"
+    }
+  ]
+}

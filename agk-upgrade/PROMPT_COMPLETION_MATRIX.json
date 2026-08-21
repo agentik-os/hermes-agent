@@ -1,0 +1,1676 @@
+{
+  "schema_version": "1.0.0",
+  "prompt_path": "agk-upgrade/00-input/OPERATOR_PROMPT.md",
+  "prompt_lines": 7980,
+  "numbered_instruction_groups": 206,
+  "status_semantics": {
+    "COVERED": "Audited or specified with evidence, not necessarily implemented.",
+    "PARTIAL": "Some required planning or canonical propagation remains.",
+    "NOT_APPLICABLE": "The instruction is planning, audit or governance rather than product implementation.",
+    "NOT_STARTED": "No working product implementation exists.",
+    "DEFERRED": "Explicitly postponed by roadmap or scope.",
+    "BLOCKED_BY_GATE": "Cannot proceed while the canonical Build Gate is closed."
+  },
+  "counts": {
+    "planning": {
+      "COVERED": 198,
+      "PARTIAL": 8
+    },
+    "implementation": {
+      "NOT_APPLICABLE": 35,
+      "NOT_STARTED": 99,
+      "DEFERRED": 68,
+      "BLOCKED_BY_GATE": 4
+    }
+  },
+  "rows": [
+    {
+      "section": 1,
+      "source_line": 31,
+      "title": "Core principle",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_APPLICABLE",
+      "evidence_family": "audit, AGK specs and gap analysis"
+    },
+    {
+      "section": 2,
+      "source_line": 61,
+      "title": "AGK product vision",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_APPLICABLE",
+      "evidence_family": "audit, AGK specs and gap analysis"
+    },
+    {
+      "section": 3,
+      "source_line": 116,
+      "title": "AGK product universes",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_APPLICABLE",
+      "evidence_family": "audit, AGK specs and gap analysis"
+    },
+    {
+      "section": 4,
+      "source_line": 133,
+      "title": "Target architecture",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_APPLICABLE",
+      "evidence_family": "audit, AGK specs and gap analysis"
+    },
+    {
+      "section": 5,
+      "source_line": 169,
+      "title": "Complete Hermes capability audit",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_APPLICABLE",
+      "evidence_family": "audit, AGK specs and gap analysis"
+    },
+    {
+      "section": 6,
+      "source_line": 257,
+      "title": "Hermes capability registry",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_APPLICABLE",
+      "evidence_family": "audit, AGK specs and gap analysis"
+    },
+    {
+      "section": 7,
+      "source_line": 289,
+      "title": "Define AGK requirements independently",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_APPLICABLE",
+      "evidence_family": "audit, AGK specs and gap analysis"
+    },
+    {
+      "section": 8,
+      "source_line": 334,
+      "title": "Core AGK objects",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_APPLICABLE",
+      "evidence_family": "audit, AGK specs and gap analysis"
+    },
+    {
+      "section": 9,
+      "source_line": 510,
+      "title": "Compare Hermes and AGK",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_APPLICABLE",
+      "evidence_family": "audit, AGK specs and gap analysis"
+    },
+    {
+      "section": 10,
+      "source_line": 549,
+      "title": "AGK compatibility layer",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "AGK specs and implementation contracts"
+    },
+    {
+      "section": 11,
+      "source_line": 586,
+      "title": "Runtime interface",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "AGK specs and implementation contracts"
+    },
+    {
+      "section": 12,
+      "source_line": 620,
+      "title": "Model provider architecture",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "AGK specs and implementation contracts"
+    },
+    {
+      "section": 13,
+      "source_line": 663,
+      "title": "Machines and runtimes",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "AGK specs and implementation contracts"
+    },
+    {
+      "section": 14,
+      "source_line": 691,
+      "title": "Sessions and terminals",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "AGK specs and implementation contracts"
+    },
+    {
+      "section": 15,
+      "source_line": 715,
+      "title": "Artifacts",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "AGK specs and implementation contracts"
+    },
+    {
+      "section": 16,
+      "source_line": 751,
+      "title": "Memory and knowledge",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "AGK specs and implementation contracts"
+    },
+    {
+      "section": 17,
+      "source_line": 776,
+      "title": "Communication layer",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "AGK specs and implementation contracts"
+    },
+    {
+      "section": 18,
+      "source_line": 803,
+      "title": "Events and observability",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "AGK specs and implementation contracts"
+    },
+    {
+      "section": 19,
+      "source_line": 833,
+      "title": "Evaluations",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "AGK specs and implementation contracts"
+    },
+    {
+      "section": 20,
+      "source_line": 855,
+      "title": "AGK Architect",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "AGK specs and implementation contracts"
+    },
+    {
+      "section": 21,
+      "source_line": 880,
+      "title": "AGK Labs",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "AGK specs and implementation contracts"
+    },
+    {
+      "section": 22,
+      "source_line": 904,
+      "title": "Versioning",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "AGK specs and implementation contracts"
+    },
+    {
+      "section": 23,
+      "source_line": 923,
+      "title": "Marketplace readiness",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "AGK specs and implementation contracts"
+    },
+    {
+      "section": 24,
+      "source_line": 953,
+      "title": "Multi-user and organizations",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "AGK specs and implementation contracts"
+    },
+    {
+      "section": 25,
+      "source_line": 974,
+      "title": "Security model",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "AGK specs and implementation contracts"
+    },
+    {
+      "section": 26,
+      "source_line": 998,
+      "title": "Upstream compatibility",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_APPLICABLE",
+      "evidence_family": "upstream strategy, roadmap, tasks, decisions and mapping"
+    },
+    {
+      "section": 27,
+      "source_line": 1029,
+      "title": "Implementation roadmap",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_APPLICABLE",
+      "evidence_family": "upstream strategy, roadmap, tasks, decisions and mapping"
+    },
+    {
+      "section": 28,
+      "source_line": 1074,
+      "title": "Implementation tasks",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_APPLICABLE",
+      "evidence_family": "upstream strategy, roadmap, tasks, decisions and mapping"
+    },
+    {
+      "section": 29,
+      "source_line": 1110,
+      "title": "Decision log",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_APPLICABLE",
+      "evidence_family": "upstream strategy, roadmap, tasks, decisions and mapping"
+    },
+    {
+      "section": 30,
+      "source_line": 1132,
+      "title": "AGK to Hermes mapping registry",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_APPLICABLE",
+      "evidence_family": "upstream strategy, roadmap, tasks, decisions and mapping"
+    },
+    {
+      "section": 31,
+      "source_line": 1161,
+      "title": "AGK implementation boundaries",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_APPLICABLE",
+      "evidence_family": "master blueprint, task contracts and architecture validator"
+    },
+    {
+      "section": 32,
+      "source_line": 1208,
+      "title": "No blind renaming",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_APPLICABLE",
+      "evidence_family": "master blueprint, task contracts and architecture validator"
+    },
+    {
+      "section": 33,
+      "source_line": 1229,
+      "title": "No premature UI",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_APPLICABLE",
+      "evidence_family": "master blueprint, task contracts and architecture validator"
+    },
+    {
+      "section": 34,
+      "source_line": 1247,
+      "title": "No unnecessary rewrites",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_APPLICABLE",
+      "evidence_family": "master blueprint, task contracts and architecture validator"
+    },
+    {
+      "section": 35,
+      "source_line": 1259,
+      "title": "Code quality standards",
+      "planning_status": "PARTIAL",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "master blueprint, task contracts and architecture validator"
+    },
+    {
+      "section": 36,
+      "source_line": 1286,
+      "title": "Tests",
+      "planning_status": "PARTIAL",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "master blueprint, task contracts and architecture validator"
+    },
+    {
+      "section": 37,
+      "source_line": 1305,
+      "title": "Definition of done for each AGK feature",
+      "planning_status": "PARTIAL",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "master blueprint, task contracts and architecture validator"
+    },
+    {
+      "section": 38,
+      "source_line": 1326,
+      "title": "Initial execution sequence",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_APPLICABLE",
+      "evidence_family": "master blueprint, task contracts and architecture validator"
+    },
+    {
+      "section": 39,
+      "source_line": 1376,
+      "title": "Questions to answer continuously",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_APPLICABLE",
+      "evidence_family": "master blueprint, task contracts and architecture validator"
+    },
+    {
+      "section": 40,
+      "source_line": 1401,
+      "title": "Challenge AGK assumptions",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_APPLICABLE",
+      "evidence_family": "master blueprint, task contracts and architecture validator"
+    },
+    {
+      "section": 41,
+      "source_line": 1423,
+      "title": "Required final architecture deliverable",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_APPLICABLE",
+      "evidence_family": "master blueprint, task contracts and architecture validator"
+    },
+    {
+      "section": 42,
+      "source_line": 1466,
+      "title": "Final objective",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "master blueprint, task contracts and architecture validator"
+    },
+    {
+      "section": 43,
+      "source_line": 1503,
+      "title": "Hermes to AGK desktop information architecture",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "desktop, Canvas and OS alignment specifications"
+    },
+    {
+      "section": 44,
+      "source_line": 2229,
+      "title": "Organization Canvas and Operate, Build, Inspect experience",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "desktop, Canvas and OS alignment specifications"
+    },
+    {
+      "section": 45,
+      "source_line": 2903,
+      "title": "OS as an autonomous composable intelligence system",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "desktop, Canvas and OS alignment specifications"
+    },
+    {
+      "section": 46,
+      "source_line": 3435,
+      "title": "AGK Architect — continued",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "product alignment specifications and deferred roadmap"
+    },
+    {
+      "section": 47,
+      "source_line": 3510,
+      "title": "AGK Labs",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "product alignment specifications and deferred roadmap"
+    },
+    {
+      "section": 48,
+      "source_line": 3564,
+      "title": "Self-improvement loop",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "product alignment specifications and deferred roadmap"
+    },
+    {
+      "section": 49,
+      "source_line": 3598,
+      "title": "Unified AGK ecosystem",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "product alignment specifications and deferred roadmap"
+    },
+    {
+      "section": 50,
+      "source_line": 3636,
+      "title": "Shared account and identity",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "product alignment specifications and deferred roadmap"
+    },
+    {
+      "section": 51,
+      "source_line": 3670,
+      "title": "Shared navigation philosophy",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "product alignment specifications and deferred roadmap"
+    },
+    {
+      "section": 52,
+      "source_line": 3695,
+      "title": "AGK Learn",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "product alignment specifications and deferred roadmap"
+    },
+    {
+      "section": 53,
+      "source_line": 3725,
+      "title": "Learn structure",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "product alignment specifications and deferred roadmap"
+    },
+    {
+      "section": 54,
+      "source_line": 3753,
+      "title": "Learning Paths",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "product alignment specifications and deferred roadmap"
+    },
+    {
+      "section": 55,
+      "source_line": 3806,
+      "title": "Learn → Build connection",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "product alignment specifications and deferred roadmap"
+    },
+    {
+      "section": 56,
+      "source_line": 3839,
+      "title": "Interactive learning",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "product alignment specifications and deferred roadmap"
+    },
+    {
+      "section": 57,
+      "source_line": 3877,
+      "title": "Community",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "product alignment specifications and deferred roadmap"
+    },
+    {
+      "section": 58,
+      "source_line": 3908,
+      "title": "Community Spaces",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "product alignment specifications and deferred roadmap"
+    },
+    {
+      "section": 59,
+      "source_line": 3932,
+      "title": "Community identity",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "product alignment specifications and deferred roadmap"
+    },
+    {
+      "section": 60,
+      "source_line": 3960,
+      "title": "Member graph",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "product alignment specifications and deferred roadmap"
+    },
+    {
+      "section": 61,
+      "source_line": 3982,
+      "title": "Reputation",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "product alignment specifications and deferred roadmap"
+    },
+    {
+      "section": 62,
+      "source_line": 4006,
+      "title": "Events",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "product alignment specifications and deferred roadmap"
+    },
+    {
+      "section": 63,
+      "source_line": 4036,
+      "title": "Coworking / live rooms",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "product alignment specifications and deferred roadmap"
+    },
+    {
+      "section": 64,
+      "source_line": 4054,
+      "title": "Community + agents",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "product alignment specifications and deferred roadmap"
+    },
+    {
+      "section": 65,
+      "source_line": 4083,
+      "title": "AGK Deals, canonicalized from the captured legacy label",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "product alignment specifications and deferred roadmap"
+    },
+    {
+      "section": 66,
+      "source_line": 4108,
+      "title": "Deals is not just a job board",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "product alignment specifications and deferred roadmap"
+    },
+    {
+      "section": 67,
+      "source_line": 4140,
+      "title": "Opportunity object",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "product alignment specifications and deferred roadmap"
+    },
+    {
+      "section": 68,
+      "source_line": 4177,
+      "title": "Deal object",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "product alignment specifications and deferred roadmap"
+    },
+    {
+      "section": 69,
+      "source_line": 4206,
+      "title": "Referral system",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "product alignment specifications and deferred roadmap"
+    },
+    {
+      "section": 70,
+      "source_line": 4239,
+      "title": "Commission engine",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "product alignment specifications and deferred roadmap"
+    },
+    {
+      "section": 71,
+      "source_line": 4259,
+      "title": "Deal matching",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "product alignment specifications and deferred roadmap"
+    },
+    {
+      "section": 72,
+      "source_line": 4301,
+      "title": "Build → Deals connection",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "product alignment specifications and deferred roadmap"
+    },
+    {
+      "section": 73,
+      "source_line": 4336,
+      "title": "Marketplace",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "product alignment specifications and deferred roadmap"
+    },
+    {
+      "section": 74,
+      "source_line": 4378,
+      "title": "Service marketplace",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "product alignment specifications and deferred roadmap"
+    },
+    {
+      "section": 75,
+      "source_line": 4400,
+      "title": "Learn → Deals connection",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "product alignment specifications and deferred roadmap"
+    },
+    {
+      "section": 76,
+      "source_line": 4426,
+      "title": "Community → Deals connection",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "product alignment specifications and deferred roadmap"
+    },
+    {
+      "section": 77,
+      "source_line": 4447,
+      "title": "Portfolio",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "product alignment specifications and deferred roadmap"
+    },
+    {
+      "section": 78,
+      "source_line": 4468,
+      "title": "AGK Self, canonicalized from the captured legacy label",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "product alignment specifications and deferred roadmap"
+    },
+    {
+      "section": 79,
+      "source_line": 4502,
+      "title": "Personal OS architecture",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "product alignment specifications and deferred roadmap"
+    },
+    {
+      "section": 80,
+      "source_line": 4534,
+      "title": "Self should reuse Build primitives",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "product alignment specifications and deferred roadmap"
+    },
+    {
+      "section": 81,
+      "source_line": 4571,
+      "title": "Personal Oracle concept",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "product alignment specifications and deferred roadmap"
+    },
+    {
+      "section": 82,
+      "source_line": 4609,
+      "title": "Personal memory",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "product alignment specifications and deferred roadmap"
+    },
+    {
+      "section": 83,
+      "source_line": 4634,
+      "title": "Privacy boundary",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "product alignment specifications and deferred roadmap"
+    },
+    {
+      "section": 84,
+      "source_line": 4667,
+      "title": "Self + Learn",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "product alignment specifications and deferred roadmap"
+    },
+    {
+      "section": 85,
+      "source_line": 4689,
+      "title": "Self + Build",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "product alignment specifications and deferred roadmap"
+    },
+    {
+      "section": 86,
+      "source_line": 4713,
+      "title": "Self + Deals",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "product alignment specifications and deferred roadmap"
+    },
+    {
+      "section": 87,
+      "source_line": 4733,
+      "title": "Unified user dashboard",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "product alignment specifications and deferred roadmap"
+    },
+    {
+      "section": 88,
+      "source_line": 4763,
+      "title": "AGK Inbox",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "product alignment specifications and deferred roadmap"
+    },
+    {
+      "section": 89,
+      "source_line": 4805,
+      "title": "Universal search",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "product alignment specifications and deferred roadmap"
+    },
+    {
+      "section": 90,
+      "source_line": 4834,
+      "title": "Universal creation",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "product alignment specifications and deferred roadmap"
+    },
+    {
+      "section": 91,
+      "source_line": 4859,
+      "title": "AGK Learn product model",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "product alignment specifications and deferred roadmap"
+    },
+    {
+      "section": 92,
+      "source_line": 4899,
+      "title": "Community product model",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "product alignment specifications and deferred roadmap"
+    },
+    {
+      "section": 93,
+      "source_line": 4920,
+      "title": "Deals product model",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "product alignment specifications and deferred roadmap"
+    },
+    {
+      "section": 94,
+      "source_line": 4942,
+      "title": "Self product model",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "product alignment specifications and deferred roadmap"
+    },
+    {
+      "section": 95,
+      "source_line": 4969,
+      "title": "Shared primitives vs surface-specific primitives",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "shared platform, Runtime, client, package and security specifications"
+    },
+    {
+      "section": 96,
+      "source_line": 4996,
+      "title": "Shared object graph",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "shared platform, Runtime, client, package and security specifications"
+    },
+    {
+      "section": 97,
+      "source_line": 5028,
+      "title": "AGK economic flywheel",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "shared platform, Runtime, client, package and security specifications"
+    },
+    {
+      "section": 98,
+      "source_line": 5073,
+      "title": "AGK product surfaces must remain modular",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "shared platform, Runtime, client, package and security specifications"
+    },
+    {
+      "section": 99,
+      "source_line": 5093,
+      "title": "Suggested platform decomposition",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "shared platform, Runtime, client, package and security specifications"
+    },
+    {
+      "section": 100,
+      "source_line": 5150,
+      "title": "Product navigation",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "shared platform, Runtime, client, package and security specifications"
+    },
+    {
+      "section": 101,
+      "source_line": 5207,
+      "title": "Context-preserving navigation",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "shared platform, Runtime, client, package and security specifications"
+    },
+    {
+      "section": 102,
+      "source_line": 5246,
+      "title": "AGK Home should surface outcomes, not applications",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "shared platform, Runtime, client, package and security specifications"
+    },
+    {
+      "section": 103,
+      "source_line": 5269,
+      "title": "Notifications",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "shared platform, Runtime, client, package and security specifications"
+    },
+    {
+      "section": 104,
+      "source_line": 5287,
+      "title": "Global activity graph",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "shared platform, Runtime, client, package and security specifications"
+    },
+    {
+      "section": 105,
+      "source_line": 5302,
+      "title": "Shared AI assistant vs entity-specific conversations",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "shared platform, Runtime, client, package and security specifications"
+    },
+    {
+      "section": 106,
+      "source_line": 5329,
+      "title": "Community moderation",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "shared platform, Runtime, client, package and security specifications"
+    },
+    {
+      "section": 107,
+      "source_line": 5348,
+      "title": "Course creation",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "shared platform, Runtime, client, package and security specifications"
+    },
+    {
+      "section": 108,
+      "source_line": 5376,
+      "title": "Creator economy",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "shared platform, Runtime, client, package and security specifications"
+    },
+    {
+      "section": 109,
+      "source_line": 5403,
+      "title": "Certifications",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "shared platform, Runtime, client, package and security specifications"
+    },
+    {
+      "section": 110,
+      "source_line": 5425,
+      "title": "Capability graph",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "shared platform, Runtime, client, package and security specifications"
+    },
+    {
+      "section": 111,
+      "source_line": 5458,
+      "title": "Human + AI Teams",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "shared platform, Runtime, client, package and security specifications"
+    },
+    {
+      "section": 112,
+      "source_line": 5488,
+      "title": "Client access",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "shared platform, Runtime, client, package and security specifications"
+    },
+    {
+      "section": 113,
+      "source_line": 5514,
+      "title": "Delivery Rooms",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "shared platform, Runtime, client, package and security specifications"
+    },
+    {
+      "section": 114,
+      "source_line": 5544,
+      "title": "Learn projects can become portfolio work",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "shared platform, Runtime, client, package and security specifications"
+    },
+    {
+      "section": 115,
+      "source_line": 5562,
+      "title": "Self projects",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "shared platform, Runtime, client, package and security specifications"
+    },
+    {
+      "section": 116,
+      "source_line": 5584,
+      "title": "Daily intelligence layer",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "shared platform, Runtime, client, package and security specifications"
+    },
+    {
+      "section": 117,
+      "source_line": 5606,
+      "title": "Recommendation engine",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "shared platform, Runtime, client, package and security specifications"
+    },
+    {
+      "section": 118,
+      "source_line": 5635,
+      "title": "Search / discovery graph",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "shared platform, Runtime, client, package and security specifications"
+    },
+    {
+      "section": 119,
+      "source_line": 5656,
+      "title": "Cross-surface permissions",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "shared platform, Runtime, client, package and security specifications"
+    },
+    {
+      "section": 120,
+      "source_line": 5682,
+      "title": "Shared artifact system",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "shared platform, Runtime, client, package and security specifications"
+    },
+    {
+      "section": 121,
+      "source_line": 5703,
+      "title": "Shared evaluation system",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "shared platform, Runtime, client, package and security specifications"
+    },
+    {
+      "section": 122,
+      "source_line": 5720,
+      "title": "Shared event bus",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "shared platform, Runtime, client, package and security specifications"
+    },
+    {
+      "section": 123,
+      "source_line": 5743,
+      "title": "Automations across surfaces",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "shared platform, Runtime, client, package and security specifications"
+    },
+    {
+      "section": 124,
+      "source_line": 5762,
+      "title": "Cron across product surfaces",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "shared platform, Runtime, client, package and security specifications"
+    },
+    {
+      "section": 125,
+      "source_line": 5783,
+      "title": "Mobile strategy",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "shared platform, Runtime, client, package and security specifications"
+    },
+    {
+      "section": 126,
+      "source_line": 5804,
+      "title": "Desktop strategy",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "shared platform, Runtime, client, package and security specifications"
+    },
+    {
+      "section": 127,
+      "source_line": 5823,
+      "title": "Web strategy",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "shared platform, Runtime, client, package and security specifications"
+    },
+    {
+      "section": 128,
+      "source_line": 5838,
+      "title": "AGK Runtime topology",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "shared platform, Runtime, client, package and security specifications"
+    },
+    {
+      "section": 129,
+      "source_line": 5856,
+      "title": "SaaS control plane",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "shared platform, Runtime, client, package and security specifications"
+    },
+    {
+      "section": 130,
+      "source_line": 5888,
+      "title": "Offline / local ownership",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "shared platform, Runtime, client, package and security specifications"
+    },
+    {
+      "section": 131,
+      "source_line": 5907,
+      "title": "Package model",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "shared platform, Runtime, client, package and security specifications"
+    },
+    {
+      "section": 132,
+      "source_line": 5941,
+      "title": "Provenance",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "shared platform, Runtime, client, package and security specifications"
+    },
+    {
+      "section": 133,
+      "source_line": 5969,
+      "title": "Trust tiers",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "shared platform, Runtime, client, package and security specifications"
+    },
+    {
+      "section": 134,
+      "source_line": 5992,
+      "title": "Capability security",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "shared platform, Runtime, client, package and security specifications"
+    },
+    {
+      "section": 135,
+      "source_line": 6012,
+      "title": "Marketplace security",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "shared platform, Runtime, client, package and security specifications"
+    },
+    {
+      "section": 136,
+      "source_line": 6036,
+      "title": "AGK Build UX should remain the deepest surface",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "UX, Canvas, Organization and control-plane specifications"
+    },
+    {
+      "section": 137,
+      "source_line": 6073,
+      "title": "Learn UX should feel simpler",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "UX, Canvas, Organization and control-plane specifications"
+    },
+    {
+      "section": 138,
+      "source_line": 6089,
+      "title": "Deals UX should prioritize economic action",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "UX, Canvas, Organization and control-plane specifications"
+    },
+    {
+      "section": 139,
+      "source_line": 6105,
+      "title": "Self UX should prioritize clarity",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "UX, Canvas, Organization and control-plane specifications"
+    },
+    {
+      "section": 140,
+      "source_line": 6121,
+      "title": "Different complexity, same platform",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "UX, Canvas, Organization and control-plane specifications"
+    },
+    {
+      "section": 141,
+      "source_line": 6139,
+      "title": "Community should connect all surfaces carefully",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "UX, Canvas, Organization and control-plane specifications"
+    },
+    {
+      "section": 142,
+      "source_line": 6160,
+      "title": "Organizations as community + work systems",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "UX, Canvas, Organization and control-plane specifications"
+    },
+    {
+      "section": 143,
+      "source_line": 6179,
+      "title": "Organization-as-product",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "UX, Canvas, Organization and control-plane specifications"
+    },
+    {
+      "section": 144,
+      "source_line": 6209,
+      "title": "Organization memberships",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "UX, Canvas, Organization and control-plane specifications"
+    },
+    {
+      "section": 145,
+      "source_line": 6227,
+      "title": "Organization monetization",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "UX, Canvas, Organization and control-plane specifications"
+    },
+    {
+      "section": 146,
+      "source_line": 6246,
+      "title": "White-label / creator organizations",
+      "planning_status": "COVERED",
+      "implementation_status": "DEFERRED",
+      "evidence_family": "UX, Canvas, Organization and control-plane specifications"
+    },
+    {
+      "section": 147,
+      "source_line": 6278,
+      "title": "AGK differentiator",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "UX, Canvas, Organization and control-plane specifications"
+    },
+    {
+      "section": 148,
+      "source_line": 6292,
+      "title": "Canonical product loop",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "UX, Canvas, Organization and control-plane specifications"
+    },
+    {
+      "section": 149,
+      "source_line": 6319,
+      "title": "First-time user experience",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "UX, Canvas, Organization and control-plane specifications"
+    },
+    {
+      "section": 150,
+      "source_line": 6340,
+      "title": "Advanced user experience",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "UX, Canvas, Organization and control-plane specifications"
+    },
+    {
+      "section": 151,
+      "source_line": 6367,
+      "title": "Never hide operational reality",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "UX, Canvas, Organization and control-plane specifications"
+    },
+    {
+      "section": 152,
+      "source_line": 6397,
+      "title": "Progressive disclosure",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "UX, Canvas, Organization and control-plane specifications"
+    },
+    {
+      "section": 153,
+      "source_line": 6416,
+      "title": "Graph views",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "UX, Canvas, Organization and control-plane specifications"
+    },
+    {
+      "section": 154,
+      "source_line": 6448,
+      "title": "Canvas filters",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "UX, Canvas, Organization and control-plane specifications"
+    },
+    {
+      "section": 155,
+      "source_line": 6467,
+      "title": "Canvas grouping",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "UX, Canvas, Organization and control-plane specifications"
+    },
+    {
+      "section": 156,
+      "source_line": 6481,
+      "title": "Canvas creation flow",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "UX, Canvas, Organization and control-plane specifications"
+    },
+    {
+      "section": 157,
+      "source_line": 6510,
+      "title": "Natural language Canvas editing",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "UX, Canvas, Organization and control-plane specifications"
+    },
+    {
+      "section": 158,
+      "source_line": 6539,
+      "title": "Graph diff",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "UX, Canvas, Organization and control-plane specifications"
+    },
+    {
+      "section": 159,
+      "source_line": 6563,
+      "title": "Organization versioning",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "UX, Canvas, Organization and control-plane specifications"
+    },
+    {
+      "section": 160,
+      "source_line": 6580,
+      "title": "Declarative organization manifests",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "UX, Canvas, Organization and control-plane specifications"
+    },
+    {
+      "section": 161,
+      "source_line": 6610,
+      "title": "Source of truth",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "UX, Canvas, Organization and control-plane specifications"
+    },
+    {
+      "section": 162,
+      "source_line": 6639,
+      "title": "AGK control plane vs runtime",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "UX, Canvas, Organization and control-plane specifications"
+    },
+    {
+      "section": 163,
+      "source_line": 6682,
+      "title": "Persistent domain intelligence",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "UX, Canvas, Organization and control-plane specifications"
+    },
+    {
+      "section": 164,
+      "source_line": 6703,
+      "title": "Concrete example: complete company organization",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "reference scenarios and priority roadmap"
+    },
+    {
+      "section": 165,
+      "source_line": 6745,
+      "title": "Concrete OS test: Builder OS",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "reference scenarios and priority roadmap"
+    },
+    {
+      "section": 166,
+      "source_line": 6808,
+      "title": "Concrete OS test: Librarian OS",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "reference scenarios and priority roadmap"
+    },
+    {
+      "section": 167,
+      "source_line": 6848,
+      "title": "Concrete Self test: Journal OS",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "reference scenarios and priority roadmap"
+    },
+    {
+      "section": 168,
+      "source_line": 6884,
+      "title": "Concrete Learn test",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "reference scenarios and priority roadmap"
+    },
+    {
+      "section": 169,
+      "source_line": 6907,
+      "title": "Concrete Deals test",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "reference scenarios and priority roadmap"
+    },
+    {
+      "section": 170,
+      "source_line": 6936,
+      "title": "Concrete community test",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "reference scenarios and priority roadmap"
+    },
+    {
+      "section": 171,
+      "source_line": 6964,
+      "title": "Concrete full ecosystem test",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "reference scenarios and priority roadmap"
+    },
+    {
+      "section": 172,
+      "source_line": 7010,
+      "title": "Do not overbuild",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_APPLICABLE",
+      "evidence_family": "reference scenarios and priority roadmap"
+    },
+    {
+      "section": 173,
+      "source_line": 7028,
+      "title": "MVP discipline",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_APPLICABLE",
+      "evidence_family": "reference scenarios and priority roadmap"
+    },
+    {
+      "section": 174,
+      "source_line": 7063,
+      "title": "Required architecture reconciliation",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_APPLICABLE",
+      "evidence_family": "post-Stepper alignment and registries"
+    },
+    {
+      "section": 175,
+      "source_line": 7104,
+      "title": "Refined vision diff",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_APPLICABLE",
+      "evidence_family": "post-Stepper alignment and registries"
+    },
+    {
+      "section": 176,
+      "source_line": 7121,
+      "title": "Stepper impact analysis",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_APPLICABLE",
+      "evidence_family": "post-Stepper alignment and registries"
+    },
+    {
+      "section": 177,
+      "source_line": 7155,
+      "title": "Preserve completed validation",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_APPLICABLE",
+      "evidence_family": "post-Stepper alignment and registries"
+    },
+    {
+      "section": 178,
+      "source_line": 7173,
+      "title": "Update canonical ontology",
+      "planning_status": "PARTIAL",
+      "implementation_status": "BLOCKED_BY_GATE",
+      "evidence_family": "post-Stepper alignment and registries"
+    },
+    {
+      "section": 179,
+      "source_line": 7201,
+      "title": "Update AGK master blueprint",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_APPLICABLE",
+      "evidence_family": "post-Stepper alignment and registries"
+    },
+    {
+      "section": 180,
+      "source_line": 7228,
+      "title": "Update machine-readable registries",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_APPLICABLE",
+      "evidence_family": "post-Stepper alignment and registries"
+    },
+    {
+      "section": 181,
+      "source_line": 7259,
+      "title": "Required Hermes analysis update",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_APPLICABLE",
+      "evidence_family": "post-Stepper alignment and registries"
+    },
+    {
+      "section": 182,
+      "source_line": 7285,
+      "title": "Avoid false duplication",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "boundary, privacy, permissions and commercial specifications"
+    },
+    {
+      "section": 183,
+      "source_line": 7315,
+      "title": "Product-specific code boundaries",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "boundary, privacy, permissions and commercial specifications"
+    },
+    {
+      "section": 184,
+      "source_line": 7363,
+      "title": "Avoid product leakage",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "boundary, privacy, permissions and commercial specifications"
+    },
+    {
+      "section": 185,
+      "source_line": 7376,
+      "title": "Learn can use intelligence, but intelligence should not depend on Learn",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "boundary, privacy, permissions and commercial specifications"
+    },
+    {
+      "section": 186,
+      "source_line": 7396,
+      "title": "Self privacy defaults",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "boundary, privacy, permissions and commercial specifications"
+    },
+    {
+      "section": 187,
+      "source_line": 7417,
+      "title": "Deals privacy defaults",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "boundary, privacy, permissions and commercial specifications"
+    },
+    {
+      "section": 188,
+      "source_line": 7435,
+      "title": "Community privacy",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "boundary, privacy, permissions and commercial specifications"
+    },
+    {
+      "section": 189,
+      "source_line": 7451,
+      "title": "Learning access",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "boundary, privacy, permissions and commercial specifications"
+    },
+    {
+      "section": 190,
+      "source_line": 7466,
+      "title": "Commercial system abstraction",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "boundary, privacy, permissions and commercial specifications"
+    },
+    {
+      "section": 191,
+      "source_line": 7485,
+      "title": "Entitlements",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "boundary, privacy, permissions and commercial specifications"
+    },
+    {
+      "section": 192,
+      "source_line": 7502,
+      "title": "Affiliate / referral attribution",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "boundary, privacy, permissions and commercial specifications"
+    },
+    {
+      "section": 193,
+      "source_line": 7521,
+      "title": "Auditability",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "boundary, privacy, permissions and commercial specifications"
+    },
+    {
+      "section": 194,
+      "source_line": 7539,
+      "title": "Observability across all AGK surfaces",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "boundary, privacy, permissions and commercial specifications"
+    },
+    {
+      "section": 195,
+      "source_line": 7573,
+      "title": "AGK should feel coherent",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "boundary, privacy, permissions and commercial specifications"
+    },
+    {
+      "section": 196,
+      "source_line": 7593,
+      "title": "Final product philosophy",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "boundary, privacy, permissions and commercial specifications"
+    },
+    {
+      "section": 197,
+      "source_line": 7608,
+      "title": "Strategic architecture test",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "final alignment report, Stepper impact and Build Gate evidence"
+    },
+    {
+      "section": 198,
+      "source_line": 7644,
+      "title": "Implementation priority framework",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_APPLICABLE",
+      "evidence_family": "final alignment report, Stepper impact and Build Gate evidence"
+    },
+    {
+      "section": 199,
+      "source_line": 7697,
+      "title": "Required final deliverable before implementation resumes",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_APPLICABLE",
+      "evidence_family": "final alignment report, Stepper impact and Build Gate evidence"
+    },
+    {
+      "section": 200,
+      "source_line": 7742,
+      "title": "Update Stepper instead of replacing it",
+      "planning_status": "PARTIAL",
+      "implementation_status": "BLOCKED_BY_GATE",
+      "evidence_family": "final alignment report, Stepper impact and Build Gate evidence"
+    },
+    {
+      "section": 201,
+      "source_line": 7763,
+      "title": "No coding until reconciliation passes",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_APPLICABLE",
+      "evidence_family": "final alignment report, Stepper impact and Build Gate evidence"
+    },
+    {
+      "section": 202,
+      "source_line": 7787,
+      "title": "Implementation rule",
+      "planning_status": "PARTIAL",
+      "implementation_status": "BLOCKED_BY_GATE",
+      "evidence_family": "final alignment report, Stepper impact and Build Gate evidence"
+    },
+    {
+      "section": 203,
+      "source_line": 7801,
+      "title": "Final AGK architecture",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "final alignment report, Stepper impact and Build Gate evidence"
+    },
+    {
+      "section": 204,
+      "source_line": 7858,
+      "title": "The central architectural insight",
+      "planning_status": "COVERED",
+      "implementation_status": "NOT_APPLICABLE",
+      "evidence_family": "final alignment report, Stepper impact and Build Gate evidence"
+    },
+    {
+      "section": 205,
+      "source_line": 7880,
+      "title": "Final success condition",
+      "planning_status": "PARTIAL",
+      "implementation_status": "NOT_STARTED",
+      "evidence_family": "final alignment report, Stepper impact and Build Gate evidence"
+    },
+    {
+      "section": 206,
+      "source_line": 7923,
+      "title": "Final instruction",
+      "planning_status": "PARTIAL",
+      "implementation_status": "BLOCKED_BY_GATE",
+      "evidence_family": "final alignment report, Stepper impact and Build Gate evidence"
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "schema_version": "2.0.0",
+  "architecture_validator": {
+    "command": "python3 agk-upgrade/tools/validate_architecture.py",
+    "status": "PASS",
+    "passed": 22,
+    "failed": 0
+  },
+  "validator_mutation_tests": {
+    "command": "PYTHONDONTWRITEBYTECODE=1 python3 -m unittest agk-upgrade/tools/test_validate_architecture.py -v",
+    "status": "PASS",
+    "tests": 31
+  },
+  "python_lint": {
+    "command": "/Users/hacker/.hermes/venvs/agk-hermes-audit/bin/ruff check agk-upgrade/tools",
+    "status": "PASS"
+  },
+  "hermes_targeted_python_tests": {
+    "command": "HERMES_PYTHON=/Users/hacker/.hermes/venvs/agk-hermes-audit/bin/python scripts/run_tests.sh tests/hermes_cli/test_projects_db.py tests/tui_gateway/test_projects_rpc.py tests/agent/test_subagent_lifecycle.py tests/hermes_cli/test_plugin_api_compat.py tests/cron/test_scheduler_cron_session_isolation.py -q",
+    "status": "PASS",
+    "files": 5,
+    "tests": 44,
+    "failed": 0
+  },
+  "desktop_contribution_tests": {
+    "command": "npm --workspace apps/desktop exec -- vitest run --project ui src/contrib/plugin.test.ts src/contrib/react/slot.test.tsx src/contrib/runtime-loader.test.ts src/app/chat/composer/contrib.test.ts src/lib/keybinds/contributed-actions.test.ts",
+    "status": "PASS",
+    "files": 5,
+    "tests": 21,
+    "failed": 0
+  },
+  "git_diff_check": {
+    "command": "git diff --check",
+    "status": "PASS"
+  },
+  "product_implementation_allowed": false,
+  "note": "These results verify architecture tooling and sampled retained Hermes seams. They do not prove AGK product implementation."
+}

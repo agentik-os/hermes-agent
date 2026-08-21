@@ -1,0 +1,50 @@
+schema_version: 1.0.0
+source:
+  repository: https://github.com/agentik-os/AGK-OS.git
+  commit: a0a3284edfb21eeeec77d9e185b98ef05dbada0a
+surfaces: [learn, build, deals, self]
+os_parts:
+  - Purpose
+  - Principles
+  - Commands
+  - Flows
+  - Agents
+  - Skills
+  - Tools
+  - Knowledge
+  - Memory
+  - Policies
+  - Inputs
+  - Outputs
+  - Evals
+  - Quality Gates
+  - Dependencies
+  - Versions
+os_installation_scopes: [organization, project, os]
+os_installation_objects: [OSInstallation, OrganizationOSInstallation, ProjectOSBinding, OSBinding]
+project_stages: [IDEA, DISCOVERY, BLUEPRINT, ROADMAP, BUILD, VERIFY, RELEASE, OPERATE, IMPROVE]
+run_states: [queued, running, succeeded, failed, cancelled, timed_out]
+strategic_loop: [LEARN / DISCOVER, BUILD, PROVE, APPLY, CAPTURE LEARNING, IMPROVE]
+deals_chain: [Opportunity, Deal, Engagement, Contract, Project]
+client_stack:
+  reference: agk-web
+  desktop_wrapper: Tauri
+  mobile: Expo
+  hermes_electron_role: runtime_console_and_behavior_reference
+automation_contract: Trigger + executable target + policy
+flow_canvas_modes: [Build, Live, Debug, Replay, Analytics, Cost, Quality]
+organization_canvas_overlays: [Design, Live, Inspect]
+# Hex keeps rejected identifiers out of the derived vocabulary while allowing
+# the validator to enforce their absence.
+forbidden_derived_term_hex:
+  - "52756e74696d65576f726b737061636542696e64696e67"
+  - "50726f6a6563745265706f7369746f727942696e64696e67"
+  - "506f7274666f6c696f2045766964656e6365"
+  - "506f7274666f6c696f45766964656e6365"
+  - "43617365205374756479"
+  - "436173655374756479"
+  - "4175746f6d6174696f6e446566696e6974696f6e"
+  - "4175746f6d6174696f6e4465706c6f796d656e74"
+  - "5472696767657246697265417474656d7074"
+  - "52756e417474656d7074"
+

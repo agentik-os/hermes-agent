@@ -1,0 +1,397 @@
+schema_version: 1.0.0
+baseline:
+  hermes_commit: 8794e5a21c980a0f26532cb4883284b786cb3f25
+  agk_commit: a0a3284edfb21eeeec77d9e185b98ef05dbada0a
+agk:
+  organization:
+    hermes:
+      coverage: absent
+      components: []
+    strategy: NEW
+    boundary: AGK control plane only
+  project:
+    hermes:
+      coverage: semantic_conflict
+      components:
+        - hermes_cli/projects_db.py::Project
+        - hermes_cli/projects_db.py::create_project
+        - tui_gateway/project_tree.py::build_tree
+        - apps/desktop/src/store/projects.ts::$projects
+      note: Hermes Project is a named multi-folder runtime record, not an outcome-oriented organization.
+    strategy: NEW
+    adapter: HermesProject becomes private HermesProjectRecord data; folders may import into canonical RepositoryBinding and never become an AGK Project.
+  agent:
+    hermes:
+      coverage: strong_partial
+      components:
+        - run_agent.py::AIAgent
+        - agent/system_prompt.py::build_system_prompt_parts
+        - model_tools.py::get_tool_definitions
+        - hermes_state.py::SessionDB
+    strategy: EXTEND
+    additions:
+      - AGK object identity
+      - Agent Definition and Instance separation
+      - project and organization scope
+      - runtime binding
+      - permissions and policy bindings
+      - evaluation and provenance contracts
+  oracle:
+    hermes:
+      coverage: absent
+      components: []
+    strategy: NEW
+    additions:
+      - persistent mandate
+      - owned domain state
+      - inbox and subscriptions
+      - KPIs
+      - decision history
+      - authority and escalation
+  team:
+    hermes:
+      coverage: minimal
+      components:
+        - tools/delegate_tool.py
+        - agent/subagent_lifecycle.py::SubagentLifecycleService
+        - hermes_cli/kanban_db.py
+    strategy: NEW
+    note: Delegation and kanban are execution mechanisms, not Team semantics.
+  workforce:
+    hermes:
+      coverage: minimal
+      components:
+        - gateway/kanban_watchers.py
+        - hermes_cli/profiles.py
+    strategy: NEW
+    note: Hermes profiles and board workers do not form a versioned deployable organizational system.
+  os:
+    hermes:
+      coverage: foundation_only
+      components:
+        - run_agent.py::AIAgent
+        - tools/delegate_tool.py
+        - tools/skills_tool.py
+        - tools/mcp_tool.py
+        - cron/scheduler.py
+        - agent/memory_manager.py::MemoryManager
+        - tools/environments/base.py::BaseEnvironment
+    strategy: NEW
+    architecture: AGK OS Definition plus OS Installation composes Hermes primitives through adapters.
+  skill:
+    hermes:
+      coverage: native
+      components:
+        - tools/skills_tool.py
+        - agent/skill_commands.py
+        - hermes_cli/skills_hub.py
+    strategy: REUSE
+    additions:
+      - AGK Skill Definition identity
+      - OS Skill Binding
+      - package provenance
+      - policy and evaluation metadata
+  tool:
+    hermes:
+      coverage: native
+      components:
+        - tools/registry.py::ToolRegistry
+        - model_tools.py::handle_function_call
+        - toolsets.py::TOOLSETS
+    strategy: REUSE
+    additions:
+      - AGK Tool Definition mapping
+      - capability and risk classification
+      - connector binding
+      - pre-action authorization
+  mcp:
+    hermes:
+      coverage: native
+      components:
+        - tools/mcp_tool.py
+        - hermes_cli/mcp_config.py
+        - tools/mcp_oauth_manager.py
+    strategy: ADAPT
+    note: MCP remains a capability transport, never an AGK object kind replacing Tool or Connector. Governed use requires per-server secrets and the external effect broker.
+  prompt:
+    hermes:
+      coverage: native
+      components:
+        - agent/system_prompt.py::build_system_prompt_parts
+        - agent/prompt_builder.py
+        - agent/prompt_caching.py
+    strategy: ADAPT
+    additions:
+      - Context Manifest input
+      - law and policy provenance
+      - turn-boundary revocation semantics
+  model_routing:
+    hermes:
+      coverage: native
+      components:
+        - hermes_cli/runtime_provider.py
+        - hermes_cli/auth.py::resolve_provider
+        - agent/auxiliary_client.py
+        - agent/credential_pool.py
+        - plugins/model-providers
+    strategy: ADAPT
+    additions:
+      - AGK budget and policy decision
+      - routing explanation
+      - account ownership and health projection
+  session:
+    hermes:
+      coverage: strong_partial
+      components:
+        - hermes_state.py::SessionDB
+        - hermes_state_common.py::SCHEMA_SQL
+        - hermes_state_portability.py
+        - gateway/session.py::SessionStore
+        - tui_gateway/methods_session.py
+    strategy: ADAPT
+    additions:
+      - canonical AGK Session identity
+      - SessionBinding
+      - Harness and Runtime separation
+      - control-plane lifecycle and leases
+      - typed events
+  runtime:
+    hermes:
+      coverage: agent_runtime_native
+      components:
+        - run_agent.py::AIAgent
+        - tui_gateway/server.py
+        - hermes_cli/runtime_provider.py
+    strategy: ADAPT
+    adapter: HermesRuntimeAdapter
+    additions:
+      - versioned capability negotiation
+      - supervised process lifecycle
+      - checkpoint and recovery mapping
+      - normalized event stream
+  machine_and_environment:
+    hermes:
+      coverage: native_execution_backends
+      components:
+        - tools/environments/base.py::BaseEnvironment
+        - tools/environments/local.py
+        - tools/environments/docker.py
+        - tools/environments/ssh.py
+        - tools/environments/singularity.py
+        - tools/environments/modal.py
+        - tools/environments/managed_modal.py
+        - tools/environments/daytona.py
+        - tools/environments/vercel_sandbox.py
+    strategy: ADAPT
+    note: Map attested backends to AGK Runtime capabilities. Local and SSH are connectors, remote sync is restricted, and Machine remains runtime host metadata under the AGK canon.
+  scheduler:
+    hermes:
+      coverage: native
+      components:
+        - cron/jobs.py
+        - cron/scheduler.py
+        - cron/scheduler_provider.py
+        - tools/cronjob_tools.py
+    strategy: ADAPT
+    note: Reuse trigger and execution mechanics only behind AGK Automation and Loop Deployment authority. Unknown post-dispatch outcomes require reconciliation, not blind retry.
+  automation:
+    hermes:
+      coverage: partial_mechanisms
+      components:
+        - cron/jobs.py
+        - cron/scheduler.py
+        - cron/executions.py
+        - hermes_cli/loops.py
+        - gateway/platforms/webhook.py
+        - agent/outbound_webhooks.py
+    strategy: ADAPT
+    note: AGK owns one Automation deployment binding. Hermes mechanisms are Trigger providers; Job and Run own attempts, retry and reconciliation.
+  subagents:
+    hermes:
+      coverage: native_process_local
+      components:
+        - tools/delegate_tool.py
+        - agent/subagent_lifecycle.py
+        - hermes_state_common.py::async_delegations
+    strategy: REUSE
+    note: Leaf fan-out can implement bounded AgentCalls. It does not define Team or Workforce, and process restart does not resume a child.
+  kanban:
+    hermes:
+      coverage: native_durable_work_queue
+      components:
+        - hermes_cli/kanban_db.py
+        - gateway/kanban_watchers.py
+        - tools/kanban_tools.py
+    strategy: DEFER
+    note: AGK Mission, Plan and Task remain canonical. Reuse requires a single-authority adapter with no dual task state.
+  memory:
+    hermes:
+      coverage: native_personal
+      components:
+        - agent/memory_provider.py::MemoryProvider
+        - agent/memory_manager.py::MemoryManager
+        - tools/memory_tool.py
+        - plugins/memory
+    strategy: ADAPT
+    additions:
+      - object and organization scopes
+      - Context Firewall
+      - Memory versus Knowledge separation
+      - retention and provenance
+  knowledge:
+    hermes:
+      coverage: absent_as_first_class_domain
+      components:
+        - agent/prompt_builder.py
+        - tools/file_tools.py
+        - agent/context_engine.py::ContextEngine
+    strategy: NEW
+    note: Files and injected context are not a governed Knowledge object system.
+  artifact:
+    hermes:
+      coverage: minimal
+      components:
+        - tools/file_tools.py
+        - tools/tool_result_storage.py
+        - tools/checkpoint_manager.py
+        - tui_gateway/methods_prompt.py::file.attach
+        - apps/desktop/src/store/artifacts.ts
+    strategy: NEW
+    additions:
+      - stable identity
+      - provenance
+      - version and lifecycle
+      - project and organization scope
+      - dependency and permission edges
+  events:
+    hermes:
+      coverage: fragmented
+      components:
+        - hermes_cli/plugins.py::PluginManager.invoke_hook
+        - gateway/hooks.py
+        - gateway/stream_consumer.py
+        - agent/monitoring
+        - cron/executions.py
+        - agent/verification_evidence.py
+        - hermes_cli/kanban_db.py
+        - gateway/delivery_ledger.py
+    strategy: EXTEND
+    additions:
+      - one versioned AGK event envelope
+      - durable semantic ledger
+      - actor and object identity
+      - classification and causality
+  observability:
+    hermes:
+      coverage: native_runtime_partial
+      components:
+        - hermes_logging.py
+        - agent/monitoring
+        - plugins/observability
+        - agent/trajectory.py
+    strategy: EXTEND
+    additions:
+      - AGK Run and Span mapping
+      - cross-object causality
+      - policy-aware retention
+      - domain projections
+  evaluation:
+    hermes:
+      coverage: partial_mechanisms
+      components:
+        - evals
+        - hermes_cli/goals.py::judge_goal
+        - agent/verify/runner.py
+        - agent/trajectory.py
+    strategy: EXTEND
+    additions:
+      - first-class Eval identity
+      - targets for Agent, OS, Workforce and Artifact
+      - datasets, judges, baselines and promotion gates
+  permissions:
+    hermes:
+      coverage: local_heuristics_and_adapter_authz
+      components:
+        - tools/approval.py
+        - agent/tool_guardrails.py
+        - gateway/authz_mixin.py
+        - hermes_cli/plugin_capabilities.py
+        - SECURITY.md
+    strategy: NEW
+    note: AGK authorization is Capability intersected with Permission, Risk, Policy, Environment and Approval. OS isolation remains the real containment boundary. Tool availability caching and local approvals are not revocation.
+  communication:
+    hermes:
+      coverage: native_channels
+      components:
+        - gateway/run.py::GatewayRunner
+        - gateway/platforms/base.py::BasePlatformAdapter
+        - gateway/delivery.py
+        - plugins/platforms
+    strategy: ADAPT
+    additions:
+      - AGK Actor identity
+      - typed Message Bus semantics
+      - project and organization policy
+      - human, Agent and Oracle routing
+  canvas:
+    hermes:
+      coverage: behavior_reference
+      components:
+        - apps/desktop/src/contrib
+        - apps/desktop/src/app/routes.ts
+        - apps/desktop/src/sdk/index.ts
+        - apps/desktop/src/store/layout.ts
+    strategy: NEW
+    additions:
+      - recursive Organization Canvas
+      - semantic typed edges
+      - Design, Live and Inspect overlays
+      - graph diff and optimistic concurrency
+      - canonical implementation in AGK Web and Tauri
+  product_surfaces:
+    hermes:
+      coverage: runtime_shell_reference
+      components:
+        - apps/desktop
+        - apps/shared
+        - tui_gateway
+        - web
+        - ui-tui
+    strategy: NEW
+    additions:
+      - canonical surface switcher
+      - Learn, Build, Deals and Self navigation modules
+      - shared identity and object routing
+      - surface-specific privacy and status chrome
+      - Next.js reference client, Tauri wrapper and bounded Expo mobile client
+      - selective extraction of tested neutral Hermes behavior
+  packages:
+    hermes:
+      coverage: partial
+      components:
+        - hermes_cli/plugins.py
+        - hermes_cli/agent_plugins.py
+        - hermes_cli/plugin_packs.py
+        - tools/skills_hub.py
+    strategy: EXTEND
+    additions:
+      - AGK Package manifest
+      - immutable PackageSnapshot
+      - LicenseGrant
+      - dependency and compatibility contracts
+      - capability security and provenance
+  architect:
+    hermes:
+      coverage: absent
+      components: []
+    strategy: NEW
+    dependency: Foundational AGK schemas, semantic command API, diff, policy simulation and validation.
+  labs:
+    hermes:
+      coverage: partial_evaluation_foundations
+      components:
+        - evals
+        - batch_runner.py
+        - agent/trajectory.py
+    strategy: DEFER
+    note: Specify now. Implement only after promotion, eval and package foundations exist. Self-improvement may propose and may never ratify.
