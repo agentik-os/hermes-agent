@@ -36,7 +36,7 @@ if (!opened) throw new Error('AGK Prototype navigation was not clickable')
 await waitFor(`!!document.querySelector('[data-agk-active-surface]')`, 'AGK prototype route')
 
 const results = []
-for (const id of ['learn', 'build', 'deals', 'self']) {
+for (const id of ['collective', 'learn', 'build', 'deals', 'evolve']) {
   const selected = await cdp.eval(`(() => {
     const button = document.querySelector('button[data-agk-surface="${id}"]')
     if (!button) return false
@@ -59,9 +59,22 @@ for (const id of ['learn', 'build', 'deals', 'self']) {
       title: root?.querySelector('h1')?.textContent,
       nav: [...(root?.querySelectorAll('.agk-prototype-nav-item') ?? [])].map(item => item.textContent?.trim()),
       metricCount: root?.querySelectorAll('.agk-prototype-metric').length ?? 0,
-      cardCount: root?.querySelectorAll('.agk-prototype-card').length ?? 0
+      cardCount: root?.querySelectorAll('.agk-prototype-card').length ?? 0,
+      buildModes: [...document.querySelectorAll('button[data-agk-build-mode]')].map(item => item.textContent?.trim())
     }
   })()`)
+
+  if (id === 'build') {
+    for (const mode of ['operate', 'design', 'code', 'inspect']) {
+      const modeSelected = await cdp.eval(`(() => {
+        const button = document.querySelector('button[data-agk-build-mode="${mode}"]')
+        if (!button) return false
+        button.click()
+        return true
+      })()`)
+      if (!modeSelected) throw new Error(`Build mode missing: ${mode}`)
+    }
+  }
 
   const clip = await cdp.eval(`(() => {
     const root = document.querySelector('[data-agk-active-surface]')

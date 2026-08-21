@@ -17,6 +17,46 @@ const ROUTE = '/agk-prototype'
 const STYLE_ID = 'agk-surface-prototype-style'
 
 export const surfaceSpecs = Object.freeze({
+  collective: {
+    id: 'collective',
+    label: 'Collective',
+    layout: 'network-hub',
+    eyebrow: 'Human network',
+    title: 'Connect people and collaboration',
+    summary: 'Find operators, exchange systems, join spaces and turn relationships into coordinated action.',
+    nav: ['Home', 'Feed', 'Spaces', 'Chats', 'Members', 'Events', 'Live'],
+    metrics: [
+      ['Your network', '523 members'],
+      ['Active now', '42'],
+      ['Upcoming', '3 events']
+    ],
+    primary: [
+      {
+        title: 'Agentic Engineering',
+        meta: '23 replies',
+        body: 'Operators are sharing governed Runtime patterns and complete OS examples.',
+        action: 'Open discussion'
+      },
+      {
+        title: 'People to meet',
+        meta: '4 strong matches',
+        body: 'Builders, CAIOs and domain experts aligned with the AGK Hermes mission.',
+        action: 'Review matches'
+      },
+      {
+        title: 'Live now',
+        meta: '14 participants',
+        body: 'Agentic Coding room with screen sharing, chat, resources and an AI assistant.',
+        action: 'Join room'
+      }
+    ],
+    activity: ['Research OS v2 shared', 'New Builder group formed', 'Workshop starts in 45 min'],
+    context: [
+      ['Active space', 'AGK Builders'],
+      ['Relationship view', 'Collaborators'],
+      ['Reputation signal', 'Verified systems']
+    ]
+  },
   learn: {
     id: 'learn',
     label: 'Learn',
@@ -24,7 +64,7 @@ export const surfaceSpecs = Object.freeze({
     eyebrow: 'Capability development',
     title: 'Learn the skills',
     summary: 'Turn guided learning into verified capability and reusable systems.',
-    nav: ['Overview', 'Paths', 'Courses', 'Labs', 'Community'],
+    nav: ['Home', 'My Learning', 'Paths', 'Courses', 'Labs', 'Challenges', 'Certifications'],
     metrics: [
       ['Active path', 'AI Organization Builder'],
       ['Progress', '68%'],
@@ -38,10 +78,10 @@ export const surfaceSpecs = Object.freeze({
         action: 'Resume lesson'
       },
       {
-        title: 'Community signal',
-        meta: '3 useful threads',
-        body: 'Operators are comparing Runtime isolation patterns and evaluation contracts.',
-        action: 'Open Community'
+        title: 'Learning cohort',
+        meta: '3 useful discussions',
+        body: 'Cohort conversations live in Collective while Learn preserves the guided path.',
+        action: 'Open in Collective'
       }
     ],
     activity: ['Lab evidence attached', 'Skill claim verified', 'Build bridge ready'],
@@ -59,6 +99,7 @@ export const surfaceSpecs = Object.freeze({
     title: 'Build the systems',
     summary: 'Coordinate the Project, its intelligence organization, active work and Runtime.',
     nav: ['Overview', 'Work', 'Organization', 'Intelligence', 'Runtime'],
+    modes: ['Operate', 'Design', 'Code', 'Inspect'],
     metrics: [
       ['Project', 'AGK Hermes Upgrade'],
       ['Mission health', 'On track'],
@@ -125,14 +166,14 @@ export const surfaceSpecs = Object.freeze({
       ['Next action', 'Scope workshop']
     ]
   },
-  self: {
-    id: 'self',
-    label: 'Self',
-    layout: 'private-focus',
-    eyebrow: 'Private intelligence',
-    title: 'Become the operator',
-    summary: 'Align goals, decisions, routines and personal intelligence without leaking into work.',
-    nav: ['Today', 'Goals', 'Journal', 'Decisions', 'Routines'],
+  evolve: {
+    id: 'evolve',
+    label: 'Evolve',
+    layout: 'operator-evolution',
+    eyebrow: 'Personal evolution',
+    title: 'Improve the operator',
+    summary: 'Align goals, decisions, routines and Personal OS intelligence without weakening Self privacy.',
+    nav: ['Today', 'Goals', 'Strategy', 'Decisions', 'Personal OS', 'Journal', 'Progress', 'Insights'],
     metrics: [
       ['Focus', 'Ship the prototype'],
       ['Weekly alignment', '82%'],
@@ -142,7 +183,7 @@ export const surfaceSpecs = Object.freeze({
       {
         title: 'Today command center',
         meta: '3 commitments',
-        body: 'Review the visual spike, choose the canonical client path and protect deep-work time.',
+        body: 'Review the five-universe prototype, choose the next implementation boundary and protect deep-work time.',
         action: 'Open today'
       },
       {
@@ -152,7 +193,7 @@ export const surfaceSpecs = Object.freeze({
         action: 'Review decision'
       }
     ],
-    activity: ['Morning review completed', 'One decision captured', 'No cross-surface grants'],
+    activity: ['Morning review completed', 'One decision captured', 'No cross-universe grants'],
     context: [
       ['Privacy zone', 'Self only'],
       ['Personal OS', 'Operator OS'],
@@ -162,10 +203,17 @@ export const surfaceSpecs = Object.freeze({
 })
 
 export const prototypeSurface = atom('build')
+export const prototypeBuildMode = atom('Operate')
 
 export function selectSurface(id) {
   if (!Object.hasOwn(surfaceSpecs, id)) return false
   prototypeSurface.set(id)
+  return true
+}
+
+export function selectBuildMode(mode) {
+  if (!surfaceSpecs.build.modes.includes(mode)) return false
+  prototypeBuildMode.set(mode)
   return true
 }
 
@@ -190,6 +238,32 @@ function SurfaceSwitcher() {
           children: surface.label
         },
         surface.id
+      )
+    )
+  })
+}
+
+function BuildModeSwitcher() {
+  const active = useValue(prototypeBuildMode)
+
+  return jsx('div', {
+    className: 'agk-prototype-build-modes',
+    role: 'tablist',
+    'aria-label': 'Build mode',
+    children: surfaceSpecs.build.modes.map(mode =>
+      jsx(
+        'button',
+        {
+          type: 'button',
+          role: 'tab',
+          'aria-selected': active === mode,
+          className: 'agk-prototype-build-mode',
+          'data-active': active === mode ? 'true' : 'false',
+          'data-agk-build-mode': mode.toLowerCase(),
+          onClick: () => selectBuildMode(mode),
+          children: mode
+        },
+        mode
       )
     )
   })
@@ -335,6 +409,7 @@ function AgkPrototypePage() {
                   jsx(Badge, { variant: 'outline', children: spec.label })
                 ]
               }),
+              spec.modes ? jsx(BuildModeSwitcher, {}) : null,
               jsx('section', {
                 className: 'agk-prototype-metrics',
                 'aria-label': `${spec.label} metrics`,
@@ -401,6 +476,9 @@ function installStyles(ctx) {
 .agk-prototype-header h1{font-size:25px;line-height:1.12;margin:5px 0 7px;letter-spacing:-.025em}
 .agk-prototype-header p{max-width:700px;margin:0;color:var(--ui-text-secondary);font-size:13px;line-height:1.55}
 .agk-prototype-eyebrow{color:var(--ui-accent);font-size:10px;font-weight:750;letter-spacing:.08em;text-transform:uppercase}
+.agk-prototype-build-modes{display:flex;align-items:center;gap:4px;margin:-8px 0 18px;padding-bottom:10px}
+.agk-prototype-build-mode{appearance:none;border:0;background:transparent;color:var(--ui-text-tertiary);font:inherit;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:6px 10px;border-radius:8px;cursor:pointer}
+.agk-prototype-build-mode:hover,.agk-prototype-build-mode[data-active='true']{background:var(--ui-bg-quaternary);color:var(--ui-text-primary)}
 .agk-prototype-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:16px}
 .agk-prototype-metric{display:flex;flex-direction:column;gap:5px;padding:13px 14px;border-radius:13px;background:var(--ui-widget-surface-background);box-shadow:inset 0 0 0 1px var(--ui-stroke-tertiary)}
 .agk-prototype-metric strong{font-size:14px}
@@ -423,12 +501,15 @@ function installStyles(ctx) {
 .agk-prototype-notice p{margin:9px 0 0;color:var(--ui-text-secondary);font-size:10px;line-height:1.45}
 .agk-prototype-layout-operating-center .agk-prototype-primary{grid-template-columns:repeat(2,minmax(0,1fr))}
 .agk-prototype-layout-operating-center .agk-prototype-card:first-child{grid-row:span 2;min-height:272px}
+.agk-prototype-layout-network-hub .agk-prototype-primary{grid-template-columns:repeat(2,minmax(0,1fr))}
+.agk-prototype-layout-network-hub .agk-prototype-card:first-child{grid-row:span 2;min-height:272px}
+.agk-prototype-layout-network-hub .agk-prototype-card:not(:first-child){min-height:130px}
 .agk-prototype-layout-learning-path .agk-prototype-primary{grid-template-columns:minmax(0,1.35fr) minmax(0,.65fr)}
 .agk-prototype-layout-learning-path .agk-prototype-card:first-child{min-height:210px}
 .agk-prototype-layout-commercial-pipeline .agk-prototype-primary{grid-template-columns:1fr}
 .agk-prototype-layout-commercial-pipeline .agk-prototype-card{min-height:116px}
-.agk-prototype-layout-private-focus .agk-prototype-main{max-width:980px;width:100%;margin:0 auto}
-.agk-prototype-layout-private-focus .agk-prototype-primary{grid-template-columns:1fr}
+.agk-prototype-layout-operator-evolution .agk-prototype-main{max-width:980px;width:100%;margin:0 auto}
+.agk-prototype-layout-operator-evolution .agk-prototype-primary{grid-template-columns:1fr}
 @media(max-width:1000px){.agk-prototype-root{grid-template-columns:165px minmax(0,1fr)}.agk-prototype-context{display:none}}
 @media(max-width:720px){.agk-prototype-root{grid-template-columns:1fr}.agk-prototype-nav{display:none}.agk-prototype-main{padding:22px 18px}.agk-prototype-metrics,.agk-prototype-primary{grid-template-columns:1fr!important}}
 `
@@ -439,7 +520,7 @@ function installStyles(ctx) {
 export default {
   id: ID,
   name: 'AGK Surface Prototype',
-  description: 'Non-canonical visual spike for Learn, Build, Deals and Self on Hermes Desktop.',
+  description: 'Visual spike for the ratified Collective, Learn, Build, Deals and Evolve shell on Hermes Desktop.',
   register(ctx) {
     installStyles(ctx)
     ctx.registerMany([
@@ -462,7 +543,7 @@ export default {
         data: {
           id: 'agk.prototype.open',
           label: 'AGK Prototype: Open surface shell',
-          keywords: ['agk', 'learn', 'build', 'deals', 'self', 'prototype'],
+          keywords: ['agk', 'collective', 'learn', 'build', 'deals', 'evolve', 'prototype'],
           run: () => host.navigate(ROUTE)
         }
       }

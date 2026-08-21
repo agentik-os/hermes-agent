@@ -80,9 +80,9 @@ test('registers one AGK route, sidebar entry, and palette command', async () => 
   assert.equal(command.data.id, 'agk.prototype.open')
 })
 
-test('defines four canonical surfaces with genuinely different layouts', async () => {
+test('defines five ratified universes with genuinely different layouts', async () => {
   const { surfaceSpecs } = await loadPlugin()
-  assert.deepEqual(Object.keys(surfaceSpecs), ['learn', 'build', 'deals', 'self'])
+  assert.deepEqual(Object.keys(surfaceSpecs), ['collective', 'learn', 'build', 'deals', 'evolve'])
 
   for (const [id, spec] of Object.entries(surfaceSpecs)) {
     assert.equal(spec.id, id)
@@ -93,15 +93,26 @@ test('defines four canonical surfaces with genuinely different layouts', async (
     assert.ok(spec.context.length >= 2)
   }
 
-  assert.equal(new Set(Object.values(surfaceSpecs).map(spec => spec.layout)).size, 4)
+  assert.equal(new Set(Object.values(surfaceSpecs).map(spec => spec.layout)).size, 5)
+  assert.deepEqual(surfaceSpecs.build.modes, ['Operate', 'Design', 'Code', 'Inspect'])
 })
 
 test('switches only to canonical surfaces and rejects unknown ids', async () => {
   const { prototypeSurface, selectSurface } = await loadPlugin()
 
   assert.equal(prototypeSurface.get(), 'build')
-  assert.equal(selectSurface('learn'), true)
-  assert.equal(prototypeSurface.get(), 'learn')
+  assert.equal(selectSurface('collective'), true)
+  assert.equal(prototypeSurface.get(), 'collective')
   assert.equal(selectSurface('unknown'), false)
-  assert.equal(prototypeSurface.get(), 'learn')
+  assert.equal(prototypeSurface.get(), 'collective')
+})
+
+test('switches Build only among Operate, Design, Code, and Inspect modes', async () => {
+  const { prototypeBuildMode, selectBuildMode } = await loadPlugin()
+
+  assert.equal(prototypeBuildMode.get(), 'Operate')
+  assert.equal(selectBuildMode('Code'), true)
+  assert.equal(prototypeBuildMode.get(), 'Code')
+  assert.equal(selectBuildMode('Unknown'), false)
+  assert.equal(prototypeBuildMode.get(), 'Code')
 })

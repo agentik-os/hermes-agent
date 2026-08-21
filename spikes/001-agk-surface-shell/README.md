@@ -2,7 +2,7 @@
 
 ## Question
 
-Given the existing Hermes Desktop plugin SDK, when a non-canonical AGK visual shell is loaded, can the user switch among Learn, Build, Deals and Self from the title bar and see a genuinely different layout for each surface without patching Hermes core?
+Given the existing Hermes Desktop plugin SDK, when the AD-314 interface shell is loaded in a separate preview app, can the user switch among Collective, Learn, Build, Deals and Evolve from the title bar, use the four Build modes, and see a genuinely different layout for each universe without patching Hermes core?
 
 ## Approach
 
@@ -13,8 +13,9 @@ It contributes:
 - `/agk-prototype` as a full workspace route;
 - `AGK Prototype` in the Hermes sidebar;
 - `AGK Prototype: Open surface shell` in the command palette;
-- a page-owned title bar switcher for Learn, Build, Deals and Self;
-- four distinct surface specifications and layouts;
+- a page-owned title bar switcher for Collective, Learn, Build, Deals and Evolve;
+- five distinct universe specifications and layouts;
+- Operate, Design, Code and Inspect modes inside Build;
 - explicit `Visual spike` and `Build Gate · Closed` labels.
 
 Hermes core product files are not patched. The installed runtime copy lives at:
@@ -43,33 +44,35 @@ Open Hermes Desktop, then select `AGK Prototype` in the sidebar. The app watches
 
 ```text
 node --check plugin.js: PASS
-node --test plugin.test.mjs: 3/3 PASS
+node --test plugin.test.mjs: 4/4 PASS
 ```
 
 The tests prove:
 
 - route, sidebar and command-palette registration;
-- exactly four canonical surface IDs;
+- exactly five ratified universe IDs;
 - distinct layout IDs and complete navigation, metrics, primary content and Context data;
-- rejection of unknown surface IDs.
+- rejection of unknown universe IDs and Build modes.
 
 ### Real Hermes renderer
 
-A separate Hermes Electron instance was launched with CDP on port 9335. `verify-cdp.mjs` clicked the real contributed sidebar route, switched all four title bar tabs, read the rendered DOM and captured each surface.
+A separate Hermes Electron preview app was launched with its own `user-data-dir` and CDP on port 9345. `verify-cdp.mjs` clicked the real contributed sidebar route, switched all five title bar tabs, exercised all four Build modes, read the rendered DOM and captured each universe. The active Hermes app was not used as the preview surface.
 
 ```text
-Learn  -> learning-path       -> 3 metrics, 2 cards
-Build  -> operating-center    -> 3 metrics, 3 cards
-Deals  -> commercial-pipeline -> 3 metrics, 2 cards
-Self   -> private-focus       -> 3 metrics, 2 cards
+Collective -> network-hub         -> 3 metrics, 3 cards
+Learn      -> learning-path       -> 3 metrics, 2 cards
+Build      -> operating-center    -> 3 metrics, 3 cards, 4 modes
+Deals      -> commercial-pipeline -> 3 metrics, 2 cards
+Evolve     -> operator-evolution  -> 3 metrics, 2 cards
 ```
 
 Screenshots:
 
+- `screenshots/collective.png`
 - `screenshots/learn.png`
 - `screenshots/build.png`
 - `screenshots/deals.png`
-- `screenshots/self.png`
+- `screenshots/evolve.png`
 
 Visual inspection confirmed readable type, visible top tabs, distinct layouts, coherent Context rails and explicit prototype boundaries. The existing Hermes update notification was dismissed before the final captures.
 
@@ -78,7 +81,8 @@ Visual inspection confirmed readable type, visible top tabs, distinct layouts, c
 ### What worked
 
 - Hermes Desktop can host a convincing AGK surface shell through the public plugin SDK.
-- The title bar contribution provides the requested Learn, Build, Deals and Self tabs.
+- The title bar contribution provides the ratified Collective, Learn, Build, Deals and Evolve tabs.
+- Build exposes Operate, Design, Code and Inspect as nested modes.
 - Each tab changes navigation, metrics, content structure, Context and page layout.
 - The approach remains update-safe and avoids a Hermes core fork patch.
 - The plugin hot loads in the existing default Hermes profile.
@@ -93,4 +97,4 @@ Visual inspection confirmed readable type, visible top tabs, distinct layouts, c
 
 ### Recommendation for the real build
 
-Use this spike to validate information architecture and visual hierarchy only. Keep the plugin as a reviewable prototype while AGK-OS reconciles F22, the Runtime security boundary, the fork role and the canonical client decision. Do not promote the mocked values or this Electron route into canonical AGK product state.
+Use this spike to validate the AD-314 information architecture and visual hierarchy only. Keep the plugin as a reviewable prototype while AGK-OS reconciles F22, the Runtime security boundary and the fork role. Do not promote the mocked values or this Electron route into canonical AGK product state.
