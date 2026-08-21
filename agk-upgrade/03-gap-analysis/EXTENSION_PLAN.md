@@ -36,7 +36,7 @@ Extract only neutral, tested transport or interaction behavior from Hermes. Do n
 
 ## Shared platform
 
-Identity, Organization, permissions, events, notifications, search, artifacts and packages serve all surfaces. Learn, Build, Deals and Self depend on shared contracts and never on one another's internal storage.
+Identity, Organization, permissions, events, notifications, search, artifacts and packages serve all surfaces. Collective, Learn, Build, Deals and Evolve depend on shared contracts and never on one another's internal storage.
 
 ## Deferred extensions
 

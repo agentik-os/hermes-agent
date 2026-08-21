@@ -14,7 +14,7 @@ Hermes is not an organization control plane. Its security policy is single-tenan
 
 The architecture therefore uses Hermes as the first implementation of a versioned `AgentRuntime` contract. AGK owns identity, Organizations, Projects, objects, policy, domain state, packages and product surfaces. The adapter translates AGK Agent, Session, Harness, Tool, Skill, Context, Budget and Run contracts into Hermes behavior and normalizes runtime evidence back into AGK events and Spans.
 
-AGK Web is the reference shell and Tauri wraps that same client for desktop. A canonical top-level switcher selects Learn, Build, Deals or Self and applies each surface's navigation module, workspace layout, inspector and optional status bar. `Collectif` is preserved as an unratified presentation candidate for Learn. The canonical ids remain `learn`, `build`, `deals`, `self`. Hermes Electron remains a Runtime console and behavior source, not the final AGK client.
+AGK Web is the reference shell and Tauri wraps that same client for desktop. A canonical top-level switcher selects Collective, Learn, Build, Deals or Evolve and applies each universe's navigation module, workspace layout, inspector and optional status bar. Build adds Operate, Design, Code and Inspect modes. Hermes Electron remains a Runtime console, behavior source and validated visual prototype, not the final AGK client.
 
 ## 1. Hermes architecture today
 
@@ -107,7 +107,7 @@ These are layer boundaries, not a reason to replace strong runtime mechanics.
 
 ```text
 ONE AGK SHELL
-  Learn | Build | Deals | Self
+  Collective | Learn | Build | Deals | Evolve
         |
 AGK CONTROL PLANE
   Identity | Organizations | Projects | Objects | Permissions

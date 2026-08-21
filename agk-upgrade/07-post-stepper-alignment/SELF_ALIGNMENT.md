@@ -1,8 +1,8 @@
-# Self Alignment
+# Evolve and Self Alignment
 
 ## Role
 
-Self is the private personal intelligence surface for goals, decisions, Journal, routines, health, relationships, learning, money and personal strategy.
+Evolve is the personal product universe for goals, decisions, Journal, routines, progress, insights and Personal OS projections. Self remains the private internal data zone and domain qualifier beneath Evolve.
 
 ## Shared intelligence
 
@@ -10,7 +10,7 @@ A Personal OS uses the same OS Definition and Installation model as Build. It ca
 
 ## Privacy
 
-Self data defaults to user scope, private zone and no cross-surface access. Build Organizations, Deals matching, Learn recommendations and Community cannot read it without an explicit field-level grant, purpose and expiry.
+Self data defaults to user scope, private zone and no cross-universe access. Build Organizations, Deals matching, Learn recommendations and Collective cannot read it without an explicit field-level grant, purpose and expiry.
 
 ## Personal Oracle
 

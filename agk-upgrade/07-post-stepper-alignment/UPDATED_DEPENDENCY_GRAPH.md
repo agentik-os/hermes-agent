@@ -10,7 +10,7 @@ PINNED SOURCES
 ONTOLOGY RECONCILIATION
   semantic collision map
   OS Definition and Installation alignment
-  four canonical surface ids
+  five canonical universe ids
         |
         v
 P0 SHARED CONTRACTS

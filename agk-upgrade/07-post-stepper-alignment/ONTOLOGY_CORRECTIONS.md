@@ -43,7 +43,7 @@ This preserves the operator's autonomous multi-Agent system while preventing Def
 
 ## Surface vocabulary
 
-Canonical ids and initial labels are Learn, Build, Deals and Self. `Collectif` is an unratified presentation candidate for Learn. The retired commercial and personal names remain only in the verbatim prompt capture.
+Canonical universe ids and labels are Collective, Learn, Build, Deals and Evolve under AD-314. Self remains the private internal domain beneath Evolve. Build contains Operate, Design, Code and Inspect modes.
 
 ## Graph and Flow
 

@@ -9,7 +9,7 @@
 The refined vision does not require replacing the validated AGK ontology. It requires making three parts more explicit:
 
 1. an OS Definition can declare a complete composable execution system while an OS Installation and Oracle retain scoped state and ownership;
-2. the canonical AGK Web and Tauri shell can reuse proven Hermes runtime and UI behavior while its top bar switches bounded Learn, Build, Deals and Self layouts;
+2. the canonical AGK Web and Tauri shell can reuse proven Hermes runtime and UI behavior while its top bar switches bounded Collective, Learn, Build, Deals and Evolve layouts, with Operate, Design, Code and Inspect inside Build;
 3. the Organization Canvas is a recursive semantic projection with Design, Live and Inspect overlays, not a process diagram or source of truth.
 
 Hermes remains a bounded AgentRuntime. AGK owns Organizations, Projects, object identity, governance, Knowledge, Artifacts and product surfaces.
@@ -18,7 +18,7 @@ Hermes remains a bounded AgentRuntime. AGK owns Organizations, Projects, object 
 
 The new prompt adds code-level Hermes audit requirements, expands OS programmatic and automation composition, specifies recursive Canvas behavior, defines Operate, Build and Inspect, broadens product surface bridges and emphasizes shared identity, packages, privacy and eventual economic loops.
 
-It also proposes top-bar presentation labels. Canonical ids remain Learn, Build, Deals and Self. `Collectif` is retained as a Learn label candidate, not a canonical type. The retired personal label is not adopted.
+AD-314 ratifies Collective, Learn, Build, Deals and Evolve as the canonical universe ids and labels. Self remains the private internal domain beneath Evolve. Build contains Operate, Design, Code and Inspect modes.
 
 ## 3. What remains valid
 
@@ -32,7 +32,7 @@ The following architecture remains valid:
 - Agent, Oracle, Team and Workforce distinctions
 - Memory, Knowledge, Context and Artifact boundaries
 - Session, Harness, Runtime and Run separation
-- one platform with four bounded surfaces
+- one platform with five bounded universes
 - Hermes as a bounded adapter under AD-312
 - self-improvement proposal-only boundary
 
@@ -119,13 +119,13 @@ The adapter normalizes Hermes callbacks, hooks and history and reports any fidel
 
 ## 16. Learn architecture
 
-Learn owns Paths, Courses, Modules, Lessons, Exercises, Labs, evaluations, certification and its Community domain. It references Build-owned Projects through explicit assignment and Open in Build bridges and consumes shared Agent, OS, Skill, Artifact, Eval, Evidence, Package and Project contracts.
+Learn owns Paths, Courses, Modules, Lessons, Exercises, Labs, evaluations and certification. Collective owns Community, network and collaboration presentation. Learn references Build-owned Projects through explicit assignment and Open in Build bridges and consumes shared Agent, OS, Skill, Artifact, Eval, Evidence, Package and Project contracts.
 
 `Open in Build` uses the same object reference and entitlement. Hermes can execute Tutors and Labs but does not store learning domain state.
 
-## 17. Community architecture
+## 17. Collective and Community architecture
 
-Community is Learn's bounded human-collaboration domain. It owns Spaces, Channels, Posts, Threads, Messages, Rooms, Events, Groups and moderation. Hermes gateways can provide transport and execute clearly labeled AI participants. Community permissions and durable records remain in the control plane.
+Collective is the human-network and collaboration universe. Community objects include Spaces, Channels, Posts, Threads, Messages, Rooms, Events, Groups and moderation. Hermes gateways can provide transport and execute clearly labeled AI participants. Collective permissions and durable records remain in the control plane.
 
 Creating an Opportunity from a Post requires explicit consent.
 
@@ -135,9 +135,9 @@ Deals owns commercial Opportunity, Engagement, Proposal, Deal, Contract, referra
 
 A contracted Engagement creates or binds the delivery Project after the canonical `Opportunity -> Deal -> Engagement -> Contract -> Project` chain. Build handles delivery. Deals handles economic state. Proposal is an Artifact and governed portfolio publication creates a `PortfolioItem`.
 
-## 19. Self architecture
+## 19. Evolve and Self architecture
 
-Self uses the same OS and intelligence primitives under a restrictive private zone. Personal Memory, Journal, goals, decisions and routines do not enter Build, Deals, Learn or community without an explicit scoped grant.
+Evolve presents the same OS and intelligence primitives over a restrictive Self private zone. Personal Memory, Journal, goals, decisions and routines do not enter Collective, Build, Deals or Learn without an explicit scoped grant.
 
 A Personal Oracle remains a proposed product decision rather than an automatic object.
 
@@ -255,7 +255,7 @@ Any direct patch is registered, tested and considered for generic upstream contr
 2. Which Hermes gateway and UI behaviors pass the extraction spike for reuse in canonical AGK Web and Tauri?
 3. What checkpoint fidelity is available across Hermes process and provider changes?
 4. Which control-plane implementation repository owns P0 AGK domain state?
-5. Should `Collectif` become a presentation alias for Learn after formal product review?
+5. Which Collective capabilities enter the first implementation slice after AD-314?
 6. Does Self require a Personal Oracle beyond OS Installations and shared personal coordination?
 7. Which audited runtime blockers are fixed upstream before AGK begins implementation, and which remain disabled behind adapter capability negotiation?
 8. Does Provider Account rotation rebind a live Session or apply only on the next Session binding?

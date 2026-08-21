@@ -76,7 +76,7 @@ The original sequence placed implementation of the Hermes adapter before the AGK
 ## Phase 8. P1 AGK Web and Tauri shell
 
 - canonical AGK Web identity and Tauri wrapper
-- Learn, Build, Deals and Self surface switcher
+- Collective, Learn, Build, Deals and Evolve surface switcher
 - contextual sidebar and inspector
 - Operate, Build and Inspect layouts
 - recursive Canvas with Design, Live and Inspect

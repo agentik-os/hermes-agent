@@ -2,7 +2,7 @@
 
 ## Role
 
-Learn develops human capability through Paths, Courses, Modules, Lessons, Exercises, Labs, evaluations, certification and its bounded Community domain. It is not part of Hermes Runtime. A Learn assignment may reference or create a Build-owned Project through an explicit bridge; Learn does not own the Project type.
+Learn develops human capability through Paths, Courses, Modules, Lessons, Exercises, Labs, evaluations and certification. Collective owns Community, network and collaboration presentation. Learn links cohort discussion to Collective without duplicating Member or Post identity. A Learn assignment may reference or create a Build-owned Project through an explicit bridge; Learn does not own the Project type.
 
 ## Shared primitives
 
@@ -18,7 +18,7 @@ Hermes can execute Tutors, Lab Agents, Tools and eval mechanisms. Course state, 
 
 ## Priority
 
-Architecture support now. Minimal Learn foundation is P2 after shared objects, permissions, artifacts, evals and packages. Full academy and Community experience is not part of Runtime integration.
+Architecture support now. Minimal Learn foundation is P2 after shared objects, permissions, artifacts, evals and packages. Full academy and Collective experience is not part of Runtime integration.
 
 ## Surface
 

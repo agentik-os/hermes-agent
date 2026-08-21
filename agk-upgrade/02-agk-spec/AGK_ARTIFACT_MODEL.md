@@ -36,4 +36,4 @@ Hermes file tools, attachments and desktop Artifact projections are useful mecha
 
 ## Cross-surface use
 
-The same infrastructure supports Learn assignments, Build specifications, Deals proposals and Self reviews. Type, scope and permission keep the meanings distinct.
+The same infrastructure supports Collective publications, Learn assignments, Build specifications, Deals proposals and Evolve reviews over private Self data. Type, scope and permission keep the meanings distinct.

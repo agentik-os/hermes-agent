@@ -18,7 +18,7 @@
     {
       "id": "A03_ARCHITECTURE_MANIFEST",
       "status": "PASS",
-      "evidence": "surfaces=['learn', 'build', 'deals', 'self'], sections={'hermes_audit': 'complete', 'agk_spec': 'complete', 'gap_analysis': 'complete', 'upstream_strategy': 'complete', 'roadmap': 'complete', 'implementation_tasks': 'complete', 'post_stepper_alignment': 'validated_planning_only'}"
+      "evidence": "surfaces=['collective', 'learn', 'build', 'deals', 'evolve'], sections={'hermes_audit': 'complete', 'agk_spec': 'complete', 'gap_analysis': 'complete', 'upstream_strategy': 'complete', 'roadmap': 'complete', 'implementation_tasks': 'complete', 'post_stepper_alignment': 'validated_planning_only'}"
     },
     {
       "id": "A04_CANONICAL_CONTRACT_SNAPSHOT",

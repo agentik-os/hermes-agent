@@ -2,7 +2,7 @@
 
 ## What changed
 
-1. The canonical AGK Web shell and its Tauri desktop wrapper expose a top bar that switches complete contextual layouts for Learn, Build, Deals and Self.
+1. The canonical AGK Web shell and its Tauri desktop wrapper expose a top bar that switches complete contextual layouts for Collective, Learn, Build, Deals and Evolve.
 2. Build is organized as Operate, Build and Inspect experiences rather than chat alone.
 3. The Organization Canvas becomes recursive across Project, Workforce, Team and OS Installation.
 4. OS execution composition is made explicit: Agents, Skills, Tools, MCP, scripts, Flows, Loop definitions, Automations, Knowledge, Memory, evals and Runtime requirements.

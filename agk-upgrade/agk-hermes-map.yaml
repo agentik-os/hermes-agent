@@ -360,7 +360,7 @@ agk:
     strategy: NEW
     additions:
       - canonical surface switcher
-      - Learn, Build, Deals and Self navigation modules
+      - Collective, Learn, Build, Deals and Evolve navigation modules
       - shared identity and object routing
       - surface-specific privacy and status chrome
       - Next.js reference client, Tauri wrapper and bounded Expo mobile client

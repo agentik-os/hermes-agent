@@ -11,7 +11,7 @@ Product implementation remains disabled.
 |---|---|---|
 | A01_REQUIRED_ARTIFACTS | PASS | missing=[] |
 | A02_MACHINE_FORMATS_AND_UNIQUE_KEYS | PASS | errors=[] |
-| A03_ARCHITECTURE_MANIFEST | PASS | surfaces=['learn', 'build', 'deals', 'self'], sections={'hermes_audit': 'complete', 'agk_spec': 'complete', 'gap_analysis': 'complete', 'upstream_strategy': 'complete', 'roadmap': 'complete', 'implementation_tasks': 'complete', 'post_stepper_alignment': 'validated_planning_only'} |
+| A03_ARCHITECTURE_MANIFEST | PASS | surfaces=['collective', 'learn', 'build', 'deals', 'evolve'], sections={'hermes_audit': 'complete', 'agk_spec': 'complete', 'gap_analysis': 'complete', 'upstream_strategy': 'complete', 'roadmap': 'complete', 'implementation_tasks': 'complete', 'post_stepper_alignment': 'validated_planning_only'} |
 | A04_CANONICAL_CONTRACT_SNAPSHOT | PASS | errors=[] |
 | A05_SOURCE_PROVENANCE | PASS | errors=[] |
 | A06_CLOSED_BUILD_GATE | PASS | gate=CLOSED |
