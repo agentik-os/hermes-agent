@@ -82,8 +82,9 @@ function buildSessionWindowUrl(sessionId: string, { devServer, rendererIndexPath
 // separate marker lets the renderer distinguish a peer from the one primary
 // app window: app-launch source restoration belongs to the primary only, while
 // a peer keeps the already-running backend it joined during boot.
-function buildInstanceWindowUrl({ devServer, rendererIndexPath }: any = {}) {
-  const query = '?peer=1'
+function buildInstanceWindowUrl({ devServer, rendererIndexPath, connectionId }: any = {}) {
+  const suffix = connectionId ? `&connection=${encodeURIComponent(connectionId)}` : ''
+  const query = `?peer=1${suffix}`
 
   if (devServer) {
     const base = devServer.endsWith('/') ? devServer.slice(0, -1) : devServer

@@ -248,6 +248,25 @@ def build_gateway_parser(
         help="Skip the confirmation prompt",
     )
 
+    # gateway pair — print a credential-free deep link that lets Hermes Desktop
+    # register this VPS and complete the existing native OAuth flow.
+    gateway_pair = gateway_subparsers.add_parser(
+        "pair", help="Link this gateway to Hermes Desktop"
+    )
+    gateway_pair.add_argument(
+        "--url",
+        default=None,
+        help="Public HTTPS URL for this gateway (defaults to dashboard.public_url)",
+    )
+    gateway_pair.add_argument(
+        "--label",
+        default=None,
+        help="Name shown in Desktop (defaults to this machine's hostname)",
+    )
+    gateway_pair.add_argument(
+        "--json", action="store_true", help="Print machine-readable pairing metadata"
+    )
+
     # gateway enroll — enroll a self-hosted gateway with a relay connector
     # (connector⇄gateway auth). Redeems a single-use enrollment token for the
     # per-gateway secret + per-tenant delivery key and writes them to .env.

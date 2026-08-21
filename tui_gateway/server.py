@@ -217,6 +217,19 @@ _LONG_HANDLERS = frozenset(
         # CPU sampling intentionally waits 100ms for a meaningful interval;
         # never spend that delay on the socket reader thread.
         "system.resources",
+        # Mux operations spawn bounded subprocesses and may wait on a remote
+        # terminal server; never block the shared JSON-RPC reader thread.
+        "mux.sessions.list",
+        "mux.projects.list",
+        "mux.sessions.create",
+        "mux.sessions.capture",
+        "mux.sessions.resize",
+        "mux.sessions.input",
+        "mux.sessions.close",
+        "auth.cli.start",
+        "auth.cli.poll",
+        "auth.cli.submit",
+        "auth.cli.cancel",
         "session.usage",
         "billing.step_up",
         "browser.manage",
@@ -15619,9 +15632,11 @@ def _mcp_summarize_server(name, cfg):  # noqa: E402
 # Imported at the end of this module so every global the handlers close
 # over already exists; register() rebinds them onto this namespace.
 from . import (  # noqa: E402
+    methods_cli_auth as _methods_cli_auth,
     methods_complete as _methods_complete,
     methods_config as _methods_config,
     methods_images as _methods_images,
+    methods_mux as _methods_mux,
     methods_profiles as _methods_profiles,
     methods_prompt as _methods_prompt,
     methods_session as _methods_session,
@@ -15634,6 +15649,8 @@ for _m in (
     _methods_config,
     _methods_complete,
     _methods_tools,
+    _methods_mux,
+    _methods_cli_auth,
     _methods_profiles,
     _methods_images,
 ):

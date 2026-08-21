@@ -7505,6 +7505,32 @@ def _gateway_command_inner(args):
         run_gateway(verbose, quiet=quiet, replace=replace, force=force)
         return
 
+    if subcmd == "pair":
+        from hermes_cli.config import load_config
+        from hermes_cli.gateway_pair import pair_output
+
+        try:
+            payload = pair_output(
+                url=getattr(args, "url", None),
+                label=getattr(args, "label", None),
+                config=load_config(),
+            )
+        except ValueError as exc:
+            print_error(str(exc))
+            return 2
+        if getattr(args, "json", False):
+            print(json.dumps(payload, separators=(",", ":")))
+            return 0
+        print("Hermes Desktop gateway pairing")
+        print(f"  Gateway: {payload['label']}")
+        print(f"  URL:     {payload['url']}")
+        print()
+        print("Open this link on the Mac running Hermes Desktop:")
+        print(payload["link"])
+        print()
+        print("No credential is embedded. Desktop will ask for confirmation and complete OAuth.")
+        return 0
+
     if subcmd == "setup":
         gateway_setup()
         return

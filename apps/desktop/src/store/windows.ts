@@ -95,6 +95,24 @@ export function isPeerInstanceWindow(search = typeof window === 'undefined' ? ''
   }
 }
 
+export function peerWindowConnectionId(
+  search = typeof window === 'undefined' ? '' : window.location.search
+): null | string {
+  try {
+    const params = new URLSearchParams(search)
+
+    if (params.get('peer') !== '1') {
+      return null
+    }
+
+    const value = params.get('connection')?.trim() || ''
+
+    return /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(value) ? value : null
+  } catch {
+    return null
+  }
+}
+
 // The profile a helper window (the HUD) was asked to boot against, carried in
 // the query string by the main process (see hudUrl). The HUD is a full app
 // renderer that otherwise adopts the PRIMARY backend's profile — wrong the
@@ -161,12 +179,15 @@ export async function openSessionInNewWindow(sessionId: string, opts?: { watch?:
 
 // Open a new full-chrome app window — a peer instance of the primary that
 // renders the complete app against the shared backend. No-ops outside Electron.
-export async function openNewWindow(): Promise<void> {
+export async function openNewWindow(connectionId?: string): Promise<void> {
   if (!canOpenNewWindow()) {
     return
   }
 
-  await runWindowOpen(() => window.hermesDesktop.openWindow(), 'Could not open a new window')
+  await runWindowOpen(
+    () => window.hermesDesktop.openWindow(connectionId ? { connectionId } : undefined),
+    'Could not open a new window'
+  )
 }
 
 // Resume a session in the user's own terminal emulator, running the TUI there.

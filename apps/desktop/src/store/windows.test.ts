@@ -5,7 +5,8 @@ import {
   canOpenSessionWindow,
   isPeerInstanceWindow,
   openNewWindow,
-  openSessionInNewWindow
+  openSessionInNewWindow,
+  peerWindowConnectionId
 } from './windows'
 
 const desktopWindow = window as unknown as { hermesDesktop?: Window['hermesDesktop'] }
@@ -62,6 +63,12 @@ describe('isPeerInstanceWindow', () => {
     expect(isPeerInstanceWindow('?peer=0')).toBe(false)
     expect(isPeerInstanceWindow('?win=secondary')).toBe(false)
     expect(isPeerInstanceWindow('')).toBe(false)
+  })
+
+  it('reads a validated connection id from peer-window query state', () => {
+    expect(peerWindowConnectionId('?peer=1&connection=station-vps')).toBe('station-vps')
+    expect(peerWindowConnectionId('?peer=1&connection=bad%2Fid')).toBeNull()
+    expect(peerWindowConnectionId('?connection=station-vps')).toBeNull()
   })
 })
 
@@ -159,9 +166,9 @@ describe('openNewWindow', () => {
     const openWindow = vi.fn().mockResolvedValue({ ok: true })
     installBridge(undefined, openWindow)
 
-    await openNewWindow()
+    await openNewWindow('station-vps')
 
-    expect(openWindow).toHaveBeenCalledTimes(1)
+    expect(openWindow).toHaveBeenCalledWith({ connectionId: 'station-vps' })
     expect(notifyError).not.toHaveBeenCalled()
   })
 

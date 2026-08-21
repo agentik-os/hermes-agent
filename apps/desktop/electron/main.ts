@@ -11139,7 +11139,7 @@ function nextInstanceBounds() {
 // primary: it never overwrites the mainWindow global, doesn't start the backend
 // (the renderer's getConnection() joins the already-running one), and loads the
 // plain renderer URL so the full app renders.
-function createInstanceWindow() {
+function createInstanceWindow(options: { connectionId?: string } = {}) {
   const icon = getAppIconPath()
 
   const win = new BrowserWindow({
@@ -11200,7 +11200,8 @@ function createInstanceWindow() {
     win,
     buildInstanceWindowUrl({
       devServer: DEV_SERVER,
-      rendererIndexPath: DEV_SERVER ? undefined : resolveRendererIndex()
+      rendererIndexPath: DEV_SERVER ? undefined : resolveRendererIndex(),
+      connectionId: options.connectionId
     }),
     'Instance window'
   )
@@ -12306,8 +12307,14 @@ ipcMain.handle('hermes:window:openSession', async (_event, sessionId, opts) => {
 
   return { ok: true }
 })
-ipcMain.handle('hermes:window:openInstance', async () => {
-  createInstanceWindow()
+ipcMain.handle('hermes:window:openInstance', async (_event, opts) => {
+  const rawConnectionId = typeof opts?.connectionId === 'string' ? opts.connectionId.trim() : ''
+
+  if (rawConnectionId && !/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(rawConnectionId)) {
+    return { ok: false, error: 'invalid-connection-id' }
+  }
+
+  createInstanceWindow(rawConnectionId ? { connectionId: rawConnectionId } : {})
 
   return { ok: true }
 })

@@ -36,7 +36,7 @@ import {
 } from '@/store/connections'
 import { closeFindBar } from '@/store/find-in-page'
 import { notifyError } from '@/store/notifications'
-import { isAuxiliaryWindow, isPeerInstanceWindow } from '@/store/windows'
+import { isAuxiliaryWindow, isPeerInstanceWindow, openNewWindow, peerWindowConnectionId } from '@/store/windows'
 
 export function ConnectionSwitcher({ compact = false, onConnect }: { compact?: boolean; onConnect: () => void }) {
   const { t } = useI18n()
@@ -46,6 +46,7 @@ export function ConnectionSwitcher({ compact = false, onConnect }: { compact?: b
   const pendingConnectionId = useStore($pendingConnectionId)
   const [searchQuery, setSearchQuery] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
+  const [peerPinStarted, setPeerPinStarted] = useState(false)
   const connectionListRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
 
@@ -72,6 +73,29 @@ export function ConnectionSwitcher({ compact = false, onConnect }: { compact?: b
       void initializeConnectionsRegistry().catch(() => undefined)
     }
   }, [boot.running])
+
+  useEffect(() => {
+    const requestedConnection = peerWindowConnectionId()
+
+    if (
+      peerPinStarted ||
+      !isPeerInstanceWindow() ||
+      !requestedConnection ||
+      !registry?.connections.some(connection => connection.id === requestedConnection)
+    ) {
+      return
+    }
+
+    setPeerPinStarted(true)
+
+    if (activeConnectionId === requestedConnection) {
+      return
+    }
+
+    void selectConnection(requestedConnection).catch(error =>
+      notifyError(error, t.profiles.switchConnectionFailed(requestedConnection))
+    )
+  }, [activeConnectionId, peerPinStarted, registry?.connections, t.profiles])
 
   const connections = useMemo(() => sortConnectionsForDisplay(registry?.connections ?? []), [registry?.connections])
 
@@ -131,6 +155,14 @@ export function ConnectionSwitcher({ compact = false, onConnect }: { compact?: b
     )
   }
 
+  const openConnectionWindow = (connectionId: string, event: React.MouseEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
+    setMenuOpen(false)
+    setSearchQuery('')
+    void openNewWindow(connectionId)
+  }
+
   return (
     <div
       aria-busy={pendingConnectionId !== null}
@@ -153,6 +185,16 @@ export function ConnectionSwitcher({ compact = false, onConnect }: { compact?: b
           <ConnectionSwitcherTrigger
             activeConnection={activeConnection}
             compact={compact}
+            onClick={event => {
+              if ((event.metaKey || event.ctrlKey) && activeConnection) {
+                openConnectionWindow(activeConnection.id, event)
+              }
+            }}
+            onContextMenu={event => {
+              if (activeConnection) {
+                openConnectionWindow(activeConnection.id, event)
+              }
+            }}
             pending={pendingConnectionId !== null}
             title={t.settings.connections.title}
           />
@@ -227,6 +269,12 @@ export function ConnectionSwitcher({ compact = false, onConnect }: { compact?: b
                 <DropdownMenuRadioItem
                   className={cn('min-w-0', searchable && dropdownMenuRow)}
                   key={connection.id}
+                  onClick={event => {
+                    if (event.metaKey || event.ctrlKey) {
+                      openConnectionWindow(connection.id, event)
+                    }
+                  }}
+                  onContextMenu={event => openConnectionWindow(connection.id, event)}
                   value={connection.id}
                 >
                   <ConnectionLabel connection={connection} />
