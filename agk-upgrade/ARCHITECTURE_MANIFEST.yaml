@@ -1,7 +1,7 @@
 schema_version: 1.0.0
 baseline:
   hermes_commit: 8794e5a21c980a0f26532cb4883284b786cb3f25
-  agk_commit: a0a3284edfb21eeeec77d9e185b98ef05dbada0a
+  agk_commit: 39f7d8e404e8f314ceba99ce438df75d75a05f60
   operator_prompt_sha256: 6e003f053b03e0c912fac8a4a50cd57a899593f2f86cd54eb4b1e0936181e207
 phase: architecture_analysis
 production_implementation_allowed: false
@@ -10,15 +10,16 @@ build_gate:
   status: CLOSED
   reason: operator_exact_snapshot_ratification_declined
 canonical_surfaces:
+  - id: collective
+    label: Collective
   - id: learn
     label: Learn
-    operator_label_candidate: Collectif
   - id: build
     label: Build
   - id: deals
     label: Deals
-  - id: self
-    label: Self
+  - id: evolve
+    label: Evolve
 classifications:
   - REUSE
   - EXTEND

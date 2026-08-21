@@ -23,7 +23,7 @@ The authoritative Stepper remains in `agentik-os/AGK-OS` at the pinned commit. T
 | scheduler and automation | MAJOR UPDATE | Evaluate reuse behind one authority instead of blanket duplicate implementation |
 | Canvas | MAJOR UPDATE | Recursive semantic Canvas, Design, Live, Inspect and graph diff |
 | AGK Web and Tauri shell | MAJOR UPDATE | Canonical top-level surface switcher, Stax, contextual layouts and bounded Expo projection |
-| Learn with Community, Deals and Self | NEW DEPENDENCY | Depend on shared platform and cross-surface policy, remain later-phase |
+| Collective, Learn, Deals and Evolve | NEW DEPENDENCY | Depend on shared platform and cross-surface policy, remain later-phase |
 | marketplace and advanced Labs | DEFER | Architecture support only |
 
 ## New implementation task families

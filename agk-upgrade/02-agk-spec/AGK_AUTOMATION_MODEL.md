@@ -72,4 +72,4 @@ Authorization is evaluated on every fire using current canonical state. A previo
 
 ## Surface
 
-Automations show trigger, target, owner, next fire, last attempt, Policy, Budget, health and reconciliation state. Learn, Build, Deals and Self may use the same primitive with different domain views.
+Automations show trigger, target, owner, next fire, last attempt, Policy, Budget, health and reconciliation state. Collective, Learn, Build, Deals and Evolve may use the same primitive with different domain views.

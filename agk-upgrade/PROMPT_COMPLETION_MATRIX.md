@@ -104,11 +104,11 @@ The capture contains nested numbered lists. Sections 43 to 45 are continuation b
 
 ### Product and macOS application
 
-- no AGK top bar with Learn, Build, Deals and Self;
+- no canonical production AGK top bar, although the Hermes visual spike validates Collective, Learn, Build, Deals and Evolve;
 - no per-surface navigation and complete layout swap;
 - no AGK Stax or Context Inspector;
 - no Organization Canvas;
-- no Operate, Build and Inspect modes;
+- no production Operate, Design, Code and Inspect modes beyond the validated visual spike;
 - no canonical AGK Web application;
 - no Tauri wrapper;
 - no AGK macOS `.app`, DMG, signature or notarization;
@@ -116,7 +116,7 @@ The capture contains nested numbered lists. Sections 43 to 45 are continuation b
 
 ### Product modules
 
-- Learn, Community, Deals and Self remain specifications or deferred bridges;
+- Collective, Learn, Deals and Evolve remain specifications or deferred bridges;
 - Architect and Labs remain specifications;
 - marketplace, payments, commissions, certifications and advanced mobile remain deferred.
 
@@ -144,7 +144,7 @@ hermes desktop --force-build \
   --cwd /Users/hacker/Projects/AGK-OS
 ```
 
-This opens stock Hermes at the audited fork revision. A separately authorized, non-canonical visual spike now exists on branch `agk/desktop-visual-prototype` at `spikes/001-agk-surface-shell/` and is installed in the default profile as `AGK Prototype`. It renders mocked Learn, Build, Deals and Self layouts through the public Desktop plugin SDK.
+This opens stock Hermes at the audited fork revision. A separately authorized, non-production visual implementation of AD-314 exists on branch `agk/desktop-visual-prototype` at `spikes/001-agk-surface-shell/` and is installed in the default profile as `AGK Prototype`. It renders mocked Collective, Learn, Build, Deals and Evolve layouts plus Build modes through the public Desktop plugin SDK.
 
 The spike does not change the implementation statuses in this matrix. It contains no AGK domain state, Control Plane, Runtime adapter, security boundary or product API.
 

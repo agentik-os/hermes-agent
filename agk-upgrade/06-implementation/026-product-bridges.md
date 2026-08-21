@@ -1,4 +1,4 @@
-# 026. Bounded Learn with Community, Deals and Self Foundations
+# 026. Bounded Collective, Learn, Deals and Evolve Foundations
 
 **Priority:** P2
 

@@ -4,7 +4,7 @@
 
 ```text
 PRODUCT SHELL
-  Learn | Build | Deals | Self
+  Collective | Learn | Build | Deals | Evolve
           |
 AGK CONTROL PLANE
   Identity | Organizations | Projects | Objects | Permissions | Events
@@ -63,7 +63,7 @@ Optional surface status bar
 Runtime drawer on Build and Inspect-capable views
 ```
 
-Switching Learn, Build, Deals or Self reconfigures the lazy-loaded navigation module, layout, inspector and chrome. It does not fork identity, permissions or object ids. Switching Organization is a security boundary and forces all object surfaces to re-resolve.
+Switching Collective, Learn, Build, Deals or Evolve reconfigures the lazy-loaded navigation module, layout, inspector and chrome. Build adds Operate, Design, Code and Inspect modes. It does not fork identity, permissions or object ids. Switching Organization is a security boundary and forces all object surfaces to re-resolve.
 
 Expo mobile uses the same objects, commands and Stax history with a narrower client capability profile. It supports observe, decide and converse, and refuses structural Flow or organization authoring.
 

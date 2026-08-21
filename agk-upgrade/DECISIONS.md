@@ -18,7 +18,7 @@ This register records every decision made while reconciling AGK with the Hermes 
 
 **Hermes impact:** None.
 
-**AGK impact:** Canonical surface ids remain `learn`, `self`, `build`, `deals`. Retired surface labels never enter derived contracts. `Opportunity` remains the Deals object and product discovery remains `ProductOpportunity`.
+**AGK impact:** AD-314 ratifies `collective`, `learn`, `build`, `deals`, `evolve` as canonical universe ids. Self remains the private internal domain behind Evolve. `Opportunity` remains the Deals object and product discovery remains `ProductOpportunity`.
 
 **Future consequences:** Any proposed ontology amendment needs a new operator decision in AGK-OS before implementation.
 
@@ -112,25 +112,25 @@ This register records every decision made while reconciling AGK with the Hermes 
 
 **Reversibility:** High before the adapter is implemented.
 
-## D-006. One shell, four bounded surface layouts
+## D-006. One shell, five bounded universe layouts
 
-**Status:** RATIFIED for the shell and canonical surface ids
+**Status:** RATIFIED by AGK AD-314 for the shell, universe ids and Build modes
 
-**Decision:** The desktop exposes one persistent shell with a top-level surface switcher. Selecting Learn, Build, Deals or Self changes the lazy-loaded navigation module, workspace layout, inspector capabilities and optional status bar while identity, Organization context, search, inbox, notifications and object references remain shared.
+**Decision:** The desktop exposes one persistent shell with a top-level universe switcher. Selecting Collective, Learn, Build, Deals or Evolve changes the lazy-loaded navigation module, workspace layout, inspector capabilities and optional status bar while identity, Organization context, search, inbox, notifications and object references remain shared. Build adds Operate, Design, Code and Inspect modes.
 
 **Context:** The operator proposed a top-bar menu that completely switches the layout for each universe.
 
-**Options:** Four separate applications; four cosmetic tabs over one unchanged layout; one shell with bounded surface modules and context-preserving transitions.
+**Options:** Five separate applications; five cosmetic tabs over one unchanged layout; one shell with bounded universe modules and context-preserving transitions.
 
 **Chosen:** One shell with bounded surface modules.
 
-**Why:** It implements AGK AD-001 and AD-076 while allowing each surface to have the right complexity.
+**Why:** It implements AGK AD-001, AD-076 and AD-314 while allowing each universe to have the right complexity.
 
 **Hermes impact:** Reuse gateway and transport behavior directly. Treat the Electron contribution registry, routes, panes, titlebar, palette and profile-routing UX as extraction candidates and test references for the canonical Web and Tauri shell.
 
-**AGK impact:** Surface ids are stable domain keys. Presentation labels are UI configuration and cannot change object or event contracts.
+**AGK impact:** Universe ids are stable product keys. Self remains a privacy domain, and Code remains a Build mode. Presentation cannot change object or event contracts.
 
-**Future consequences:** The operator's `Collectif` label is retained as a presentation candidate for Learn. It is not adopted as the canonical surface name here. The retired personal-surface label maps to Self only in source-input reconciliation unless a later AGK decision amends AD-001.
+**Future consequences:** Collective owns Community and network presentation without duplicating Member identity. Evolve presents private Self data through explicit authorization. The validated Hermes plugin spike is interaction evidence, not domain state.
 
 **Reversibility:** High for labels, low for shared-shell identity and surface ids.
 

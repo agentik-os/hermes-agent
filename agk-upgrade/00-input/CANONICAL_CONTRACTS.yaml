@@ -1,8 +1,8 @@
 schema_version: 1.0.0
 source:
   repository: https://github.com/agentik-os/AGK-OS.git
-  commit: a0a3284edfb21eeeec77d9e185b98ef05dbada0a
-surfaces: [learn, build, deals, self]
+  commit: 39f7d8e404e8f314ceba99ce438df75d75a05f60
+surfaces: [collective, learn, build, deals, evolve]
 os_parts:
   - Purpose
   - Principles

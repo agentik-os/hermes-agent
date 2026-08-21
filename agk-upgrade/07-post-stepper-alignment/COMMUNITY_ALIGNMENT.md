@@ -1,8 +1,8 @@
-# Community Alignment
+# Collective and Community Alignment
 
 ## Boundary
 
-Community is a bounded domain owned by Learn, with Space, Channel, Post, Thread, Message, Room, Event, Group, Reaction and ModerationAction. It is not a fifth product surface and is not the Hermes gateway session model.
+Collective is the canonical human-network and collaboration universe under AD-314. Community remains the bounded object family for Space, Channel, Post, Thread, Message, Room, Event, Group, Reaction and ModerationAction. It is not the Hermes gateway session model and does not create duplicate Member or Organization identity.
 
 ## Hermes reuse
 

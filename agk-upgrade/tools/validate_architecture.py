@@ -23,10 +23,10 @@ OUT = ROOT / "validation"
 AGK_REPO = Path(os.environ.get("AGK_CANON_REPO", "/Users/hacker/Projects/AGK-OS"))
 
 EXPECTED_HERMES_COMMIT = "8794e5a21c980a0f26532cb4883284b786cb3f25"
-EXPECTED_AGK_COMMIT = "a0a3284edfb21eeeec77d9e185b98ef05dbada0a"
+EXPECTED_AGK_COMMIT = "39f7d8e404e8f314ceba99ce438df75d75a05f60"
 EXPECTED_PROMPT_SHA = "6e003f053b03e0c912fac8a4a50cd57a899593f2f86cd54eb4b1e0936181e207"
 EXPECTED_AUDIT_EVIDENCE_MANIFEST_SHA = "8280dd2b60936e664ece2dacdffc9116d6388ea52055edd70b6e329db2447b56"
-EXPECTED_SURFACES = ["learn", "build", "deals", "self"]
+EXPECTED_SURFACES = ["collective", "learn", "build", "deals", "evolve"]
 EXPECTED_OS_PARTS = [
     "Purpose", "Principles", "Commands", "Flows", "Agents", "Skills", "Tools",
     "Knowledge", "Memory", "Policies", "Inputs", "Outputs", "Evals",
@@ -550,7 +550,7 @@ def run_checks(prior_exists: dict[str, bool]) -> list[dict[str, Any]]:
             if git("rev-parse", "HEAD", cwd=AGK_REPO) != EXPECTED_AGK_COMMIT:
                 provenance_errors.append("agk_head")
             expected_sources = {entry.get("path"): entry.get("sha256") for entry in agk_source.get("canonical_sources", [])}
-            if len(expected_sources) != 8:
+            if len(expected_sources) != 9:
                 provenance_errors.append("canonical_source_count")
             for rel, digest in expected_sources.items():
                 path = safe_relative(str(rel), AGK_REPO)
@@ -673,7 +673,7 @@ def run_checks(prior_exists: dict[str, bool]) -> list[dict[str, Any]]:
     dash_errors: list[str] = []
     retired_errors: list[str] = []
     forbidden_errors: list[str] = []
-    retired_words = [bytes.fromhex(value).decode().casefold() for value in ("4541524e", "45564f4c5645", "436972636c65")]
+    retired_words = [bytes.fromhex(value).decode().casefold() for value in ("4541524e", "436972636c65")]
     forbidden = [bytes.fromhex(value).decode() for value in FORBIDDEN_DERIVED_HEX]
     for path in derived_markdown:
         text = path.read_text(encoding="utf-8", errors="replace")

@@ -4,10 +4,10 @@ This file is a working input to the derived specifications. It identifies operat
 
 | Prompt concept | Canonical interpretation | Treatment |
 |---|---|---|
-| legacy four-surface labels in the source capture | AGK Learn, Build, Deals, Self | Preserve the four-surface intent. Use canonical ids and names. Retired labels remain only in the verbatim capture. |
-| Collectif as the Learn top-bar label | Candidate presentation alias for Learn | Record as a UX proposal. Do not change the canonical `learn` surface id without a new ratified AGK decision. |
+| legacy four-surface labels in the source capture | AGK Collective, Learn, Build, Deals, Evolve | Preserve the capture and apply AD-314 to derived architecture. |
+| Collectif as the Learn top-bar label | Collective as a separate canonical universe | AD-314 promotes the human network and collaboration experience out of Learn. |
 | Deal as a top-bar label | Deals | Use the canonical plural label. |
-| retired personal top-bar label | Self | Use Self. The source-capture label is retired by AGK AD-001. |
+| personal top-bar label | Evolve | Use Evolve for product navigation. Keep Self as the internal private data zone and domain qualifier. |
 | OS as persistent autonomous intelligence and execution system | exact sixteen-part OS Definition plus OS Installation plus Oracle ownership | Map Agents, Skills, Tools, MCP, scripts, Loops, Automation, evals and Runtime requirements inside the canonical sixteen parts. Put scoped resources and configuration on the Installation and live domain state on the Oracle. |
 | OS can work by itself | An Installation may run at autonomy A4 or A5 within policy | Preserve autonomous operation. Do not make the reusable Definition a live mutable owner. |
 | OS owns subagents, memory and artifacts | OS Definition declares composition and schemas; Installation binds runtime components; Oracle owns live domain responsibility | Replace physical ownership claims with typed declarations, bindings and provenance. |

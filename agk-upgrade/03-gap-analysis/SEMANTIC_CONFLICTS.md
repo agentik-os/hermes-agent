@@ -46,7 +46,7 @@ The earlier F22 narrative says four plugins and zero forks are sufficient. Curre
 
 ### Product identity
 
-Hermes Desktop is product-named and chat-first. AGK must present one organization operating system with four bounded surfaces.
+Hermes Desktop is product-named and chat-first. AGK must present one organization operating system with five bounded universes.
 
 **Resolution:** reuse the gateway and extract proven neutral behavior. Implement the product shell in canonical AGK Web and Tauri rather than replacing the locked clients with Hermes Electron.
 
@@ -58,4 +58,4 @@ The pinned AGK corpus contains incompatible readings: one path preserves Session
 
 ## Vocabulary conflicts in the operator prompt
 
-Canonical derived documents use Learn, Build, Deals and Self. `Collectif` is retained as an unratified Learn presentation candidate. The retired personal label is not introduced into code or contracts. Flow is the authored-process type. Graph remains engine structure.
+Canonical derived documents use Collective, Learn, Build, Deals and Evolve under AD-314. Self remains the private internal domain behind Evolve. Flow is the authored-process type. Graph remains engine structure.

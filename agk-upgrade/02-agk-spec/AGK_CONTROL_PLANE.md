@@ -14,7 +14,7 @@ The AGK control plane owns:
 - package metadata, snapshots, grants and provenance
 - deployment intent and reconciliation state
 - search, inbox, notifications and deep links
-- product modules for Learn, Build, Deals and Self
+- product modules for Collective, Learn, Build, Deals and Evolve
 
 It coordinates execution and never pretends to own physical process state or external truth.
 

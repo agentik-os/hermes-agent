@@ -24,7 +24,7 @@ Agents, OS, Oracles, Teams, Workforces, Skills, Tools, MCP, Flows, Loops, Runtim
 shared platform <- intelligence core <- product modules
 ```
 
-A product module may use shared intelligence. Agent, OS or Runtime core never imports Course, CommunityPost, Deal or JournalEntry.
+A product module may use shared intelligence. Agent, OS or Runtime core never imports Course, CommunityPost, Deal or JournalEntry. Collective presents Community and network records without introducing a second Member type.
 
 ## Cross-surface interaction
 
@@ -39,7 +39,7 @@ Every crossing names source, target, purpose, policy and provenance.
 
 ## Hermes placement
 
-Hermes belongs under AgentRuntime. Learn, Community, Deals, billing and Self metadata do not know Hermes module names or stores.
+Hermes belongs under AgentRuntime. Collective, Learn, Deals, billing and Evolve metadata do not know Hermes module names or stores. Private Self records remain behind the Context Firewall.
 
 ## Shell
 

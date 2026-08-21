@@ -66,7 +66,7 @@ Profiles can be linked as runtime preferences after user authorization; they are
 
 ## Acceptance criteria
 
-- One User spans all four surfaces
+- One User spans all five universes
 - Every object resolves one Organization
 - Cross-Organization access fails closed
 

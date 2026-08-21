@@ -36,7 +36,7 @@ Project + OS + Oracle + Agent + semantic commands
   -> Architect diff
 
 Shared identity + object graph + permissions + events
-  -> Learn, Build, Deals and Self modules
+  -> Collective, Learn, Build, Deals and Evolve modules
   -> cross-surface commands and automations
 ```
 
