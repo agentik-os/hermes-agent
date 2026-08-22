@@ -1039,12 +1039,12 @@ export function ContribWiring({ children }: { children: ReactNode }) {
   // Pane-registered tools (preview's monitor/devtools cluster) anchor flush
   // against the static system cluster — in the tree layout the titlebar band
   // sits ABOVE the grid, so AppShell's pane-width anchoring doesn't apply.
-  // Count every button the static cluster actually renders: six systemTools
-  // (terminal, layout, HUD, haptics, settings, theme) PLUS the always-present
-  // right-sidebar toggle (see titlebar-controls.tsx). A shared width that
-  // under-counts leaves the find bar, the titlebar header padding, and the
-  // pane-cluster anchor overlapping the seventh button.
-  const SYSTEM_TOOL_COUNT = 7
+  // Count every button the static cluster actually renders: seven systemTools
+  // (terminal, purge, layout, HUD, haptics, settings, theme) PLUS the
+  // always-present right-sidebar toggle (see titlebar-controls.tsx). A shared
+  // width that under-counts leaves the find bar, the titlebar header padding,
+  // and the pane-cluster anchor overlapping the eighth button.
+  const SYSTEM_TOOL_COUNT = 8
   const paneToolCount = rightTitlebarTools.filter(tool => !tool.hidden).length
   const systemToolsWidth = titlebarToolsWidthCss(SYSTEM_TOOL_COUNT)
 

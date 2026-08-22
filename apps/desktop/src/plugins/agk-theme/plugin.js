@@ -770,6 +770,15 @@ const css = `
   box-shadow: var(--agk-lift) !important;
 }
 
+/* When Background Tasks sits above the composer, the two surfaces form one
+   vertical stack. This rule follows the normal 22px radius so its square top
+   corners win only in the attached-task state. */
+:root[data-hermes-theme='agk'] [data-slot='composer-dock']:has([data-slot='composer-status-card'])
+  [data-slot='composer-surface'] {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
 /* Control rows: real spacing, and a clean split between the leading tools and
    the trailing send cluster. */
 :root[data-hermes-theme='agk'] [data-slot='composer-surface'] [class*='flex']:has(> button + button) {

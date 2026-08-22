@@ -261,6 +261,12 @@ contextBridge.exposeInMainWorld('hermesDesktop', {
   },
   revealLogs: () => ipcRenderer.invoke('hermes:logs:reveal'),
   getRecentLogs: () => ipcRenderer.invoke('hermes:logs:recent'),
+  purgeMemory: async () => {
+    // Renderer-side decoded images/fonts and previous-navigation resources.
+    webFrame.clearCache()
+
+    return ipcRenderer.invoke('hermes:maintenance:purge')
+  },
   // Fire-and-forget: persists a renderer error-boundary catch (with component
   // stack) to desktop.log so crashes survive the window (#79428).
   reportRendererError: report => ipcRenderer.send('hermes:logs:renderer-error', report),

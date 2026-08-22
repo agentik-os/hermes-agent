@@ -59,6 +59,7 @@ import {
   resolveLinuxPasswordStore
 } from './bootstrap-platform'
 import { decideBootstrapRepair } from './bootstrap-repair-guard'
+import { purgeDesktopCaches } from './maintenance-purge'
 import { runBootstrap } from './bootstrap-runner'
 import { detectBundleSkew } from './bundle-skew'
 import { applyConnectionChange } from './connection-apply'
@@ -14495,6 +14496,13 @@ ipcMain.handle('hermes:logs:reveal', async () => {
 })
 
 ipcMain.handle('hermes:logs:recent', async () => ({ path: DESKTOP_LOG_PATH, lines: hermesLog.slice(-200) }))
+
+ipcMain.handle('hermes:maintenance:purge', async event =>
+  purgeDesktopCaches({
+    clearCache: () => event.sender.session.clearCache(),
+    collectGarbage: () => (globalThis as typeof globalThis & { gc?: () => void }).gc?.()
+  })
+)
 
 // Renderer error-boundary catches (#79428 defect B): the component stack only
 // exists in renderer memory, so the boundary posts it here and we persist it

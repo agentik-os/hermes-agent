@@ -280,6 +280,7 @@ declare global {
       }
       revealLogs: () => Promise<{ ok: boolean; path: string; error?: string }>
       getRecentLogs: () => Promise<{ path: string; lines: string[] }>
+      purgeMemory?: () => Promise<{ ok: boolean }>
       /** Persist a renderer error-boundary catch to desktop.log (fire-and-forget). */
       reportRendererError?: (report: {
         label: string

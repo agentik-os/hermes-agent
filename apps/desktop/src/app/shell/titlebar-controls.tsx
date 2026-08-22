@@ -24,11 +24,13 @@ import {
   togglePanesFlipped,
   toggleSidebarOpen
 } from '@/store/layout'
+import { notify, notifyError } from '@/store/notifications'
 import { $unreadSessionCount } from '@/store/session-dot-state'
 import { useTheme } from '@/themes/context'
 
 import { appViewForPath, isOverlayView } from '../routes'
 
+import { toggleTerminalFromTitlebar } from './terminal-titlebar-action'
 import {
   TITLEBAR_ICON_BADGE_SCALE,
   titlebarButtonClass,
@@ -36,7 +38,6 @@ import {
   titlebarToolClusterClass
 } from './titlebar'
 import { TitlebarIcon } from './titlebar-icon'
-import { toggleTerminalFromTitlebar } from './terminal-titlebar-action'
 
 export interface TitlebarTool {
   id: string
@@ -140,6 +141,7 @@ export function TitlebarControls({ leftTools = [], tools = [], onOpenSettings }:
   const panesFlipped = useStore($panesFlipped)
   const sidebarOpen = useStore($sidebarOpen)
   const unreadCount = useStore($unreadSessionCount)
+  const [purging, setPurging] = useState(false)
   const unreadBadge = unreadCount > 0 ? unreadCount : undefined
   const unreadHint = unreadBadge ? ` · ${t.titlebar.unreadSessions(unreadBadge)}` : ''
 
@@ -202,6 +204,29 @@ export function TitlebarControls({ leftTools = [], tools = [], onOpenSettings }:
     }
   }
 
+  const purgeUnusedResources = async () => {
+    const purge = window.hermesDesktop?.purgeMemory
+
+    if (!purge || purging) {
+      return
+    }
+
+    setPurging(true)
+
+    try {
+      await purge()
+      notify({
+        kind: 'success',
+        message: 'Cache purge complete · memory reclamation requested'
+      })
+      triggerHaptic('success')
+    } catch (error) {
+      notifyError(error, 'Purge failed')
+    } finally {
+      setPurging(false)
+    }
+  }
+
   // Static system tools — always pinned to the screen's right edge.
   const systemTools: TitlebarTool[] = [
     {
@@ -217,6 +242,13 @@ export function TitlebarControls({ leftTools = [], tools = [], onOpenSettings }:
           toggle: () => togglePaneVisible('terminal')
         })
       }
+    },
+    {
+      disabled: purging || !window.hermesDesktop?.purgeMemory,
+      icon: <TitlebarIcon name={purging ? 'loading' : 'clear-all'} spinning={purging} />,
+      id: 'purge',
+      label: purging ? 'Purging caches…' : 'Purge caches and request memory reclamation',
+      onSelect: () => void purgeUnusedResources()
     },
     {
       className: 'group/tool',

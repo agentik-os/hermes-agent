@@ -867,10 +867,10 @@ export function ContribController() {
               className="pointer-events-auto absolute z-10 flex w-max items-center gap-2 [-webkit-app-region:no-drag]"
               style={{
                 right:
-                  // Five static cluster buttons: four systemTools plus the
+                  // Eight static-cluster buttons: seven systemTools plus the
                   // always-present right-sidebar toggle (titlebar-controls.tsx).
                   // Keep in sync with wiring.tsx's SYSTEM_TOOL_COUNT.
-                  'max(calc(var(--workspace-right, 0px) + 0.5rem), calc(var(--titlebar-tools-right, 0.75rem) + 5 * var(--titlebar-control-size, 24px) + 0.5rem))'
+                  'max(calc(var(--workspace-right, 0px) + 0.5rem), calc(var(--titlebar-tools-right, 0.75rem) + 8 * var(--titlebar-control-size, 24px) + 0.5rem))'
               }}
             />
           </div>
