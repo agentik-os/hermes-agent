@@ -1718,7 +1718,7 @@ export function ChatSidebar({
                       </Tip>
                     )}
                     {inProject && enteredProject ? (
-                      <div className="group/workspace flex shrink-0 items-center gap-0.5">
+                      <div className="group/workspace flex shrink-0 items-center gap-1">
                         {enteredProject.path && <StartWorkButton repoPath={enteredProject.path} />}
                         {/* Home has no folder and no record to rename, theme, or delete. */}
                         {!enteredProject.isNoProject && (

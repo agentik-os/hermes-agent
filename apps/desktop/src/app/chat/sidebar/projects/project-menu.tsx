@@ -199,7 +199,8 @@ export function ProjectMenu({
       <button
         aria-label={p.menu}
         className={cn(
-          'grid size-4 shrink-0 place-items-center rounded-sm bg-transparent text-(--ui-text-quaternary) opacity-0 transition-opacity hover:bg-(--ui-control-hover-background) hover:text-foreground data-[state=open]:opacity-100',
+          'grid shrink-0 place-items-center bg-transparent text-(--ui-text-quaternary) opacity-0 transition-opacity hover:bg-(--ui-control-hover-background) hover:text-foreground data-[state=open]:opacity-100',
+          scoped ? 'size-6 rounded-md' : 'size-4 rounded-sm',
           // In the project header reveal on the whole header hover; in overview
           // rows reveal on the row hover.
           scoped ? 'group-hover/section:opacity-100' : 'group-hover/workspace:opacity-100'

@@ -753,15 +753,20 @@ const css = `
 :root[data-hermes-theme='agk'] [data-slot='composer-surface'] {
   padding: 12px 12px 10px;
   border-radius: 22px;
-  border: 1px solid transparent;
+  border: 0 !important;
+  outline: 0 !important;
   background: var(--agk-composer);
   box-shadow: var(--agk-lift);
   transition: background-color 140ms ease, box-shadow 140ms ease;
 }
 
+:root[data-hermes-theme='agk'] [data-slot='composer-surface']:focus,
+:root[data-hermes-theme='agk'] [data-slot='composer-surface']:focus-visible,
 :root[data-hermes-theme='agk'] [data-slot='composer-surface']:focus-within {
+  border: 0 !important;
+  outline: 0 !important;
   background: var(--agk-composer-focus);
-  box-shadow: var(--agk-lift);
+  box-shadow: var(--agk-lift) !important;
 }
 
 /* Control rows: real spacing, and a clean split between the leading tools and
@@ -915,9 +920,27 @@ const css = `
   outline: none;
 }
 
-:root[data-hermes-theme='agk'] *:focus-visible {
+:root[data-hermes-theme='agk'] *:focus-visible:not([data-slot='composer-rich-input']):not([data-slot='composer-surface']) {
   outline: none !important;
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--ui-text-primary) 22%, transparent) inset !important;
+}
+
+/* The message editor is a contenteditable div, not an input/textarea. It must
+   remain completely borderless in every editing state. */
+:root[data-hermes-theme='agk'] [data-slot='composer-rich-input'],
+:root[data-hermes-theme='agk'] [data-slot='composer-rich-input']:focus,
+:root[data-hermes-theme='agk'] [data-slot='composer-rich-input']:focus-visible,
+:root[data-hermes-theme='agk'] [data-slot='composer-rich-input']:active {
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+/* AGK session rows stay quiet: the relative age ("now", "2d", …) is metadata,
+   not navigation, and the user explicitly does not want it in the left menu. */
+:root[data-hermes-theme='agk'] [data-row-actions] time {
+  display: none !important;
 }
 
 :root[data-hermes-theme='agk'] ::selection {
