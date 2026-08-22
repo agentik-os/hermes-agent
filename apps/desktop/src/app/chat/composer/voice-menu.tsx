@@ -24,6 +24,7 @@ import type { ChatBarState, VoiceStatus } from './types'
 export interface VoiceMenuProps {
   autoSpeak: boolean
   disabled: boolean
+  startConversationDisabled?: boolean
   state: ChatBarState
   voiceStatus: VoiceStatus
   onDictate: () => void
@@ -49,6 +50,7 @@ export interface VoiceMenuProps {
 export function VoiceMenu({
   autoSpeak,
   disabled,
+  startConversationDisabled = disabled,
   state,
   voiceStatus,
   onDictate,
@@ -103,8 +105,12 @@ export function VoiceMenu({
       <DropdownMenuContent align="end" className="min-w-52">
         <DropdownMenuItem
           className={dropdownMenuRow}
-          disabled={disabled}
+          disabled={startConversationDisabled}
           onSelect={() => {
+            if (startConversationDisabled) {
+              return
+            }
+
             triggerHaptic('open')
             onStartConversation()
           }}

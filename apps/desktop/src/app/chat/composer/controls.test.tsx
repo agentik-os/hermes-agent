@@ -129,6 +129,54 @@ describe('narrow tiles', () => {
   })
 })
 
+// The primary slot is FIXED: Send (or Stop) is the only control that ever
+// occupies it, in every state. An empty composer renders Send disabled rather
+// than swapping in the voice button, so nothing reflows when the first
+// character lands.
+describe('fixed primary slot', () => {
+  it('keeps Send mounted and disabled while the composer is empty', () => {
+    renderControls({ canSubmit: false, hasComposerPayload: false })
+
+    const send = screen.getByLabelText('Send') as HTMLButtonElement
+
+    expect(send.type).toBe('submit')
+    expect(send.disabled).toBe(true)
+    // The voice conversation never takes the primary slot any more.
+    expect(screen.queryByLabelText('Start voice conversation')?.getAttribute('type')).toBe('button')
+  })
+
+  it('enables the same Send button once there is a payload', () => {
+    renderControls({ canSubmit: true, hasComposerPayload: true })
+
+    expect((screen.getByLabelText('Send') as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('offers the voice conversation from the voice cluster, not the primary slot', () => {
+    renderControls({ canSubmit: false, hasComposerPayload: false })
+
+    const start = screen.getByLabelText('Start voice conversation') as HTMLButtonElement
+
+    expect(start.disabled).toBe(false)
+    expect(start.type).toBe('button')
+  })
+
+  it('folds the voice conversation away with the rest of the voice cluster', () => {
+    renderControls({ foldVoice: true })
+
+    expect(screen.queryByLabelText('Start voice conversation')).toBeNull()
+    expect(screen.getByLabelText('Voice')).toBeTruthy()
+    // Send still stands, whatever the width.
+    expect(screen.getByLabelText('Send')).toBeTruthy()
+  })
+
+  it('disables starting a conversation mid-turn but keeps Stop in the slot', () => {
+    renderControls({ busy: true, busyAction: 'stop', hasComposerPayload: false })
+
+    expect((screen.getByLabelText('Start voice conversation') as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.getByLabelText('Stop')).toBeTruthy()
+  })
+})
+
 describe('ComposerControls shortcut tooltips', () => {
   it('shows Enter for Send', async () => {
     renderControls()

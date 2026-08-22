@@ -34,6 +34,11 @@ export function useAgentTerminal({ active, id, procId }: { active: boolean; id: 
   const surfaceTheme = () => {
     const ansi = renderedMode === 'dark' ? (theme.darkTerminal ?? theme.terminal) : theme.terminal
     const base = terminalTheme(renderedMode, ansi)
+
+    if (themeName === 'agk') {
+      return { ...base, background: '#00000000', cursorAccent: '#00000000' }
+    }
+
     // Fall back to the palette's own background, not white — a hardcoded
     // '#ffffff' flashes a white slab in dark mode whenever the probe can't read
     // the token (pre-paint mount). Same contract as the user terminal.
@@ -58,7 +63,8 @@ export function useAgentTerminal({ active, id, procId }: { active: boolean; id: 
 
     const term = new Terminal({
       allowProposedApi: true,
-      allowTransparency: false,
+      // Alpha-capable once; opaque themes still paint an opaque background.
+      allowTransparency: true,
       convertEol: true,
       cursorBlink: false,
       disableStdin: true,

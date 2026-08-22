@@ -72,7 +72,14 @@ export function ComposerControls({
     return <ConversationPill {...conversation} disabled={disabled} />
   }
 
-  const showVoicePrimary = !busy && !hasComposerPayload
+  // The primary slot is a FIXED slot that always holds the submit button —
+  // Send, or Stop while a turn runs on an empty composer. It is never swapped
+  // out for another control: an empty composer renders Send DISABLED rather
+  // than replacing it, so the row's geometry is identical in every state and
+  // nothing reflows the moment the first character lands. Starting a voice
+  // conversation is a peer of dictation/auto-speak/wake and lives with them in
+  // the voice cluster (and inside `VoiceMenu` once that cluster folds).
+  //
   // Steer is just send: a payload keeps the Send affordance mid-turn. Stop
   // only when the composer is empty and a turn is running.
   const showStop = busy && !hasComposerPayload
@@ -92,12 +99,14 @@ export function ComposerControls({
       onDictate={onDictate}
       onStartConversation={conversation.onStart}
       onToggleAutoSpeak={onToggleAutoSpeak}
+      startConversationDisabled={disabled || busy}
       state={state}
       voiceStatus={voiceStatus}
     />
   ) : (
     <>
       <DictationButton disabled={disabled} onToggle={onDictate} state={state.voice} status={voiceStatus} />
+      <StartVoiceButton disabled={disabled || busy} onStart={conversation.onStart} />
       <AutoSpeakButton active={autoSpeak} disabled={disabled} onToggle={onToggleAutoSpeak} />
       <WakeWordButton disabled={disabled} />
     </>
@@ -126,46 +135,28 @@ export function ComposerControls({
           </Button>
         </Tip>
       ) : null}
-      {showVoicePrimary ? (
-        <Tip label={c.startVoice}>
-          <Button
-            aria-label={c.startVoice}
-            className={PRIMARY_ICON_BTN}
-            disabled={disabled}
-            onClick={() => {
-              triggerHaptic('open')
-              conversation.onStart()
-            }}
-            size="icon"
-            type="button"
-          >
-            <AudioLines className={iconSize.sm} />
-          </Button>
-        </Tip>
-      ) : (
-        <Tip
-          label={
-            showStop ? (
-              <TipKeybindLabel actionId="composer.send" text={c.stop} />
-            ) : (
-              <TipKeybindLabel actionId="composer.send" text={c.send} />
-            )
-          }
+      <Tip
+        label={
+          showStop ? (
+            <TipKeybindLabel actionId="composer.send" text={c.stop} />
+          ) : (
+            <TipKeybindLabel actionId="composer.send" text={c.send} />
+          )
+        }
+      >
+        <Button
+          aria-label={showStop ? c.stop : c.send}
+          className={PRIMARY_ICON_BTN}
+          disabled={disabled || !canSubmit}
+          type="submit"
         >
-          <Button
-            aria-label={showStop ? c.stop : c.send}
-            className={PRIMARY_ICON_BTN}
-            disabled={disabled || !canSubmit}
-            type="submit"
-          >
-            {showStop ? (
-              <span className="block size-2.5 rounded-[0.1875rem] bg-current" />
-            ) : (
-              <Codicon name="arrow-up" size="0.875rem" />
-            )}
-          </Button>
-        </Tip>
-      )}
+          {showStop ? (
+            <span className="block size-2.5 rounded-[0.1875rem] bg-current" />
+          ) : (
+            <Codicon name="arrow-up" size="0.875rem" />
+          )}
+        </Button>
+      </Tip>
       {/* The way out of HUD mode, riding the controls row rather than floating
           above the bar. The old chip lived in a 26px transparent strip reserved
           over the composer (--hud-chip-strip), which under glass is bare
@@ -175,6 +166,35 @@ export function ComposerControls({
           things you can press. */}
       {hudMode ? <ExitHudButton /> : null}
     </div>
+  )
+}
+
+// Start a voice conversation. Used to occupy the PRIMARY slot whenever the
+// composer was empty, which is what made Send look like it appeared on typing:
+// the two controls swapped in and out of the same box. It is a voice control,
+// so it rides with the other voice controls and leaves the primary slot to the
+// one action that must never move. Folded widths reach it through `VoiceMenu`.
+function StartVoiceButton({ disabled, onStart }: { disabled: boolean; onStart: () => void }) {
+  const { t } = useI18n()
+  const c = t.composer
+
+  return (
+    <Tip label={c.startVoice}>
+      <Button
+        aria-label={c.startVoice}
+        className={cn(GHOST_ICON_BTN, 'p-0')}
+        disabled={disabled}
+        onClick={() => {
+          triggerHaptic('open')
+          onStart()
+        }}
+        size="icon"
+        type="button"
+        variant="ghost"
+      >
+        <AudioLines className={iconSize.sm} />
+      </Button>
+    </Tip>
   )
 }
 

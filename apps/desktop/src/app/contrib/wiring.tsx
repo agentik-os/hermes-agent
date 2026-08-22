@@ -121,6 +121,8 @@ import { PluginInstallModal } from '../settings/plugin-install-modal'
 import { useOverlayRouting } from '../shell/hooks/use-overlay-routing'
 import { useWindowControlsOverlayWidth } from '../shell/hooks/use-window-controls-overlay-width'
 import {
+  TITLEBAR_LEFT_STATIC_TOOL_COUNT,
+  titlebarContentInsetCss,
   titlebarControlsPosition,
   titlebarControlsYNudge,
   titlebarToolsRightCss,
@@ -1049,6 +1051,15 @@ export function ContribWiring({ children }: { children: ReactNode }) {
   const titlebarToolsWidth =
     paneToolCount > 0 ? `calc(${systemToolsWidth} + ${titlebarToolsWidthCss(paneToolCount)})` : systemToolsWidth
 
+  // Left-edge twin of `--titlebar-tools-width`. The left cluster is `fixed` at
+  // `--titlebar-controls-left`, so the header's in-flow content has to be told
+  // how much of its own left edge is already spoken for — otherwise the session
+  // title paints under the macOS traffic lights and the sidebar/flip toggles.
+  // Same shape as the right side: count the buttons the cluster actually
+  // renders (two static ones plus whatever a page contributed), never a
+  // hardcoded width that silently under-counts.
+  const leftToolCount = TITLEBAR_LEFT_STATIC_TOOL_COUNT + leftTitlebarTools.filter(tool => !tool.hidden).length
+
   return (
     <ContribWiringContext.Provider value={api}>
       <div
@@ -1058,6 +1069,7 @@ export function ContribWiring({ children }: { children: ReactNode }) {
             '--titlebar-controls-left': `${controlsPos.left}px`,
             '--titlebar-controls-top': `${controlsPos.top}px`,
             '--titlebar-controls-y-nudge': titlebarControlsYNudge(titlebarChrome),
+            '--titlebar-content-inset': titlebarContentInsetCss(leftToolCount),
             '--titlebar-tools-right': titlebarToolsRight,
             '--titlebar-tools-width': titlebarToolsWidth,
             '--shell-preview-toolbar-gap': systemToolsWidth

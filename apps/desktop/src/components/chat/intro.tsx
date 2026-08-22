@@ -186,7 +186,7 @@ export function Intro({ personality, seed }: IntroProps) {
         return
       }
 
-      void video.play().catch(() => undefined)
+      void video.play()?.catch(() => undefined)
     }
 
     globalThis.document.addEventListener('visibilitychange', syncPlayback)

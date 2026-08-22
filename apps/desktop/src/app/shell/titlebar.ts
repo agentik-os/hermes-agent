@@ -79,6 +79,36 @@ export function titlebarToolsWidthCss(toolCount: number): string {
   return `calc(${toolCount} * var(--titlebar-control-size))`
 }
 
+/**
+ * Tools the LEFT cluster always renders on its own — the sidebar toggle and
+ * the flip-panes swap (see `leftToolbarTools` in titlebar-controls.tsx).
+ * Page-contributed left tools are counted on top of these.
+ */
+export const TITLEBAR_LEFT_STATIC_TOOL_COUNT = 2
+
+/**
+ * `--titlebar-content-inset` — how far in from a surface's own left edge the
+ * first piece of titlebar CONTENT (the session title) may start.
+ *
+ * The left of the window is owned by chrome that is `fixed`, not in flow: the
+ * macOS traffic lights, then the left tool cluster pinned at
+ * `--titlebar-controls-left`. A header that only pays its own `0.75rem` of
+ * padding therefore starts its title UNDERNEATH both of them whenever its
+ * surface reaches the window's left edge.
+ *
+ * The measurement is per-surface, so subtract `--workspace-left` (published by
+ * `publishWorkspaceGeometry`): a chat pane pushed right by an open sidebar has
+ * already cleared the chrome and owes nothing, which the `max(0px, …)` floor
+ * turns into zero rather than a negative pull. The header then takes
+ * `max(0.75rem, <this>)`, so the normal padding still wins when there is
+ * nothing to dodge.
+ */
+export function titlebarContentInsetCss(leftToolCount: number): string {
+  const clusterEnd = `calc(var(--titlebar-controls-left, ${TITLEBAR_EDGE_INSET}px) + ${titlebarToolsWidthCss(leftToolCount)} + 0.75rem)`
+
+  return `max(0px, calc(${clusterEnd} - var(--workspace-left, 0px)))`
+}
+
 export const titlebarHeaderBaseClass =
   'pointer-events-none relative z-3 flex h-(--titlebar-height) w-full min-w-0 shrink-0 items-center justify-start gap-3 overflow-hidden border-b border-(--ui-stroke-tertiary) bg-(--ui-chat-surface-background) px-[max(0.75rem,var(--titlebar-content-inset,0rem))] pr-[calc(var(--titlebar-tools-right,0.75rem)+var(--titlebar-tools-width,0px)+0.75rem)]'
 
