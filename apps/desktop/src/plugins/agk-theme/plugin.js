@@ -500,21 +500,15 @@ const css = `
   background: transparent;
 }
 
-/* Every pane keeps a rounded top by default, so the tab strip heading it is
-   rounded too. The conversation pane is squared again just below — this rule
-   sits first because the shorthand here would otherwise overwrite the longhand
-   corners, both selectors having equal specificity. */
+/* Every pane keeps a complete rounded card boundary. The parent clips the tab
+   strip so its top corners follow the pane radius without extra overrides. */
 :root[data-hermes-theme='agk'] [data-tree-group]:has([data-zone-tabstrip]) {
   border-radius: 12px;
   overflow: hidden;
 }
 
-/* Square top corners for the conversation pane ONLY: it butts against the
-   window chrome, where a rounded top reads as a floating notch. */
-:root[data-hermes-theme='agk'] [data-tree-group]:has([data-slot='composer-surface']) {
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
-}
+/* Conversation panes use the same complete card radius as every other pane.
+   The tab strip is clipped by the parent, so its top corners follow the card. */
 
 /* Tag-style tabs: the label needs breathing room on both axes, otherwise the
    pill hugs the text and reads as cramped. An explicit align-self center pins
@@ -893,6 +887,15 @@ const css = `
   border-radius: 9px;
   border-color: var(--agk-hairline);
   background: var(--agk-shell);
+  color: var(--ui-text-primary) !important;
+  caret-color: var(--ui-text-primary);
+  -webkit-text-fill-color: var(--ui-text-primary);
+}
+
+:root[data-hermes-theme='agk'] input::placeholder,
+:root[data-hermes-theme='agk'] [data-slot='input']::placeholder {
+  color: var(--ui-text-tertiary) !important;
+  -webkit-text-fill-color: var(--ui-text-tertiary);
 }
 
 /* ── Status bar ────────────────────────────────────────────────────────────
