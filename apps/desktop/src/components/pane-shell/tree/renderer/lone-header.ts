@@ -19,13 +19,15 @@ export function forceLoneHeaderForPanes(
   chromeOf: (id: string) => LoneHeaderChrome,
   isCollapsePane: (id: string) => boolean
 ): boolean {
-  // "This pane can be closed, so it must expose the ✕." Only the uncloseable
-  // workspace is exempt; standing side chrome (files / sessions) isn't 'main'.
+  // Every main workspace is a session-navigation surface, including the
+  // uncloseable root workspace. Its header carries the active session tabs and
+  // the trailing + button, so hiding it on a lone workspace removes the only
+  // direct way to add another session to the stack.
   if (
     shown.some(id => {
       const chrome = chromeOf(id)
 
-      return !chrome.uncloseable && chrome.placement === 'main'
+      return chrome.placement === 'main'
     })
   ) {
     return true
