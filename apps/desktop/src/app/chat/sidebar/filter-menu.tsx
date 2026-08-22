@@ -215,6 +215,7 @@ export function SidebarFilterMenu({ className }: { className?: string }) {
             // for a session that is actually doing something.
             filtersActive && 'bg-(--ui-control-active-background) text-foreground opacity-100'
           )}
+          data-sidebar-compact-action=""
           size="icon-xs"
           type="button"
           variant="ghost"

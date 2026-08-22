@@ -205,6 +205,7 @@ export function ProjectMenu({
           // rows reveal on the row hover.
           scoped ? 'group-hover/section:opacity-100' : 'group-hover/workspace:opacity-100'
         )}
+        data-sidebar-compact-action=""
         onClick={event => event.stopPropagation()}
         type="button"
       >

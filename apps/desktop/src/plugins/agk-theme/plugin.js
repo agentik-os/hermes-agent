@@ -260,7 +260,7 @@ const css = `
 }
 
 :root[data-hermes-theme='agk'] [data-sidebar] a,
-:root[data-hermes-theme='agk'] [data-sidebar] button:not([class*='bg-primary']) {
+:root[data-hermes-theme='agk'] [data-sidebar] button:not([class*='bg-primary']):not([data-sidebar-compact-action]) {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -271,6 +271,13 @@ const css = `
   font-weight: 450;
   color: var(--ui-text-secondary);
   transition: background-color 110ms ease, color 110ms ease;
+}
+
+/* Compact sidebar actions (+, kebab, filters) opt out explicitly; semantic
+   data attributes avoid matching Tailwind's nested [class*=size-*] text. */
+:root[data-hermes-theme='agk'] [data-sidebar] [data-sidebar-compact-action] {
+  padding: 0;
+  margin-block: 0;
 }
 
 /* Session rows: DO NOT restyle the trailing cluster.
@@ -286,7 +293,7 @@ const css = `
    the timestamp instead. The right fix is to remove the override entirely and
    let Hermes' own mechanism work. */
 :root[data-hermes-theme='agk'] [data-sidebar] a:hover,
-:root[data-hermes-theme='agk'] [data-sidebar] button:not([class*='bg-primary']):hover {
+:root[data-hermes-theme='agk'] [data-sidebar] button:not([class*='bg-primary']):not([data-sidebar-compact-action]):hover {
   background: var(--agk-hover);
   color: var(--ui-text-primary);
 }

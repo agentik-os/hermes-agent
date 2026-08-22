@@ -1703,6 +1703,7 @@ export function ChatSidebar({
                         <Button
                           aria-label={s.markAllRead}
                           className={HEADER_ACTION_BTN}
+                          data-sidebar-compact-action=""
                           onClick={event => {
                             event.stopPropagation()
                             markAllSessionsRead()
@@ -1753,6 +1754,7 @@ export function ChatSidebar({
                             <Button
                               aria-label={agentsGrouped ? s.projects.newButton : s.nav['new-session']}
                               className={HEADER_ACTION_BTN}
+                              data-sidebar-compact-action=""
                               onClick={event => {
                                 event.stopPropagation()
 

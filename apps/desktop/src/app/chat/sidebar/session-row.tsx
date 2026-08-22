@@ -325,6 +325,7 @@ function SidebarSessionRowImpl({
             trailing.length > 0 && 'absolute right-0',
             pr && KEBAB_YIELDS
           )}
+          data-sidebar-compact-action=""
           size="icon"
           variant="ghost"
         >

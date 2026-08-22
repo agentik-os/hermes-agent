@@ -41,6 +41,7 @@ describe('WorkspaceAddButton', () => {
     render(<WorkspaceAddButton label="New session in Test D" onClick={vi.fn()} />)
 
     const button = screen.getByRole('button', { name: 'New session in Test D' })
+    expect(button.getAttribute('data-sidebar-compact-action')).toBe('')
     expect(tipTrigger(button)).toBeTruthy()
   })
 
@@ -58,6 +59,7 @@ describe('WorkspaceShowMoreButton', () => {
     render(<WorkspaceShowMoreButton count={5} label="Test D" onClick={vi.fn()} />)
 
     const button = screen.getByRole('button', { name: 'Show 5 more in Test D' })
+    expect(button.getAttribute('data-sidebar-compact-action')).toBe('')
     expect(tipTrigger(button)).toBeTruthy()
   })
 })
@@ -67,6 +69,7 @@ describe('WorkspaceMenu', () => {
     render(<WorkspaceMenu onRemove={vi.fn()} path="/repo/lane" />)
 
     const button = screen.getByRole('button', { name: 'Actions' })
+    expect(button.getAttribute('data-sidebar-compact-action')).toBe('')
     expect(tipTrigger(button)).toBeNull()
   })
 })
@@ -76,6 +79,7 @@ describe('StartWorkButton', () => {
     render(<StartWorkButton repoPath="/repo" />)
 
     const button = screen.getByRole('button', { name: 'New worktree' })
+    expect(button.getAttribute('data-sidebar-compact-action')).toBe('')
     expect(tipTrigger(button)).toBeTruthy()
   })
 })
