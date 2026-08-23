@@ -770,15 +770,6 @@ const css = `
   box-shadow: var(--agk-lift) !important;
 }
 
-/* When Background Tasks sits above the composer, the two surfaces form one
-   vertical stack. This rule follows the normal 22px radius so its square top
-   corners win only in the attached-task state. */
-:root[data-hermes-theme='agk'] [data-slot='composer-dock']:has([data-slot='composer-status-card'])
-  [data-slot='composer-surface'] {
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
-}
-
 /* Control rows: real spacing, and a clean split between the leading tools and
    the trailing send cluster. */
 :root[data-hermes-theme='agk'] [data-slot='composer-surface'] [class*='flex']:has(> button + button) {
@@ -898,10 +889,74 @@ const css = `
   box-shadow: none !important;
 }
 
-:root[data-hermes-theme='agk'] input,
-:root[data-hermes-theme='agk'] [data-slot='input'] {
+/* Text-entry controls use fill, spacing and caret only — never border chrome.
+   Keep this list explicit so checkbox/radio/range/color/select controls retain
+   their own geometry and keyboard-focus affordance. InputGroup owns the chrome
+   for prefixed/suffixed Input fields, so it is covered alongside its child. */
+:root[data-hermes-theme='agk'] :is(
+  input:not([type]),
+  input[type='text'],
+  input[type='search'],
+  input[type='email'],
+  input[type='password'],
+  input[type='url'],
+  input[type='tel'],
+  input[type='number'],
+  textarea,
+  [data-slot='input']:not([type]),
+  [data-slot='input'][type='text'],
+  [data-slot='input'][type='search'],
+  [data-slot='input'][type='email'],
+  [data-slot='input'][type='password'],
+  [data-slot='input'][type='url'],
+  [data-slot='input'][type='tel'],
+  [data-slot='input'][type='number'],
+  [data-slot='textarea'],
+  [data-slot='input-group']:has(> [data-slot='input']:is(
+    :not([type]),
+    [type='text'],
+    [type='search'],
+    [type='email'],
+    [type='password'],
+    [type='url'],
+    [type='tel'],
+    [type='number']
+  ))
+),
+:root[data-hermes-theme='agk'] :is(
+  input:not([type]),
+  input[type='text'],
+  input[type='search'],
+  input[type='email'],
+  input[type='password'],
+  input[type='url'],
+  input[type='tel'],
+  input[type='number'],
+  textarea,
+  [data-slot='input']:not([type]),
+  [data-slot='input'][type='text'],
+  [data-slot='input'][type='search'],
+  [data-slot='input'][type='email'],
+  [data-slot='input'][type='password'],
+  [data-slot='input'][type='url'],
+  [data-slot='input'][type='tel'],
+  [data-slot='input'][type='number'],
+  [data-slot='textarea'],
+  [data-slot='input-group']:has(> [data-slot='input']:is(
+    :not([type]),
+    [type='text'],
+    [type='search'],
+    [type='email'],
+    [type='password'],
+    [type='url'],
+    [type='tel'],
+    [type='number']
+  ))
+):is(:hover, :focus, :focus-visible, :focus-within) {
+  border: 0 !important;
   border-radius: 9px;
-  border-color: var(--agk-hairline);
+  outline: 0 !important;
+  box-shadow: none !important;
   background: var(--agk-shell);
   color: var(--ui-text-primary) !important;
   caret-color: var(--ui-text-primary);
@@ -939,7 +994,26 @@ const css = `
   outline: none;
 }
 
-:root[data-hermes-theme='agk'] *:focus-visible:not([data-slot='composer-rich-input']):not([data-slot='composer-surface']) {
+:root[data-hermes-theme='agk'] *:focus-visible:not([data-slot='composer-rich-input']):not([data-slot='composer-surface']):not(:is(
+    input:not([type]),
+    input[type='text'],
+    input[type='search'],
+    input[type='email'],
+    input[type='password'],
+    input[type='url'],
+    input[type='tel'],
+    input[type='number'],
+    textarea,
+    [data-slot='input']:not([type]),
+    [data-slot='input'][type='text'],
+    [data-slot='input'][type='search'],
+    [data-slot='input'][type='email'],
+    [data-slot='input'][type='password'],
+    [data-slot='input'][type='url'],
+    [data-slot='input'][type='tel'],
+    [data-slot='input'][type='number'],
+    [data-slot='textarea']
+  )) {
   outline: none !important;
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--ui-text-primary) 22%, transparent) inset !important;
 }
