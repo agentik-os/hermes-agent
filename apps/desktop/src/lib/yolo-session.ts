@@ -1,7 +1,25 @@
+import { $approvalModes, setApprovalModeForProfile } from '@/store/approval-mode'
 import { $gateway } from '@/store/gateway'
-import { $activeSessionId, setYoloActive } from '@/store/session'
+import { $activeGatewayProfile } from '@/store/profile'
+import {
+  $activeSessionId,
+  $processYoloActive,
+  $yoloActive,
+  $yoloAuthorityKnown,
+  setSessionYoloActive,
+  setYoloActive
+} from '@/store/session'
+import { $sessionStates } from '@/store/session-states'
 
 export type GatewayRequester = <T = unknown>(method: string, params?: Record<string, unknown>) => Promise<T>
+
+let sessionYoloGeneration = 0
+const sessionYoloRevisions = new Map<string, number>()
+
+export function resetSessionYoloReconciliation(): void {
+  sessionYoloGeneration += 1
+  sessionYoloRevisions.clear()
+}
 
 /**
  * Toggle per-session YOLO (approval bypass) via gateway `config.set` — the same
@@ -19,11 +37,10 @@ export async function setSessionYolo(
     value: enabled ? '1' : '0'
   })
 
-  const active = result?.value === '1'
-
-  setYoloActive(active)
-
-  return active
+  // config.set emits authoritative session.info (session override OR global
+  // mode) before the RPC resolves. Return only the scope-local value and never
+  // overwrite the effective store with this narrower fact.
+  return result?.value === '1'
 }
 
 /**
@@ -40,9 +57,76 @@ export async function setGlobalYolo(requestGateway: GatewayRequester, enabled: b
     value: enabled ? '1' : '0'
   })
 
-  const active = result?.value === '1'
+  // config.set emits authoritative session.info (session override OR global
+  // mode) before the RPC resolves. Return only the scope-local value and never
+  // overwrite the effective store with this narrower fact.
+  return result?.value === '1'
+}
 
-  setYoloActive(active)
+/** Set persistent global YOLO against one already-bound gateway/profile. */
+export async function setGlobalYoloForTarget(
+  request: GatewayRequester,
+  profile: string,
+  enabled: boolean
+): Promise<boolean> {
+  const mode = await setApprovalModeForProfile(request, profile, enabled ? 'off' : 'manual')
+
+  return mode === 'off'
+}
+
+/** Set persistent global YOLO using the current gateway/profile. */
+export async function setGlobalYoloEnabled(enabled: boolean): Promise<boolean> {
+  const gateway = $gateway.get()
+
+  if (!gateway) {
+    throw new Error('Hermes gateway unavailable')
+  }
+
+  const profile = $activeGatewayProfile.get()
+
+  return setGlobalYoloForTarget((method, params) => gateway.request(method, params), profile, enabled)
+}
+
+export async function setSessionYoloAndReconcile(
+  requestGateway: GatewayRequester,
+  sessionId: string,
+  enabled: boolean
+): Promise<boolean> {
+  const generation = sessionYoloGeneration
+  const revision = (sessionYoloRevisions.get(sessionId) ?? 0) + 1
+  sessionYoloRevisions.set(sessionId, revision)
+  const targetGateway = $gateway.get()
+  const targetProfile = $activeGatewayProfile.get().trim() || 'default'
+  const active = await setSessionYolo(requestGateway, sessionId, enabled)
+
+  const stillCurrentRequest =
+    sessionYoloGeneration === generation && sessionYoloRevisions.get(sessionId) === revision
+
+  if (!stillCurrentRequest) {
+    return active
+  }
+
+  const states = $sessionStates.get()
+  const state = states[sessionId]
+
+  if (state) {
+    $sessionStates.set({ ...states, [sessionId]: { ...state, sessionYolo: active } })
+  }
+
+  const stillForeground =
+    $gateway.get() === targetGateway &&
+    ($activeGatewayProfile.get().trim() || 'default') === targetProfile &&
+    $activeSessionId.get() === sessionId
+
+  if (!stillForeground) {
+    return active
+  }
+
+  setSessionYoloActive(active)
+
+  const globalActive = ($approvalModes.get()[targetProfile] ?? 'smart') === 'off'
+  const legacyUnknownActive = !$yoloAuthorityKnown.get() && $yoloActive.get()
+  setYoloActive(active || $processYoloActive.get() || globalActive || legacyUnknownActive)
 
   return active
 }
@@ -61,6 +145,7 @@ export async function setYoloEnabled(enabled: boolean): Promise<boolean> {
   const sessionId = $activeSessionId.get()
 
   if (!sessionId) {
+    setSessionYoloActive(enabled)
     setYoloActive(enabled)
 
     return enabled
@@ -72,5 +157,9 @@ export async function setYoloEnabled(enabled: boolean): Promise<boolean> {
     throw new Error('Hermes gateway unavailable')
   }
 
-  return setSessionYolo((method, params) => gateway.request(method, params), sessionId, enabled)
+  return setSessionYoloAndReconcile(
+    (method, params) => gateway.request(method, params),
+    sessionId,
+    enabled
+  )
 }

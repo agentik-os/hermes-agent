@@ -691,10 +691,12 @@ export interface SessionRuntimeInfo {
   install_warning?: string
   model?: string
   personality?: string
+  process_yolo?: boolean
   provider?: string
   reasoning_effort?: string
   running?: boolean
   service_tier?: string
+  session_yolo?: boolean
   skills?: Record<string, string[]> | string[]
   tools?: Record<string, string[]>
   usage?: Partial<UsageStats>

@@ -1,19 +1,28 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { $approvalModes } from '@/store/approval-mode'
 import { $sessionsLimit, resetSessionsLimit, SIDEBAR_SESSIONS_PAGE_SIZE } from '@/store/layout'
 import {
   $cronSessions,
   $freshDraftReady,
   $messagingSessions,
+  $processYoloActive,
   $sessionProfilesTruncated,
   $sessions,
   $sessionsLoading,
+  $sessionYoloActive,
+  $yoloActive,
+  $yoloAuthorityKnown,
   setCronSessions,
   setFreshDraftReady,
   setMessagingSessions,
+  setProcessYoloActive,
   setSessionProfilesTruncated,
   setSessions,
-  setSessionsLoading
+  setSessionsLoading,
+  setSessionYoloActive,
+  setYoloActive,
+  setYoloAuthorityKnown
 } from '@/store/session'
 import { $stalledSessionIds } from '@/store/session-states'
 
@@ -68,6 +77,22 @@ describe('wipeSessionListsForGatewaySwitch', () => {
     expect($sessionsLoading.get()).toBe(true)
     expect($sessionsLimit.get()).toBe(SIDEBAR_SESSIONS_PAGE_SIZE)
     expect($freshDraftReady.get()).toBe(true)
+  })
+
+  it('clears gateway-scoped approval authority before reconnecting', () => {
+    $approvalModes.set({ default: 'off' })
+    setProcessYoloActive(true)
+    setSessionYoloActive(true)
+    setYoloActive(true)
+    setYoloAuthorityKnown(true)
+
+    wipeSessionListsForGatewaySwitch()
+
+    expect($approvalModes.get()).toEqual({})
+    expect($processYoloActive.get()).toBe(false)
+    expect($sessionYoloActive.get()).toBe(false)
+    expect($yoloActive.get()).toBe(false)
+    expect($yoloAuthorityKnown.get()).toBe(false)
   })
 
   it('strands in-flight profile-list fetches so the old backend cannot repaint the rail (#85731)', () => {

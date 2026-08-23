@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { $approvalModes, approvalModeForProfile } from '@/store/approval-mode'
 import { $activeGatewayProfile } from '@/store/profile'
+import { $processYoloActive, $sessionYoloActive, $yoloActive, $yoloAuthorityKnown } from '@/store/session'
 
 import { type MessageStreamHarness, renderMessageStream } from './test-harness'
 
@@ -17,6 +18,10 @@ describe('live session.info approval mode reconciliation', () => {
   beforeEach(() => {
     $approvalModes.set({})
     $activeGatewayProfile.set('work')
+    $processYoloActive.set(false)
+    $sessionYoloActive.set(false)
+    $yoloActive.set(false)
+    $yoloAuthorityKnown.set(false)
   })
 
   afterEach(() => {
@@ -38,6 +43,40 @@ describe('live session.info approval mode reconciliation', () => {
 
     expect(approvalModeForProfile('work')).toBe('off')
     expect(approvalModeForProfile('default')).toBe('smart')
+  })
+
+  it('reconciles separate session and process YOLO authorities', () => {
+    mountStream()
+
+    act(() =>
+      stream.handleEvent({
+        payload: { approval_mode: 'smart', process_yolo: true, session_yolo: false, yolo: true },
+        profile: 'work',
+        session_id: ACTIVE_SID,
+        type: 'session.info'
+      })
+    )
+
+    expect($processYoloActive.get()).toBe(true)
+    expect($sessionYoloActive.get()).toBe(false)
+  })
+
+  it('preserves legacy effective YOLO without inventing a disableable scope', () => {
+    mountStream()
+
+    act(() =>
+      stream.handleEvent({
+        payload: { yolo: true },
+        profile: 'work',
+        session_id: ACTIVE_SID,
+        type: 'session.info'
+      })
+    )
+
+    expect($yoloActive.get()).toBe(true)
+    expect($yoloAuthorityKnown.get()).toBe(false)
+    expect($processYoloActive.get()).toBe(false)
+    expect($sessionYoloActive.get()).toBe(false)
   })
 
   it('ignores stale session.info from a non-active session on the active gateway', () => {

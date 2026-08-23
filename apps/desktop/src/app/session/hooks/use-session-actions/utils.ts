@@ -23,9 +23,13 @@ import {
   setCurrentReasoningEffort,
   setCurrentServiceTier,
   setCurrentUsage,
+  setProcessYoloActive,
   setSessions,
+  setSessionYoloActive,
   setWorkspaceCwdOwner,
-  setYoloActive
+  setYoloActive,
+  setYoloAuthorityKnown,
+  setYoloAuthorityReady
 } from '@/store/session'
 
 // Re-exported for the many session-actions/tile call sites that already import
@@ -1383,7 +1387,7 @@ export async function resolveSessionProfile(storedSessionId: null | string): Pro
 type SessionRuntimeStatePatch = Partial<
   Pick<
     ClientSessionState,
-    'branch' | 'cwd' | 'fast' | 'model' | 'personality' | 'provider' | 'reasoningEffort' | 'serviceTier' | 'yolo'
+    'branch' | 'cwd' | 'fast' | 'model' | 'personality' | 'provider' | 'reasoningEffort' | 'serviceTier' | 'sessionYolo' | 'yolo'
   >
 >
 
@@ -1445,6 +1449,10 @@ function publishRuntimeToComposer(state: SessionRuntimeStatePatch): void {
 
   if (state.fast !== undefined) {
     setCurrentFastMode(state.fast)
+  }
+
+  if (state.sessionYolo !== undefined) {
+    setSessionYoloActive(state.sessionYolo)
   }
 
   if (state.yolo !== undefined) {
@@ -1511,12 +1519,27 @@ export function applyRuntimeInfo(
     sessionState.fast = info.fast
   }
 
+  if (typeof info.session_yolo === 'boolean') {
+    sessionState.sessionYolo = info.session_yolo
+  }
+
   if (typeof info.yolo === 'boolean') {
     sessionState.yolo = info.yolo
   }
 
   if (foreground) {
     publishRuntimeToComposer(sessionState)
+
+    if (typeof info.yolo === 'boolean') {
+      setYoloAuthorityKnown(
+        typeof info.session_yolo === 'boolean' || typeof info.process_yolo === 'boolean'
+      )
+      setYoloAuthorityReady(true)
+    }
+
+    if (typeof info.process_yolo === 'boolean') {
+      setProcessYoloActive(info.process_yolo)
+    }
 
     if (info.usage) {
       setCurrentUsage(current => ({ ...current, ...info.usage }))
@@ -1535,6 +1558,7 @@ export function applyStoredSessionPreviewRuntimeInfo(
   setCurrentReasoningEffort('')
   setCurrentServiceTier('')
   setCurrentFastMode(false)
+  setSessionYoloActive(false)
   setYoloActive(false)
   setCurrentPersonality('')
 

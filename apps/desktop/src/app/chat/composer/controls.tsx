@@ -1,13 +1,31 @@
 import { useStore } from '@nanostores/react'
+import { useEffect, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Codicon } from '@/components/ui/codicon'
 import { Tip, TipKeybindLabel } from '@/components/ui/tooltip'
 import { useI18n } from '@/i18n'
 import { triggerHaptic } from '@/lib/haptics'
-import { AudioLines, Ear, EarOff, iconSize, Layers3, Loader2, Square, Volume2, VolumeX } from '@/lib/icons'
+import { AudioLines, Ear, EarOff, iconSize, Layers3, Loader2, Square, Volume2, VolumeX, Zap, ZapFilled } from '@/lib/icons'
 import { cn } from '@/lib/utils'
+import { type GatewayRequester, setGlobalYoloForTarget, setYoloEnabled } from '@/lib/yolo-session'
+import { $approvalModes, syncApprovalModeForProfile } from '@/store/approval-mode'
+import { confirm } from '@/store/confirm'
+import { $gateway } from '@/store/gateway'
 import { $hudMode, closeHud } from '@/store/hud'
+import { notify, notifyError } from '@/store/notifications'
+import { $activeGatewayProfile } from '@/store/profile'
+import {
+  $processYoloActive,
+  $sessionYoloActive,
+  $yoloActive,
+  $yoloAuthorityKnown,
+  $yoloAuthorityReady,
+  setProcessYoloActive,
+  setYoloActive,
+  setYoloAuthorityKnown,
+  setYoloAuthorityReady
+} from '@/store/session'
 import { $wakeWord, toggleWakeWord } from '@/store/wake-word'
 
 import { ACTIVE_ICON_BTN, GHOST_ICON_BTN, PRIMARY_ICON_BTN } from './control-classes'
@@ -118,6 +136,7 @@ export function ComposerControls({
         <>
           <ModelPill compact={compactModelPill} disabled={disabled} model={state.model} />
           {voiceControls}
+          <AutonomyButton disabled={disabled} />
         </>
       )}
       {showQueueButton ? (
@@ -166,6 +185,180 @@ export function ComposerControls({
           things you can press. */}
       {hudMode ? <ExitHudButton /> : null}
     </div>
+  )
+}
+
+function AutonomyButton({ disabled }: { disabled: boolean }) {
+  const sessionActive = useStore($sessionYoloActive)
+  const processActive = useStore($processYoloActive)
+  const legacyEffective = useStore($yoloActive)
+  const authorityKnown = useStore($yoloAuthorityKnown)
+  const authorityReady = useStore($yoloAuthorityReady)
+  const approvalModes = useStore($approvalModes)
+  const gateway = useStore($gateway)
+  const profile = useStore($activeGatewayProfile)
+  const globalActive = (approvalModes[profile.trim() || 'default'] ?? 'smart') === 'off'
+  const legacyUnknownActive = !authorityKnown && legacyEffective
+  const effectiveActive = sessionActive || globalActive || processActive || legacyUnknownActive
+  const [pending, setPending] = useState(false)
+
+  useEffect(() => {
+    if (!gateway) {
+      return
+    }
+
+    const targetGateway = gateway
+    const targetProfile = profile
+    setYoloAuthorityReady(false)
+    const request: GatewayRequester = (method, params) => targetGateway.request(method, params)
+
+    void Promise.all([
+      syncApprovalModeForProfile(request, targetProfile),
+      request('config.get', { key: 'yolo.authorities' }) as Promise<{
+        process_yolo?: boolean
+        yolo?: boolean
+      }>
+    ])
+      .then(([, authorities]) => {
+        if (
+          $gateway.get() !== targetGateway ||
+          $activeGatewayProfile.get() !== targetProfile
+        ) {
+          return
+        }
+
+        if (typeof authorities.process_yolo === 'boolean') {
+          setProcessYoloActive(authorities.process_yolo)
+          setYoloAuthorityKnown(true)
+          setYoloAuthorityReady(true)
+        }
+
+        if (typeof authorities.yolo === 'boolean') {
+          setYoloActive(authorities.yolo || $sessionYoloActive.get())
+        }
+      })
+      .catch(() => undefined)
+  }, [gateway, profile])
+
+  const label = !authorityReady
+    ? 'Loading full-access authority…'
+    : legacyUnknownActive
+    ? 'Full access is active on a legacy gateway; scope cannot be changed safely here'
+    : processActive
+      ? 'Process-wide full access is forced by --yolo and cannot be disabled here'
+    : globalActive
+      ? 'Global autonomous full access on · Shift+click to disable globally'
+      : sessionActive
+        ? 'Autonomous full access on for this chat · click to disable'
+        : 'Enable autonomous full access for this chat · Shift+click applies globally'
+
+  const toggle = async (global: boolean) => {
+    if (legacyUnknownActive) {
+      notify({ kind: 'warning', message: 'Legacy gateway reports full access active; upgrade it to change scope safely' })
+
+      return
+    }
+
+    if (processActive) {
+      notify({ kind: 'warning', message: 'Process-wide --yolo is active and must be changed at restart' })
+
+      return
+    }
+
+    if (!global && globalActive) {
+      notify({ kind: 'info', message: 'Global autonomous full access is active · Shift+click to change it' })
+
+      return
+    }
+
+    if (pending) {
+      return
+    }
+
+    setPending(true)
+
+    try {
+      let enabled: boolean
+
+      if (global) {
+        if (!gateway) {
+          throw new Error('Hermes gateway unavailable')
+        }
+
+        const targetGateway = gateway
+        const targetProfile = profile.trim() || 'default'
+
+        const request: GatewayRequester = (method, params) => targetGateway.request(method, params)
+
+        const current = await syncApprovalModeForProfile(request, targetProfile)
+
+        const next = current !== 'off'
+
+        if (
+          next &&
+          !(await confirm({
+            confirmLabel: 'Enable persistent full access',
+            destructive: true,
+            description:
+              'This disables approval prompts for every chat, CLI/TUI command, cron job and unattended task on this gateway, and survives restart. Hardline blocks and your explicit deny rules still apply.',
+            title: 'Enable global autonomous full access?'
+          }))
+        ) {
+          return
+        }
+
+        if (
+          $gateway.get() !== targetGateway ||
+          ($activeGatewayProfile.get().trim() || 'default') !== targetProfile
+        ) {
+          throw new Error('Gateway or profile changed while confirming; no full-access change was applied')
+        }
+
+        enabled = await setGlobalYoloForTarget(request, targetProfile, next)
+
+        if (
+          $gateway.get() !== targetGateway ||
+          ($activeGatewayProfile.get().trim() || 'default') !== targetProfile
+        ) {
+          throw new Error('Gateway or profile changed before the full-access update completed')
+        }
+      } else {
+        enabled = await setYoloEnabled(!sessionActive)
+      }
+
+      notify({
+        kind: enabled ? 'warning' : 'info',
+        message: enabled
+          ? global
+            ? 'Global autonomous full access enabled'
+            : 'Autonomous full access enabled for this chat'
+          : global
+            ? 'Global autonomous full access disabled'
+            : 'Autonomous full access disabled for this chat'
+      })
+      triggerHaptic(enabled ? 'warning' : 'tap')
+    } catch (error) {
+      notifyError(error, 'Could not change autonomous mode')
+    } finally {
+      setPending(false)
+    }
+  }
+
+  return (
+    <Tip label={label}>
+      <Button
+        aria-label={label}
+        aria-pressed={effectiveActive}
+        className={cn(GHOST_ICON_BTN, effectiveActive && ACTIVE_ICON_BTN)}
+        disabled={disabled || pending || !authorityReady}
+        onClick={event => void toggle(event.shiftKey)}
+        size="icon"
+        type="button"
+        variant="ghost"
+      >
+        {effectiveActive ? <ZapFilled className={iconSize.sm} /> : <Zap className={iconSize.sm} />}
+      </Button>
+    </Tip>
   )
 }
 

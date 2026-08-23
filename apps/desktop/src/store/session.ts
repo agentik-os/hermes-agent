@@ -622,6 +622,13 @@ export const $currentFastMode = atom(storedBoolean(COMPOSER_FAST_KEY, false))
 // Persistence lives in the backend config (approvals.mode), so this is a plain
 // reflection of the truth the gateway reports rather than its own store.
 export const $yoloActive = atom(false)
+/** Whether session.info reported scope-specific YOLO fields (new gateway). */
+export const $yoloAuthorityKnown = atom(false)
+/** True only after this gateway/profile's authority status has resolved. */
+export const $yoloAuthorityReady = atom(false)
+/** Scope-local approval bypasses reported separately by session.info. */
+export const $sessionYoloActive = atom(false)
+export const $processYoloActive = atom(false)
 export const $currentCwd = atom(getRememberedWorkspaceCwd())
 
 // Which conversation the live `$currentCwd` is known to describe. Three
@@ -852,6 +859,10 @@ export const setCurrentFastMode = (next: Updater<boolean>) => {
 }
 
 export const setYoloActive = (next: Updater<boolean>) => updateAtom($yoloActive, next)
+export const setYoloAuthorityKnown = (next: Updater<boolean>) => updateAtom($yoloAuthorityKnown, next)
+export const setYoloAuthorityReady = (next: Updater<boolean>) => updateAtom($yoloAuthorityReady, next)
+export const setSessionYoloActive = (next: Updater<boolean>) => updateAtom($sessionYoloActive, next)
+export const setProcessYoloActive = (next: Updater<boolean>) => updateAtom($processYoloActive, next)
 
 /** Move the live workspace AND remember it as this backend's workspace.
  *

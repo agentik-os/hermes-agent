@@ -17,10 +17,14 @@ import {
   setCurrentReasoningEffort,
   setCurrentServiceTier,
   setCurrentUsage,
+  setProcessYoloActive,
   setSessions,
+  setSessionYoloActive,
   setTerminalBackend,
   setWorkspaceCwdOwner,
-  setYoloActive
+  setYoloActive,
+  setYoloAuthorityKnown,
+  setYoloAuthorityReady
 } from '@/store/session'
 import { reportInstallMethodWarning } from '@/store/updates'
 
@@ -169,8 +173,21 @@ export function handleSessionInfoEvent(ctx: GatewayEventContext): boolean {
         setCurrentFastMode(payload.fast)
       }
 
+      const hasScopedYolo =
+        typeof payload?.session_yolo === 'boolean' || typeof payload?.process_yolo === 'boolean'
+
       if (typeof payload?.yolo === 'boolean') {
         setYoloActive(payload.yolo)
+        setYoloAuthorityKnown(hasScopedYolo)
+        setYoloAuthorityReady(true)
+      }
+
+      if (typeof payload?.session_yolo === 'boolean') {
+        setSessionYoloActive(payload.session_yolo)
+      }
+
+      if (typeof payload?.process_yolo === 'boolean') {
+        setProcessYoloActive(payload.process_yolo)
       }
     }
 

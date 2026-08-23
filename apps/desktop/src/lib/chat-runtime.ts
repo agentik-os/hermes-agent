@@ -32,6 +32,7 @@ export function createClientSessionState(
     serviceTier: '',
     fast: false,
     yolo: false,
+    sessionYolo: false,
     personality: '',
     busy: false,
     awaitingResponse: false,

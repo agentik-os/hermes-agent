@@ -5722,6 +5722,8 @@ def _session_info(agent, session: dict | None = None) -> dict:
     # the desktop status bar (it would show YOLO "off" while approvals.mode=off
     # silently auto-approves every dangerous command).
     yolo = False
+    session_yolo = False
+    process_yolo = False
     approval_mode = "manual"
     try:
         from tools.approval import _YOLO_MODE_FROZEN, is_session_yolo_enabled
@@ -5729,8 +5731,9 @@ def _session_info(agent, session: dict | None = None) -> dict:
         session_yolo = (
             bool(is_session_yolo_enabled(session_key)) if session_key else False
         )
+        process_yolo = bool(_YOLO_MODE_FROZEN)
         approval_mode = _load_approval_mode()
-        yolo = bool(_YOLO_MODE_FROZEN) or session_yolo or approval_mode == "off"
+        yolo = process_yolo or session_yolo or approval_mode == "off"
     except Exception:
         yolo = False
     # A model switch queued mid-turn (pending_model_switch) applies at the next
@@ -5759,6 +5762,8 @@ def _session_info(agent, session: dict | None = None) -> dict:
         "service_tier": service_tier,
         "fast": service_tier == "priority",
         "yolo": yolo,
+        "session_yolo": session_yolo,
+        "process_yolo": process_yolo,
         "approval_mode": approval_mode,
         "tools": dict(mirror.get("tools") or {}) if isinstance(mirror.get("tools"), dict) else {},
         "skills": dict(mirror.get("skills") or {}) if isinstance(mirror.get("skills"), dict) else {},

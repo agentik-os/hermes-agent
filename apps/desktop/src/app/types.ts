@@ -182,6 +182,8 @@ export interface ClientSessionState {
   serviceTier: string
   fast: boolean
   yolo: boolean
+  /** Per-chat override, separate from effective/global/process YOLO. */
+  sessionYolo?: boolean
   personality: string
   busy: boolean
   awaitingResponse: boolean

@@ -9,6 +9,9 @@ import { stubMenuDomApis, stubResizeObserver } from '@/test/jsdom'
 
 import { useApprovalModeStatusbarItem } from './approval-mode-menu'
 
+const confirmMock = vi.hoisted(() => vi.fn(async () => true))
+vi.mock('@/store/confirm', () => ({ confirm: confirmMock }))
+
 beforeAll(() => {
   stubResizeObserver()
   stubMenuDomApis()
@@ -17,6 +20,8 @@ beforeAll(() => {
 afterEach(() => {
   cleanup()
   $approvalModes.set({})
+  confirmMock.mockReset()
+  confirmMock.mockResolvedValue(true)
 })
 
 function Harness({
@@ -63,6 +68,29 @@ describe('approval mode statusbar item', () => {
       expect(requestGateway).toHaveBeenCalledWith('config.set', { key: 'approvals.mode', value: 'manual' })
       expect(screen.getByRole('button', { name: /manual/i })).toBeTruthy()
     })
+  })
+
+  it('requires confirmation before enabling global off mode', async () => {
+    const requestGateway = vi.fn(async (_method, params) => ({ value: params?.value ?? 'smart' }))
+    render(<Harness requestGateway={requestGateway} />)
+
+    fireEvent.pointerDown(screen.getByRole('button', { name: /smart/i }), { button: 0 })
+    fireEvent.click(await screen.findByRole('menuitemradio', { name: /off/i }))
+
+    await waitFor(() => expect(confirmMock).toHaveBeenCalled())
+    expect(requestGateway).toHaveBeenCalledWith('config.set', { key: 'approvals.mode', value: 'off' })
+  })
+
+  it('does not enable global off mode when confirmation is cancelled', async () => {
+    confirmMock.mockResolvedValue(false)
+    const requestGateway = vi.fn(async (_method, params) => ({ value: params?.value ?? 'smart' }))
+    render(<Harness requestGateway={requestGateway} />)
+
+    fireEvent.pointerDown(screen.getByRole('button', { name: /smart/i }), { button: 0 })
+    fireEvent.click(await screen.findByRole('menuitemradio', { name: /off/i }))
+
+    await waitFor(() => expect(confirmMock).toHaveBeenCalled())
+    expect(requestGateway).not.toHaveBeenCalledWith('config.set', expect.anything())
   })
 
   it('renders the shared trigger and menu in the active locale', async () => {

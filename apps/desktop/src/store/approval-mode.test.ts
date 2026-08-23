@@ -3,15 +3,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { deferred } from '../test/deferred'
 
 import {
-  $approvalModes,
   approvalModeForProfile,
   reconcileApprovalModeForProfile,
+  resetApprovalModeState,
   setApprovalModeForProfile,
   syncApprovalModeForProfile
 } from './approval-mode'
 
 describe('profile-scoped approval mode cache', () => {
-  beforeEach(() => $approvalModes.set({}))
+  beforeEach(() => resetApprovalModeState())
 
   it('labels an unread profile Smart by default and adopts backend truth', async () => {
     expect(approvalModeForProfile('default')).toBe('smart')
@@ -79,6 +79,21 @@ describe('profile-scoped approval mode cache', () => {
     write.reject(new Error('late failure'))
     await expect(pending).rejects.toThrow('late failure')
     expect(approvalModeForProfile('work')).toBe('smart')
+  })
+
+  it('ignores old-gateway reads and failures after a gateway-state reset', async () => {
+    const oldRead = deferred<{ value: string }>()
+    const oldWrite = deferred<{ value: string }>()
+    const read = syncApprovalModeForProfile(vi.fn(() => oldRead.promise), 'default')
+    const write = setApprovalModeForProfile(vi.fn(() => oldWrite.promise), 'default', 'off')
+
+    resetApprovalModeState()
+    oldRead.resolve({ value: 'off' })
+    oldWrite.reject(new Error('old gateway failure'))
+
+    await read
+    await expect(write).rejects.toThrow('old gateway failure')
+    expect(approvalModeForProfile('default')).toBe('smart')
   })
 
   it('ignores a stale initial read after a newer write succeeds', async () => {

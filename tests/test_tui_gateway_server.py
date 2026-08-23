@@ -7391,6 +7391,45 @@ def test_session_create_drops_pending_title_on_valueerror(monkeypatch):
         server._sessions.pop("sid", None)
 
 
+def test_session_info_reports_each_yolo_authority(monkeypatch):
+    import types
+
+    import tools.approval as approval
+
+    approval.enable_session_yolo("authority-session")
+    monkeypatch.setattr(approval, "_YOLO_MODE_FROZEN", True)
+    monkeypatch.setattr(server, "_load_approval_mode", lambda: "off")
+    try:
+        info = server._session_info(
+            types.SimpleNamespace(model="", provider="", tools=[]),
+            {"session_key": "authority-session"},
+        )
+    finally:
+        approval.clear_session("authority-session")
+
+    assert info["session_yolo"] is True
+    assert info["process_yolo"] is True
+    assert info["approval_mode"] == "off"
+    assert info["yolo"] is True
+
+
+def test_config_get_yolo_authorities_reports_process_and_global(monkeypatch):
+    import tools.approval as approval
+
+    monkeypatch.setattr(approval, "_YOLO_MODE_FROZEN", True)
+    monkeypatch.setattr(server, "_load_approval_mode", lambda: "smart")
+
+    response = server.handle_request(
+        {"id": "authority", "method": "config.get", "params": {"key": "yolo.authorities"}}
+    )
+
+    assert response["result"] == {
+        "approval_mode": "smart",
+        "process_yolo": True,
+        "yolo": True,
+    }
+
+
 def test_config_set_yolo_toggles_session_scope():
     from tools.approval import clear_session, is_session_yolo_enabled
 
