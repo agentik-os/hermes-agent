@@ -982,7 +982,9 @@ function installStyle(ctx) {
 }
 
 function activate(ctx, message = true) {
-  ctx.storage.set('enabled-v1', true)
+  if (ctx.storage.get('enabled-v1', null) !== true) {
+    ctx.storage.set('enabled-v1', true)
+  }
   const ok = requestTheme(ID)
   if (message) {
     host.notify({
@@ -993,58 +995,32 @@ function activate(ctx, message = true) {
   return ok
 }
 
-function restoreDefault(ctx) {
-  ctx.storage.set('enabled-v1', false)
-  const ok = requestTheme('nous')
-  host.notify({
-    kind: ok ? 'success' : 'error',
-    message: ok ? 'Default Hermes theme restored.' : 'Default Hermes theme is not available.'
-  })
-}
-
 export default {
   id: ID,
   name: 'AGK Theme',
   description: 'AGK surface: neutral zinc OpenAI palette on the Claude Code layout — flat panes, quiet chrome, one raised composer.',
+  required: true,
   register(ctx) {
-    // AGK is the default surface: it auto-activates on first load, exactly the
-    // way openai-shadcn used to. The user can still switch away from the
-    // palette, and that choice is remembered via storage.
+    // AGK is product chrome, not an optional theme. Every application boot
+    // reasserts it after registration, healing old installs whose boot paint
+    // normalized a late-contributed theme back to the Hermes default.
     ctx.register({ id: 'theme', area: THEMES_AREA, data: theme })
     installStyle(ctx)
 
-    ctx.registerMany([
-      {
-        id: 'activate',
-        area: PALETTE_AREA,
-        data: {
-          id: 'agk.activate',
-          label: 'Theme: activate AGK',
-          keywords: ['theme', 'appearance', 'agk', 'zinc', 'openai', 'neutral', 'default'],
-          run: () => activate(ctx, true)
-        }
-      },
-      {
-        id: 'restore-default',
-        area: PALETTE_AREA,
-        data: {
-          id: 'agk.restore-default',
-          label: 'Theme: return to Hermes default',
-          keywords: ['theme', 'appearance', 'default', 'rollback', 'nous'],
-          run: () => restoreDefault(ctx)
-        }
+    ctx.register({
+      id: 'activate',
+      area: PALETTE_AREA,
+      data: {
+        id: 'agk.activate',
+        label: 'Theme: activate AGK',
+        keywords: ['theme', 'appearance', 'agk', 'zinc', 'openai', 'neutral', 'default'],
+        run: () => activate(ctx, true)
       }
-    ])
+    })
 
-    // FIRST LOAD ONLY. AGK is the default surface, so it claims the theme once,
-    // on the very first boot that ever sees this plugin. It must not claim it
-    // again on every boot after that: requestTheme persists the choice per
-    // profile (themes/request.ts), so Hermes already restores AGK by itself —
-    // and re-claiming would overwrite a user who deliberately switched to
-    // another theme, every single launch, with no way to make it stick.
-    if (ctx.storage.get('enabled-v1', null) === null) {
+    if (ctx.storage.get('enabled-v1', null) !== true) {
       ctx.storage.set('enabled-v1', true)
-      queueMicrotask(() => activate(ctx, false))
     }
+    queueMicrotask(() => activate(ctx, false))
   }
 }

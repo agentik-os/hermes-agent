@@ -18,6 +18,8 @@ export interface PluginRecord {
   name: string
   kind: PluginKind
   status: PluginStatus
+  /** Product-integrated bundled plugin; settings cannot disable it. */
+  required?: boolean
   /** One-liner from the plugin's own metadata (what it adds). */
   description?: string
   /** Load/registration failure message (status 'error'). */
@@ -54,6 +56,19 @@ function loadDecisions(): Record<string, boolean> {
 }
 
 export const $pluginDecisions = atom<Record<string, boolean>>(loadDecisions())
+
+/** Required bundled plugins are product code, so stale user-disable decisions
+ * are removed from both memory and persistence during discovery. */
+export function enforceRequiredPluginDecision(id: string): void {
+  const decisions = $pluginDecisions.get()
+
+  if (!(id in decisions)) {
+    return
+  }
+
+  const { [id]: _stale, ...rest } = decisions
+  saveDecisions(rest)
+}
 
 /** Whether a plugin should register: the user's explicit choice if any, else
  *  the plugin's own default (true for ordinary plugins, false for opt-in). */
@@ -109,6 +124,12 @@ export function dropPlugin(id: string): void {
 
 /** Live toggle: deactivate + remember, or forget + reactivate. */
 export async function setPluginEnabled(id: string, enabled: boolean): Promise<void> {
+  const record = $pluginRecords.get()[id]
+
+  if (record?.required && !enabled) {
+    return
+  }
+
   saveDecisions({ ...$pluginDecisions.get(), [id]: enabled })
 
   const handle = handles.get(id)

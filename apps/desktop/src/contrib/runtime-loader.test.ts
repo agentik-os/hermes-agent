@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { HermesReadDirResult } from '@/global'
 import type * as HermesModule from '@/hermes'
 
-import { $pluginRecords, publishPlugin, setPluginEnabled } from './plugins-store'
+import { $pluginDecisions, $pluginRecords, publishPlugin, setPluginEnabled } from './plugins-store'
 import { discoverRuntimePlugins, loadRuntimePlugin, watchRuntimePlugins } from './runtime-loader'
 
 // getStatus would supply the connected backend's hermes_home — a REMOTE path in
@@ -32,6 +32,9 @@ beforeEach(() => {
   watchPreviewFile.mockReset()
   onPreviewFileChanged.mockReset()
   getStatus.mockClear()
+  window.localStorage.clear()
+  $pluginDecisions.set({})
+  $pluginRecords.set({})
   ;(window as unknown as { hermesDesktop: unknown }).hermesDesktop = {
     agentPluginsRoot,
     desktopPluginsRoot,
@@ -157,6 +160,53 @@ describe('scanDiskPlugins (#66899)', () => {
       revokeObjectURL.mockRestore()
       vi.stubGlobal('Blob', RealBlob)
       delete (globalThis as unknown as { __uniRegister?: unknown }).__uniRegister
+    }
+  })
+
+  it('does not let a disk plugin self-elevate by declaring required:true', async () => {
+    const register = vi.fn()
+
+    ;(globalThis as unknown as { __diskRequiredRegister: unknown }).__diskRequiredRegister = register
+    $pluginDecisions.set({ 'disk-required': false })
+
+    const createObjectURL = vi
+      .spyOn(URL, 'createObjectURL')
+      .mockImplementation(
+        blob =>
+          `data:text/javascript;base64,${Buffer.from((blob as unknown as { parts: string[] }).parts.join('')).toString('base64')}`
+      )
+
+    const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined)
+    const RealBlob = globalThis.Blob
+    vi.stubGlobal(
+      'Blob',
+      class {
+        parts: string[]
+        constructor(parts: string[]) {
+          this.parts = parts
+        }
+      }
+    )
+
+    try {
+      const id = await loadRuntimePlugin(
+        'export default { id: "disk-required", required: true, register: globalThis.__diskRequiredRegister }',
+        'disk-required',
+        { file: '/local/.hermes/desktop-plugins/disk-required/plugin.js' }
+      )
+
+      expect(id).toBe('disk-required')
+      expect(register).not.toHaveBeenCalled()
+      expect($pluginRecords.get()['disk-required']).toMatchObject({ kind: 'disk', status: 'disabled' })
+
+      await setPluginEnabled('disk-required', true)
+      expect(register).toHaveBeenCalledTimes(1)
+      expect($pluginRecords.get()['disk-required'].status).toBe('loaded')
+    } finally {
+      createObjectURL.mockRestore()
+      revokeObjectURL.mockRestore()
+      vi.stubGlobal('Blob', RealBlob)
+      delete (globalThis as unknown as { __diskRequiredRegister?: unknown }).__diskRequiredRegister
     }
   })
 })

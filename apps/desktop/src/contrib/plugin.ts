@@ -98,6 +98,8 @@ export interface HermesPlugin {
   name?: string
   /** One-liner for the settings inventory (what the plugin adds). */
   description?: string
+  /** Product-integrated plugins cannot be disabled or omitted. */
+  required?: boolean
   /** Registers on load when the user hasn't chosen (default true). Set false
    *  for opt-in plugins: they inventory in Settings ▸ Plugins, off until the
    *  user flips the switch. */
