@@ -228,7 +228,7 @@ export function Intro({ personality, seed }: IntroProps) {
           className="m-0 mt-2 font-mono text-[0.6875rem] font-medium tracking-[0.32em] text-(--ui-text-tertiary) uppercase"
           data-slot="homepage-brand-subtitle"
         >
-          {'AGK {OS}'}
+          {'AGK BUILD'}
         </p>
 
         <p className="m-0 mt-2 text-center leading-normal tracking-tight">{copy.body}</p>

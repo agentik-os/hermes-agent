@@ -1095,6 +1095,17 @@ export default {
     if (ctx.storage.get('enabled-v1', null) !== true) {
       ctx.storage.set('enabled-v1', true)
     }
-    queueMicrotask(() => activate(ctx, false))
+    // Canonical reclaim yields to an explicit AGK-family peer: when the user
+    // deliberately activated agk-cursor, its own plugin re-asserts it on boot
+    // and this plugin must not steal the theme back every restart.
+    let storedTheme = null
+    try {
+      storedTheme = globalThis.localStorage?.getItem('hermes-desktop-theme-v2') ?? null
+    } catch {
+      storedTheme = null
+    }
+    if (storedTheme !== 'agk-cursor') {
+      queueMicrotask(() => activate(ctx, false))
+    }
   }
 }
