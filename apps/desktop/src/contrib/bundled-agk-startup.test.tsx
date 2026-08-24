@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('./runtime-loader', () => ({ watchRuntimePlugins: vi.fn() }))
 
-const REQUIRED = ['agk', 'account-resource-footer', 'agk-surface-prototype', 'bot-sessions']
+const REQUIRED = ['agk', 'account-resource-footer']
 
 async function bootBundledDesktop() {
   vi.resetModules()

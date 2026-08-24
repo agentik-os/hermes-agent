@@ -4,9 +4,7 @@ import test from 'node:test'
 
 const corePlugins = [
   ['agk-theme', "id: ID"],
-  ['account-resource-footer', "id: ID"],
-  ['agk-surface-prototype', "id: ID"],
-  ['bot-sessions', 'id: PLUGIN_ID']
+  ['account-resource-footer', "id: ID"]
 ]
 
 test('every AGK product plugin is bundled and required', async () => {
@@ -17,16 +15,6 @@ test('every AGK product plugin is bundled and required', async () => {
     assert.match(source, new RegExp(idMarker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), `${folder} keeps its stable id`)
     assert.match(source, /required:\s*true/, `${folder} is required product chrome`)
   }
-})
-
-test('bundled AGK plugins expose product names rather than prototype labels', async () => {
-  const surface = await readFile(new URL('../../agk-surface-prototype/plugin.js', import.meta.url), 'utf8')
-  const sessions = await readFile(new URL('../../bot-sessions/plugin.js', import.meta.url), 'utf8')
-
-  assert.doesNotMatch(surface, /AGK Prototype|visual prototype/i)
-  assert.match(surface, /AGK OS/)
-  assert.doesNotMatch(sessions, /Fleet Sessions/)
-  assert.match(sessions, /AGK Sessions/)
 })
 
 test('bundled account footer never duplicates core terminal or theme controls', async () => {

@@ -3,7 +3,7 @@
   height: 100%;
   min-height: 0;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
   overflow: hidden;
   padding: 18px;
   background: var(--ui-surface-background);
@@ -32,34 +32,40 @@
   font-weight: 750;
   letter-spacing: 0.13em;
 }
-.remote-sessions-scope {
+.remote-sessions-totals {
   display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.remote-sessions-total {
+  display: inline-flex;
   align-items: center;
   gap: 6px;
   border: 1px solid var(--ui-stroke-secondary);
   border-radius: 999px;
-  padding: 6px 10px;
+  padding: 6px 11px;
   color: var(--ui-text-secondary);
   font-size: 11px;
 }
 .remote-sessions-grid {
   display: grid;
-  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  grid-template-columns: minmax(200px, 250px) minmax(260px, 340px) minmax(0, 1fr);
   min-height: 0;
   flex: 1;
   gap: 10px;
 }
-.remote-sessions-list,
+.remote-sessions-col,
 .remote-sessions-terminal-card {
   min-height: 0;
-  overflow: hidden;
+  overflow: hidden auto;
   border: 1px solid var(--ui-stroke-secondary);
   border-radius: 14px;
   background: var(--ui-widget-surface-background);
 }
-.remote-sessions-list {
+.remote-sessions-col {
   display: flex;
   flex-direction: column;
+  gap: 3px;
   padding: 8px;
 }
 .remote-sessions-list-title {
@@ -74,39 +80,82 @@
   color: var(--ui-text-primary);
   font-size: 12px;
 }
-.remote-sessions-projects {
+
+/* ── machines ── */
+.remote-sessions-machine {
   display: grid;
-  max-height: 112px;
-  gap: 3px;
-  overflow-y: auto;
-  margin-bottom: 6px;
-}
-.remote-sessions-projects button {
-  display: grid;
-  grid-template-columns: 14px minmax(0, 1fr) auto;
+  grid-template-columns: 26px minmax(0, 1fr) 10px;
   align-items: center;
-  gap: 6px;
+  gap: 9px;
+  width: 100%;
   border: 0;
-  border-radius: 7px;
-  padding: 5px 6px;
+  border-radius: 10px;
+  padding: 8px;
   background: transparent;
-  color: var(--ui-text-secondary);
-  font: inherit;
-  font-size: 10px;
+  color: inherit;
   text-align: left;
   cursor: pointer;
 }
-.remote-sessions-projects button:hover {
+.remote-sessions-machine:hover {
   background: var(--ui-bg-quaternary);
 }
-.remote-sessions-projects span {
+.remote-sessions-machine[data-active='true'] {
+  background: var(--ui-row-active-background);
+}
+.remote-sessions-machine-icon {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--ui-bg-quaternary);
+  color: var(--ui-text-secondary);
+  font-size: 13px;
+}
+.remote-sessions-machine-icon[data-kind='local'] {
+  color: var(--ui-accent);
+}
+.remote-sessions-machine-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+.remote-sessions-machine-copy strong {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   overflow: hidden;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.remote-sessions-machine-copy small {
+  overflow: hidden;
+  color: var(--ui-text-tertiary);
+  font-size: 10px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.remote-sessions-projects small {
-  color: var(--ui-text-tertiary);
+.remote-sessions-primary {
+  flex-shrink: 0;
+  border-radius: 4px;
+  background: var(--ui-accent);
+  color: var(--theme-elevated-seed, #fff);
+  font-size: 7.5px;
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  padding: 1px 4px;
 }
+.remote-sessions-footnote {
+  margin-top: auto;
+  padding: 10px 5px 2px;
+  color: var(--ui-text-tertiary);
+  font-size: 9.5px;
+  line-height: 1.5;
+}
+
+/* ── sessions ── */
 .remote-sessions-create {
   display: grid;
   gap: 5px;
@@ -151,6 +200,9 @@
   font-size: 11px;
   line-height: 1.45;
 }
+.remote-sessions-row-wrap {
+  position: relative;
+}
 .remote-sessions-row {
   display: grid;
   grid-template-columns: 8px minmax(0, 1fr) auto;
@@ -159,7 +211,7 @@
   width: 100%;
   border: 0;
   border-radius: 9px;
-  padding: 8px;
+  padding: 8px 64px 8px 8px;
   background: transparent;
   color: inherit;
   text-align: left;
@@ -180,6 +232,9 @@
 .remote-sessions-dot[data-attached='true'] {
   background: var(--ui-green);
 }
+.remote-sessions-dot[data-attached='unknown'] {
+  background: var(--ui-orange);
+}
 .remote-sessions-row-copy {
   display: flex;
   min-width: 0;
@@ -196,10 +251,54 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.remote-sessions-size {
+.remote-sessions-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
   color: var(--ui-text-tertiary);
   font-size: 9px;
 }
+.remote-sessions-meta em {
+  font-style: normal;
+}
+.remote-sessions-row-actions {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  z-index: 1;
+  display: none;
+  transform: translateY(-50%);
+}
+.remote-sessions-row-wrap:hover .remote-sessions-row-actions,
+.remote-sessions-row-wrap:focus-within .remote-sessions-row-actions {
+  display: inline-flex;
+  gap: 3px;
+}
+.remote-sessions-row-actions button {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 1px solid var(--ui-stroke-secondary);
+  border-radius: 7px;
+  background: var(--ui-widget-surface-background);
+  color: var(--ui-text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+}
+.remote-sessions-row-actions button:hover {
+  color: var(--ui-text-primary);
+}
+.remote-sessions-row-actions .remote-sessions-kill[data-armed='true'] {
+  background: var(--ui-red);
+  border-color: var(--ui-red);
+  color: #fff;
+}
+.remote-sessions-row-actions .remote-sessions-kill:not([data-armed='true']):hover {
+  color: var(--ui-red);
+}
+
+/* ── CLI auth bar ── */
 .remote-sessions-authbar {
   display: flex;
   align-items: center;
@@ -222,6 +321,10 @@
 .remote-sessions-authbar span {
   color: var(--ui-text-tertiary);
   font-size: 9px;
+}
+.remote-sessions-authbar span b {
+  color: var(--ui-text-secondary);
+  font-weight: 600;
 }
 .remote-sessions-authbar input,
 .remote-sessions-auth-modal input {
@@ -316,10 +419,13 @@
   color: var(--ui-text-tertiary);
   font-size: 10px;
 }
+
+/* ── terminal ── */
 .remote-sessions-terminal-card {
   display: flex;
   flex-direction: column;
-  background: #111;
+  overflow: hidden;
+  background: #101011;
 }
 .remote-sessions-terminal-head {
   display: flex;
@@ -387,15 +493,34 @@
   font-size: 11px;
   line-height: 1.45;
 }
+@media (max-width: 1080px) {
+  .remote-sessions-grid {
+    grid-template-columns: minmax(180px, 220px) minmax(0, 1fr);
+    grid-template-rows: minmax(140px, 30%) minmax(0, 1fr);
+    grid-template-areas:
+      'machines inventory'
+      'terminal terminal';
+  }
+  .remote-sessions-machines {
+    grid-area: machines;
+  }
+  .remote-sessions-inventory {
+    grid-area: inventory;
+  }
+  .remote-sessions-terminal-card {
+    grid-area: terminal;
+  }
+}
 @media (max-width: 760px) {
   .remote-sessions-grid {
     grid-template-columns: 1fr;
-    grid-template-rows: minmax(150px, 32%) minmax(0, 1fr);
+    grid-template-rows: minmax(120px, 26%) minmax(120px, 30%) minmax(0, 1fr);
+    grid-template-areas:
+      'machines'
+      'inventory'
+      'terminal';
   }
   .remote-sessions-header {
     flex-direction: column;
-  }
-  .remote-sessions-scope {
-    align-self: flex-start;
   }
 }
