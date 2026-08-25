@@ -3287,11 +3287,40 @@ class DiscordAdapter(BasePlatformAdapter):
             raise RuntimeError("Discord application ID is unavailable for slash command sync")
 
         desired_payloads = [command.to_dict(tree) for command in tree.get_commands()]
+        existing_commands = await tree.fetch_commands()
+
+        # Discord applies a small daily creation budget to application
+        # commands. After a large legacy tree has exhausted that budget, a
+        # 100-command bulk overwrite can never accumulate enough capacity: it
+        # retries whenever one token returns but needs dozens. Converge without
+        # growing the live tree by prioritizing Agentik + essential Hermes
+        # commands and renaming obsolete command IDs through PATCH below.
+        if existing_commands and len(desired_payloads) > len(existing_commands):
+            try:
+                from hermes_cli.commands import _iter_plugin_command_entries
+                plugin_names = {name.lower()[:32] for name, _, _ in _iter_plugin_command_entries()}
+                from hermes_cli.plugins import get_plugin_commands
+                agentik_names = {
+                    str(name).lower()[:32] for name, metadata in (get_plugin_commands() or {}).items()
+                    if isinstance(metadata, dict) and metadata.get("plugin") == "agentik-os"
+                }
+            except Exception:
+                plugin_names = set(); agentik_names = set()
+            core_names = {
+                "help", "status", "new", "stop", "resume", "sessions", "model",
+                "sethome", "clear", "undo", "approve", "deny", "queue",
+                "background", "context", "skills", "mcp", "restart", "version",
+            }
+            desired_payloads.sort(key=lambda item: (
+                0 if str(item.get("name", "")).lower() in core_names else
+                1 if str(item.get("name", "")).lower() in agentik_names else
+                2 if str(item.get("name", "")).lower() in plugin_names else 3
+            ))
+            desired_payloads = desired_payloads[:len(existing_commands)]
         desired_by_key = {
             (int(payload.get("type", 1) or 1), str(payload.get("name", "") or "").lower()): payload
             for payload in desired_payloads
         }
-        existing_commands = await tree.fetch_commands()
         existing_by_key = {
             (
                 int(getattr(getattr(command, "type", None), "value", getattr(command, "type", 1)) or 1),
@@ -3315,7 +3344,7 @@ class DiscordAdapter(BasePlatformAdapter):
             if current_payload != desired_payload:
                 differing_keys.add(key)
         bulk_upsert = getattr(self._client.http, "bulk_upsert_global_commands", None)
-        if len(differing_keys) > 4 and callable(bulk_upsert):
+        if not existing_commands and len(differing_keys) > 4 and callable(bulk_upsert):
             await bulk_upsert(app_id, desired_payloads)
             existing_keys = set(existing_by_key)
             desired_keys = set(desired_by_key)
@@ -3352,6 +3381,18 @@ class DiscordAdapter(BasePlatformAdapter):
         # installing their replacements.
         obsolete_keys = set(existing_by_key.keys()) - set(desired_by_key.keys())
         missing_keys = set(desired_by_key.keys()) - set(existing_by_key.keys())
+
+        # A global command's name is editable. Pair obsolete IDs with missing
+        # desired commands so parity can be restored without consuming the
+        # scarce command-creation bucket.
+        paired_desired: set[tuple[int, str]] = set()
+        for old_key, new_key in zip(sorted(obsolete_keys), sorted(missing_keys)):
+            current = existing_by_key.pop(old_key)
+            await mutate(http.edit_global_command, app_id, current.id, desired_by_key[new_key])
+            paired_desired.add(new_key)
+            updated += 1
+        obsolete_keys -= set(sorted(obsolete_keys)[:len(paired_desired)])
+        missing_keys -= paired_desired
         headroom = max(0, _DISCORD_MAX_APP_COMMANDS - len(existing_by_key))
         required_predeletes = max(0, len(missing_keys) - headroom)
         predelete_keys = set(sorted(obsolete_keys)[:required_predeletes])
@@ -3362,6 +3403,8 @@ class DiscordAdapter(BasePlatformAdapter):
         obsolete_keys -= predelete_keys
 
         for key, desired in desired_by_key.items():
+            if key in paired_desired:
+                continue
             current = existing_by_key.pop(key, None)
             if current is None:
                 await mutate(http.upsert_global_command, app_id, desired)

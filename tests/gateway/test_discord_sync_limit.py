@@ -58,8 +58,8 @@ def adapter():
 
 
 @pytest.mark.asyncio
-async def test_safe_sync_deletes_before_creating():
-    """Sync must delete obsolete commands BEFORE creating new ones.
+async def test_safe_sync_renames_obsolete_commands_at_the_hard_cap():
+    """Sync reuses obsolete IDs rather than exceeding the hard cap.
 
     Discord's 100-command limit is enforced when trying to upsert. If we
     have 100 commands on Discord, try to add 1 new one, and haven't deleted
@@ -120,30 +120,14 @@ async def test_safe_sync_deletes_before_creating():
     # Call sync
     await adapter._safe_sync_slash_commands()
 
-    # Verify that:
-    # 1. A deletion happened (cmd_0)
-    # 2. It happened BEFORE any creation
-    # 3. The creation of cmd_new happened AFTER deletion
-    deletes = [m for m in mutation_log if m[0] == "delete"]
-    creates = [m for m in mutation_log if m[0] == "create"]
-
-    assert len(deletes) >= 1, "At least one command should be deleted"
-    assert len(creates) >= 1, "At least one command should be created"
-
-    # The key assertion: all deletions should come before all creations.
-    # Find the index of the last delete and the first create.
-    last_delete_idx = max(i for i, m in enumerate(mutation_log) if m[0] == "delete")
-    first_create_idx = min(i for i, m in enumerate(mutation_log) if m[0] == "create")
-
-    assert last_delete_idx < first_create_idx, (
-        f"Deletions must happen before creations to avoid exceeding 100-command limit. "
-        f"Last delete at index {last_delete_idx}, first create at index {first_create_idx}"
-    )
+    assert mutation_log == []
+    assert adapter._client.http.edit_global_command.await_count >= 1
+    assert any(call.args[-1]["name"] == "cmd_new" for call in adapter._client.http.edit_global_command.await_args_list)
 
 
 @pytest.mark.asyncio
-async def test_safe_sync_creates_before_deleting_when_below_cap():
-    """Below the cap, a 429 must leave old commands available."""
+async def test_safe_sync_renames_when_one_old_command_can_be_reused():
+    """A rename avoids deletion gaps and the daily creation bucket."""
     adapter = DiscordAdapter(PlatformConfig(enabled=True, token="fake-token"))
     adapter._client = MagicMock()
     adapter._client.tree = MagicMock()
@@ -170,12 +154,13 @@ async def test_safe_sync_creates_before_deleting_when_below_cap():
 
     await adapter._safe_sync_slash_commands()
 
-    assert mutations == ["create", "delete"]
+    assert mutations == []
+    adapter._client.http.edit_global_command.assert_awaited_once()
 
 
 @pytest.mark.asyncio
 async def test_safe_sync_uses_atomic_bulk_route_for_large_diff(adapter):
-    existing = [SimpleNamespace(id=f"old-{i}", name=f"old-{i}", type=1) for i in range(8)]
+    existing = []
     desired = [_FakeTreeCommand(f"new-{i}") for i in range(8)]
     adapter._client.tree.fetch_commands = AsyncMock(return_value=existing)
     adapter._client.tree.get_commands = MagicMock(return_value=desired)
@@ -188,4 +173,42 @@ async def test_safe_sync_uses_atomic_bulk_route_for_large_diff(adapter):
     adapter._client.http.upsert_global_command.assert_not_awaited()
     adapter._client.http.delete_global_command.assert_not_awaited()
     assert result["created"] == 8
-    assert result["deleted"] == 8
+    assert result["deleted"] == 0
+
+
+@pytest.mark.asyncio
+async def test_safe_sync_reuses_existing_ids_when_creation_budget_is_exhausted(adapter):
+    existing = [SimpleNamespace(id=f"old-{i}", name=f"old-{i}", type=1) for i in range(6)]
+    desired = [_FakeTreeCommand(name) for name in ("help", "status", "client", "project", "mission", "task", "run", "os")]
+    adapter._client.tree.fetch_commands = AsyncMock(return_value=existing)
+    adapter._client.tree.get_commands = MagicMock(return_value=desired)
+
+    with patch("hermes_cli.commands._iter_plugin_command_entries", return_value=[
+        (name, name, "<action>") for name in ("client", "project", "mission", "task", "run", "os")
+    ]):
+        result = await adapter._safe_sync_slash_commands()
+
+    assert result["total"] == len(existing)
+    assert adapter._client.http.edit_global_command.await_count == len(existing)
+    adapter._client.http.upsert_global_command.assert_not_awaited()
+    adapter._client.http.bulk_upsert_global_commands.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_budget_convergence_keeps_all_agentik_commands_before_other_plugins(adapter):
+    existing = [SimpleNamespace(id=f"old-{i}", name=f"old-{i}", type=1) for i in range(6)]
+    desired_names = ("help", "status", "client", "project", "mission", "task", "other-a", "other-b")
+    adapter._client.tree.fetch_commands = AsyncMock(return_value=existing)
+    adapter._client.tree.get_commands = MagicMock(return_value=[_FakeTreeCommand(n) for n in desired_names])
+    entries = [(n, n, "<action>") for n in desired_names[2:]]
+    metadata = {
+        n: {"plugin": "agentik-os" if n in {"client", "project", "mission", "task"} else "other"}
+        for n in desired_names[2:]
+    }
+    with (
+        patch("hermes_cli.commands._iter_plugin_command_entries", return_value=entries),
+        patch("hermes_cli.plugins.get_plugin_commands", return_value=metadata),
+    ):
+        await adapter._safe_sync_slash_commands()
+    installed = {call.args[-1]["name"] for call in adapter._client.http.edit_global_command.await_args_list}
+    assert installed == {"help", "status", "client", "project", "mission", "task"}
