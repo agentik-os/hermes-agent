@@ -17702,17 +17702,33 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
         # Plugin-registered slash commands
         if command:
             try:
-                from hermes_cli.plugins import get_plugin_command_handler
+                from hermes_cli.plugins import (
+                    get_plugin_command_handler,
+                    reset_plugin_command_invocation_context,
+                    set_plugin_command_invocation_context,
+                )
                 # Normalize underscores to hyphens so Telegram's underscored
                 # autocomplete form matches plugin commands registered with
                 # hyphens. See hermes_cli/commands.py:_build_telegram_menu.
                 plugin_handler = get_plugin_command_handler(command.replace("_", "-"))
                 if plugin_handler:
                     user_args = event.get_command_args().strip()
-                    result = plugin_handler(user_args)
-                    if asyncio.iscoroutine(result):
-                        result = await result
-                    return str(result) if result else None
+                    source = event.source
+                    token = set_plugin_command_invocation_context({
+                        "surface": getattr(getattr(source, "platform", None), "value", getattr(source, "platform", "unknown")),
+                        "scope_id": getattr(source, "scope_id", None),
+                        "chat_id": getattr(source, "chat_id", None),
+                        "parent_chat_id": getattr(source, "parent_chat_id", None),
+                        "thread_id": getattr(source, "thread_id", None),
+                        "actor_id": event.user_id or getattr(source, "user_id", None),
+                    })
+                    try:
+                        result = plugin_handler(user_args)
+                        if asyncio.iscoroutine(result):
+                            result = await result
+                        return str(result) if result else None
+                    finally:
+                        reset_plugin_command_invocation_context(token)
             except Exception as e:
                 logger.warning("Plugin command dispatch failed: %s", e)
 

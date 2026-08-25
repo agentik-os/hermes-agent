@@ -48,6 +48,7 @@ import sys
 import threading
 import types
 from contextlib import contextmanager
+from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
 from functools import wraps
 from pathlib import Path
@@ -76,6 +77,24 @@ from hermes_cli.relay_plugin_cutover import (
     RELAY_PLUGINS_CONFIG_ENV,
     legacy_relay_plugin_keys,
 )
+
+
+_PLUGIN_COMMAND_INVOCATION_CONTEXT: ContextVar[dict | None] = ContextVar(
+    "plugin_command_invocation_context", default=None
+)
+
+
+def set_plugin_command_invocation_context(context: dict | None) -> Token:
+    """Scope one plugin command to its authenticated surface conversation."""
+    return _PLUGIN_COMMAND_INVOCATION_CONTEXT.set(dict(context or {}))
+
+
+def reset_plugin_command_invocation_context(token: Token) -> None:
+    _PLUGIN_COMMAND_INVOCATION_CONTEXT.reset(token)
+
+
+def get_plugin_command_invocation_context() -> dict:
+    return dict(_PLUGIN_COMMAND_INVOCATION_CONTEXT.get() or {})
 
 
 def get_bundled_plugins_dir() -> Path:

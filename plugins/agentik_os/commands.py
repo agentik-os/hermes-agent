@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import shlex
 from pathlib import Path
 from typing import Callable
@@ -68,7 +69,15 @@ class AgentikCommandService:
 
     @property
     def context_key(self) -> str:
-        return f"environment:{self.environment}"
+        from hermes_cli.plugins import get_plugin_command_invocation_context
+
+        invocation = get_plugin_command_invocation_context()
+        if not invocation:
+            return f"environment:{self.environment}:surface:local"
+        canonical = json.dumps(invocation, sort_keys=True, separators=(",", ":"))
+        digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:24]
+        surface = str(invocation.get("surface") or "unknown")
+        return f"environment:{self.environment}:surface:{surface}:binding:{digest}"
 
     def context(self) -> dict:
         return self.store.context(self.context_key, self.data_environment)
