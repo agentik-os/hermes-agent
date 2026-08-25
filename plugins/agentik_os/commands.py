@@ -19,6 +19,7 @@ from .paths import (
 from .store import ControlObject, ControlStore
 from .operator import COMMANDS as OPERATOR_COMMANDS, OperatorCommandService
 from .domain import DESCRIPTIONS as DOMAIN_DESCRIPTIONS, DOMAIN_COMMANDS, DomainCommandService
+from .os_registry import OSRegistry, resolve_assignments
 
 
 DESCRIPTIONS = {
@@ -225,13 +226,8 @@ class AgentikCommandService:
     def _os(self, argv: list[str]) -> str:
         action = argv[0].lower() if argv else "list"
         registry = Path("/opt/agentik/os-registry")
-        index_path = registry / "state" / "index.json"
-        try:
-            index = json.loads(index_path.read_text(encoding="utf-8"))
-        except Exception:
-            index = {"packages": []}
-        packages = index.get("packages") if isinstance(index, dict) else []
-        packages = packages if isinstance(packages, list) else []
+        registry_api = OSRegistry(registry)
+        packages = registry_api.packages()
         assignment_path = (Path("/etc/agentik/operator-os/assignments.yaml")
                            if self.environment == "operator" else Path.home() / ".agentik" / "os-assignments.yaml")
         try:
@@ -245,13 +241,25 @@ class AgentikCommandService:
                 f"• {p.get('id')}@{p.get('version')}" for p in packages if isinstance(p, dict)
             )
         if action in {"active", "stack"}:
-            if not assignments:
+            records = [item for item in assignments if isinstance(item, dict)]
+            stack = resolve_assignments(records, {
+                "environment_id": self.data_environment,
+                "client_id": self.context().get("client_id"),
+                "project_id": self.context().get("project_id"),
+                "session_id": None,
+            })
+            if not stack:
                 return "ACTIVE OS STACK\n(empty)"
-            return "ACTIVE OS STACK\n" + "\n".join(f"• {a}" for a in assignments)
+            return "ACTIVE OS STACK\n" + "\n".join(f"• {a}" for a in stack)
         if action == "info":
             if len(argv) < 2:
                 return "Usage: /os info <id>"
             matches = [p for p in packages if isinstance(p, dict) and p.get("id") == argv[1]]
             return json.dumps(matches, indent=2, sort_keys=True) if matches else f"Operative System not installed: {argv[1]}"
+        if action == "doctor":
+            healthy, errors = registry_api.doctor([assignment_path])
+            if healthy:
+                return f"OPERATIVE SYSTEM DOCTOR\n✓ Registry valid\nInstalled packages: {len(packages)}\nAssignments: valid"
+            return "OPERATIVE SYSTEM DOCTOR\n✗ " + "\n✗ ".join(errors)
         return ("OS mutation commands are intentionally unavailable until the signed package "
                 "installer and validator are deployed. No OS was changed.")

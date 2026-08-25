@@ -138,3 +138,35 @@ async def test_safe_sync_deletes_before_creating():
         f"Deletions must happen before creations to avoid exceeding 100-command limit. "
         f"Last delete at index {last_delete_idx}, first create at index {first_create_idx}"
     )
+
+
+@pytest.mark.asyncio
+async def test_safe_sync_creates_before_deleting_when_below_cap():
+    """Below the cap, a 429 must leave old commands available."""
+    adapter = DiscordAdapter(PlatformConfig(enabled=True, token="fake-token"))
+    adapter._client = MagicMock()
+    adapter._client.tree = MagicMock()
+    adapter._client.http = AsyncMock()
+    adapter._client.application_id = "test_app_id"
+    adapter._sleep_between_command_sync_mutations = AsyncMock()
+    adapter._existing_command_to_payload = MagicMock(side_effect=lambda cmd: {"name": cmd.name})
+    adapter._canonicalize_app_command_payload = MagicMock(side_effect=lambda p: p)
+    adapter._patchable_app_command_payload = MagicMock(side_effect=lambda p: p)
+    old = SimpleNamespace(id="old-id", name="old", type=1)
+    adapter._client.tree.fetch_commands = AsyncMock(return_value=[old])
+    adapter._client.tree.get_commands = MagicMock(return_value=[_FakeTreeCommand("new")])
+    mutations = []
+
+    async def create(*_args):
+        mutations.append("create")
+
+    async def delete(*_args):
+        mutations.append("delete")
+
+    adapter._client.http.upsert_global_command = create
+    adapter._client.http.delete_global_command = delete
+    adapter._client.http.edit_global_command = AsyncMock()
+
+    await adapter._safe_sync_slash_commands()
+
+    assert mutations == ["create", "delete"]

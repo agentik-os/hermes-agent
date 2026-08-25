@@ -1116,6 +1116,7 @@ class DiscordAdapter(BasePlatformAdapter):
         self._bot_task: Optional[asyncio.Task] = None
         self._post_connect_task: Optional[asyncio.Task] = None
         self._command_sync_retry_task: Optional[asyncio.Task] = None
+        self._empty_content_notice_at: Dict[str, float] = {}
         # WebSocket-level liveness probe. Discord REST and Gateway are distinct
         # transports: a REST 200 cannot prove that this client is still receiving
         # Gateway events. Sample the current Discord WebSocket's ready/open/ACK
@@ -3315,18 +3316,22 @@ class DiscordAdapter(BasePlatformAdapter):
             mutation_count += 1
             return result
 
-        # Delete obsolete commands FIRST to stay under Discord's 100-command
-        # limit. Discord rejects an upsert that would push the live total over
-        # 100 (error 30032), which silently breaks ALL slash commands. If a new
-        # command is created before the obsolete ones are removed, an app that
-        # is already at the cap momentarily exceeds it and the whole sync fails.
-        # Removing the no-longer-desired commands up front guarantees the live
-        # total never rises above the cap mid-sync.
+        # Preserve availability during rate limits. Delete obsolete commands
+        # up front ONLY when the missing desired commands would otherwise push
+        # the live tree over Discord's hard cap. With normal headroom, create
+        # desired commands first and remove obsolete entries last; a 429 then
+        # leaves harmless extras instead of deleting working commands without
+        # installing their replacements.
         obsolete_keys = set(existing_by_key.keys()) - set(desired_by_key.keys())
-        for key in obsolete_keys:
+        missing_keys = set(desired_by_key.keys()) - set(existing_by_key.keys())
+        headroom = max(0, _DISCORD_MAX_APP_COMMANDS - len(existing_by_key))
+        required_predeletes = max(0, len(missing_keys) - headroom)
+        predelete_keys = set(sorted(obsolete_keys)[:required_predeletes])
+        for key in predelete_keys:
             current = existing_by_key.pop(key)
             await mutate(http.delete_global_command, app_id, current.id)
             deleted += 1
+        obsolete_keys -= predelete_keys
 
         for key, desired in desired_by_key.items():
             current = existing_by_key.pop(key, None)
@@ -3350,6 +3355,13 @@ class DiscordAdapter(BasePlatformAdapter):
 
             await mutate(http.edit_global_command, app_id, current.id, desired)
             updated += 1
+
+        for key in obsolete_keys:
+            current = existing_by_key.get(key)
+            if current is None:
+                continue
+            await mutate(http.delete_global_command, app_id, current.id)
+            deleted += 1
 
         return {
             "total": len(desired_payloads),
@@ -8581,6 +8593,33 @@ class DiscordAdapter(BasePlatformAdapter):
                     self.name,
                     getattr(message.author, "display_name", getattr(message.author, "name", "unknown")),
                     getattr(message.channel, "id", "unknown"),
+                )
+                return False
+            if not media_urls and not pending_text_injection:
+                channel_id = str(getattr(message.channel, "id", "unknown"))
+                now = time.monotonic()
+                previous = self._empty_content_notice_at.get(channel_id, 0.0)
+                if now - previous >= 300:
+                    self._empty_content_notice_at[channel_id] = now
+                    try:
+                        await message.channel.send(
+                            "⚠️ Discord ne transmet pas le texte de ce message au bot. "
+                            "Active **Message Content Intent** dans Discord Developer "
+                            "Portal → Bot → Privileged Gateway Intents. Les slash "
+                            "commands restent disponibles entre-temps."
+                        )
+                    except Exception:
+                        logger.debug(
+                            "[%s] Could not send missing Message Content Intent notice",
+                            self.name,
+                            exc_info=True,
+                        )
+                logger.warning(
+                    "[%s] Dropped empty Discord text payload from user=%s channel=%s; "
+                    "Message Content Intent is probably unavailable",
+                    self.name,
+                    getattr(message.author, "id", "unknown"),
+                    channel_id,
                 )
                 return False
             event_text = "(The user sent a message with no text content)"
