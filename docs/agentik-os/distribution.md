@@ -4,6 +4,11 @@
 the agent runtime inside that product; RMUX is its persistent interactive
 execution substrate, and `agk` is the human control surface.
 
+The primary control surface is the native `apps/agk-tui` Ratatui application.
+It consumes `rmux-sdk` and `ratatui-rmux` 0.10 directly. The Python control
+program remains the non-interactive command backend and recovery UI; it is not
+the long-term visual frontend.
+
 This repository does not import OmegaOS code or its internal architecture. The
 AGK interface independently uses interaction principles validated by the
 OmegaOS audit: session-first navigation, explicit control and terminal modes,

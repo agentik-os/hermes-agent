@@ -28,6 +28,14 @@ case "$self_user" in
     ;;
 esac
 
+if [ "$#" -eq 0 ]; then
+  native=${AGK_TUI_BIN:-/opt/agentik/hermes/current/bin/agk-tui}
+  [ -x "$native" ] || native=${AGK_INSTALL_ROOT:-$HOME/.local/share/agk}/agk-tui
+  if [ -x "$native" ]; then
+    exec "$native"
+  fi
+fi
+
 control=${AGK_CONTROL_SCRIPT:-/opt/agentik/hermes/current/scripts/agk_control.py}
 if [ ! -x "$control" ]; then
   control=${AGK_INSTALL_ROOT:-$HOME/.local/share/agk}/agk_control.py

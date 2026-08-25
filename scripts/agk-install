@@ -73,6 +73,16 @@ rmux -V
 rmux list-commands >/dev/null
 rmux diagnose --human >/dev/null
 
+native_tui=
+if command -v cargo >/dev/null; then
+  echo "Building native AGK Mission Control..."
+  cargo build --locked --release --manifest-path "$source_root/apps/agk-tui/Cargo.toml"
+  native_tui="$source_root/apps/agk-tui/target/release/agk-tui"
+else
+  echo "Rust toolchain not found; installing the Python recovery UI only."
+  echo "Release packages normally include a prebuilt native AGK TUI."
+fi
+
 install_one() {
   local user=$1 env=$2 home_dir bin_dir config_dir state_dir registry_dir projects tmp
   home_dir=$(getent passwd "$user" | cut -d: -f6)
@@ -85,6 +95,9 @@ install_one() {
   install -d -m 755 -o "$user" -g "$user" "$bin_dir"
   install -m 755 -o "$user" -g "$user" "$source_root/scripts/agk" "$bin_dir/agk"
   install -m 755 -o "$user" -g "$user" "$source_root/scripts/agk_control.py" "$state_dir/agk_control.py"
+  if [ -n "$native_tui" ] && [ -x "$native_tui" ]; then
+    install -m 755 -o "$user" -g "$user" "$native_tui" "$state_dir/agk-tui"
+  fi
   projects="$home_dir/workspace/projects"
   [ "$env" = mission ] && projects="$home_dir/workspace/clients"
   install -d -m 700 -o "$user" -g "$user" "$projects"
