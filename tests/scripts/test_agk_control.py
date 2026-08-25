@@ -89,3 +89,45 @@ def test_responsive_layout_and_navigation_model():
     assert agk.pane_widths(80, "standard") == (80, 0)
     assert agk.cycle_view("sessions") == "projects"
     assert agk.cycle_view("sessions", reverse=True) == "help"
+
+
+def test_mcp_inventory_is_redacted(tmp_path):
+    env = agk.Environment("mission", tmp_path, tmp_path / "workspace/clients")
+    (tmp_path / ".hermes").mkdir()
+    (tmp_path / ".hermes/config.yaml").write_text(
+        "mcp_servers:\n  github:\n    command: secret-command\n    env:\n      TOKEN: secret\n  browser:\n    url: https://example.invalid\n",
+        encoding="utf-8",
+    )
+    assert agk.mcp_inventory(env) == [
+        {"name": "browser", "transport": "http", "status": "configured"},
+        {"name": "github", "transport": "stdio", "status": "configured"},
+    ]
+    assert "secret" not in repr(agk.mcp_inventory(env))
+
+
+def test_skill_inventory_reports_identity_and_source_only(tmp_path):
+    env = agk.Environment("private", tmp_path, tmp_path / "workspace/projects")
+    skill = tmp_path / ".hermes/skills/research"
+    skill.mkdir(parents=True)
+    (skill / "SKILL.md").write_text("private instructions", encoding="utf-8")
+    assert agk.skill_inventory(env) == [
+        {"name": "research", "source": "hermes", "status": "installed"},
+    ]
+
+
+def test_rmux_adapter_uses_stable_pane_id_for_respawn(monkeypatch):
+    calls = []
+    def fake_run(*args, check=True):
+        calls.append(args)
+        if args[1] == "list-panes":
+            return completed("%42\n")
+        return completed()
+    monkeypatch.setattr(agk, "run", fake_run)
+    runtime = agk.RmuxRuntime()
+    runtime.respawn("mission-moonbase", "/home/mission/workspace", ["hermes", "--resume", "S-1"])
+    command = calls[-1]
+    assert command[1:5] == ("respawn-pane", "-k", "-t", "%42")
+    assert ":1.1" not in command
+    runtime.send_input("mission-moonbase", "continue safely")
+    assert calls[-2][1:] == ("send-keys", "-t", "%42", "-l", "continue safely")
+    assert calls[-1][1:] == ("send-keys", "-t", "%42", "Enter")

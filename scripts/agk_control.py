@@ -16,6 +16,8 @@ import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
+import yaml
+
 
 USERS = {
     "operator": ("operator", Path("/home/operator"), Path("/home/operator/src")),
@@ -70,9 +72,61 @@ class Environment:
         return cls(*USERS[user])
 
 
+class RmuxRuntime:
+    """Typed Agentik adapter over the installed RMUX public CLI contract."""
+
+    def has_session(self, name: str) -> bool:
+        return run("rmux", "has-session", "-t", name, check=False).returncode == 0
+
+    def create(self, name: str, kind: str, cwd: Path, environment: str,
+               command: list[str]) -> None:
+        run("rmux", "new-session", "-d", "-s", name, "-n", kind.upper(),
+            "-c", str(cwd), "-e", "AGENTIK_RMUX=1",
+            "-e", f"AGENTIK_ENVIRONMENT={environment}", *command)
+
+    def primary_pane(self, session: str) -> str:
+        result = run("rmux", "list-panes", "-t", session, "-F", "#{pane_id}", check=False)
+        pane = next((line.strip() for line in result.stdout.splitlines() if line.strip()), "")
+        if result.returncode or not pane:
+            raise RuntimeError(f"RMUX session has no live pane: {session}")
+        return pane
+
+    def rename(self, session: str, name: str) -> None:
+        run("rmux", "rename-session", "-t", session, name)
+
+    def terminate(self, session: str) -> None:
+        run("rmux", "kill-session", "-t", session, check=False)
+
+    def respawn(self, session: str, cwd: str, command: list[str]) -> None:
+        run("rmux", "respawn-pane", "-k", "-t", self.primary_pane(session), "-c", cwd, *command)
+
+    def send_input(self, session: str, text: str, *, enter: bool = True) -> None:
+        pane = self.primary_pane(session)
+        run("rmux", "send-keys", "-t", pane, "-l", text)
+        if enter:
+            run("rmux", "send-keys", "-t", pane, "Enter")
+
+    def wait_for(self, channel: str) -> None:
+        if not NAME_RE.fullmatch(channel):
+            raise ValueError("RMUX wait channel must use the canonical name grammar")
+        run("rmux", "wait-for", channel)
+
+    def panes(self) -> subprocess.CompletedProcess[str]:
+        return run("rmux", "list-panes", "-a", "-F",
+                   "#{session_name}|#{pane_dead}|#{pane_activity}|#{pane_current_command}", check=False)
+
+    def snapshot(self, session: str, lines: int) -> list[str]:
+        result = run("rmux", "capture-pane", "-p", "-t", session,
+                     "-S", f"-{max(20, lines * 3)}", check=False)
+        if result.returncode:
+            return ["Runtime unavailable", "", "Press R to restart the frontend."]
+        return result.stdout.rstrip().splitlines() or ["(no terminal output yet)"]
+
+
 class RuntimeRegistry:
-    def __init__(self, env: Environment):
+    def __init__(self, env: Environment, runtime: RmuxRuntime | None = None):
         self.env = env
+        self.runtime = runtime or RmuxRuntime()
         root = env.home / ".agentik"
         root.mkdir(mode=0o700, parents=True, exist_ok=True)
         self.path = root / "runtime.db"
@@ -134,11 +188,10 @@ class RuntimeRegistry:
             raise ValueError(f"cwd escapes the {self.env.name} trust boundary")
         if self.get(name):
             raise ValueError(f"session already registered: {name}")
-        if run("rmux", "has-session", "-t", name, check=False).returncode == 0:
+        if self.runtime.has_session(name):
             raise ValueError(f"unmanaged RMUX session already exists: {name}")
         launch = command or [os.environ.get("SHELL", "/bin/bash"), "-l"]
-        env_args = ["-e", "AGENTIK_RMUX=1", "-e", f"AGENTIK_ENVIRONMENT={self.env.name}"]
-        run("rmux", "new-session", "-d", "-s", name, "-n", kind.upper(), "-c", str(cwd), *env_args, *launch)
+        self.runtime.create(name, kind, cwd, self.env.name, launch)
         now = time.time()
         runtime_id = "RT-" + uuid.uuid4().hex[:12].upper()
         self.db.execute("""
@@ -191,7 +244,7 @@ class RuntimeRegistry:
     def rename(self, row: sqlite3.Row, name: str) -> sqlite3.Row:
         if not NAME_RE.fullmatch(name):
             raise ValueError("name must be 3-80 lowercase letters, digits or hyphens")
-        run("rmux", "rename-session", "-t", row["rmux_session"], name)
+        self.runtime.rename(row["rmux_session"], name)
         updated = self.update(row, name=name, rmux_session=name)
         self.event(updated, "runtime.renamed", {"previous": row["name"]})
         return updated
@@ -202,7 +255,7 @@ class RuntimeRegistry:
         return updated
 
     def terminate(self, row: sqlite3.Row) -> sqlite3.Row:
-        run("rmux", "kill-session", "-t", row["rmux_session"], check=False)
+        self.runtime.terminate(row["rmux_session"])
         updated = self.update(row, status="interrupted", exit_code=-15)
         self.event(updated, "runtime.terminated")
         return updated
@@ -211,13 +264,10 @@ class RuntimeRegistry:
         command = json.loads(row["command_json"] or "[]")
         if not command:
             command = default_command(row["type"], row["native_session"])
-        if run("rmux", "has-session", "-t", row["rmux_session"], check=False).returncode == 0:
-            run("rmux", "respawn-pane", "-k", "-t", f"{row['rmux_session']}:1.1",
-                "-c", row["cwd"], *command)
+        if self.runtime.has_session(row["rmux_session"]):
+            self.runtime.respawn(row["rmux_session"], row["cwd"], command)
         else:
-            run("rmux", "new-session", "-d", "-s", row["rmux_session"], "-n",
-                row["type"].upper(), "-c", row["cwd"], "-e", "AGENTIK_RMUX=1",
-                "-e", f"AGENTIK_ENVIRONMENT={self.env.name}", *command)
+            self.runtime.create(row["rmux_session"], row["type"], Path(row["cwd"]), self.env.name, command)
         updated = self.update(row, status="running", exit_code=None)
         self.event(updated, "runtime.frontend_restarted", {"native_session": row["native_session"]})
         return updated
@@ -242,9 +292,7 @@ class RuntimeRegistry:
                            command=command, native_session=native)
 
     def reconcile(self) -> tuple[int, list[str]]:
-        proc = run("rmux", "list-panes", "-a", "-F",
-                   "#{session_name}|#{pane_dead}|#{pane_activity}|#{pane_current_command}",
-                   check=False)
+        proc = self.runtime.panes()
         live_info: dict[str, list[tuple[bool, float, str]]] = {}
         if proc.returncode == 0:
             for line in proc.stdout.splitlines():
@@ -310,6 +358,40 @@ def filtered(rows: list[sqlite3.Row], query: str) -> list[sqlite3.Row]:
     return out
 
 
+def mcp_inventory(env: Environment) -> list[dict[str, str]]:
+    """Return redacted MCP identity/state from Hermes config."""
+    path = env.home / ".hermes" / "config.yaml"
+    try:
+        config = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except (OSError, ValueError, yaml.YAMLError):
+        return []
+    servers = config.get("mcp_servers") if isinstance(config, dict) else {}
+    if not isinstance(servers, dict):
+        return []
+    result = []
+    for name, raw in sorted(servers.items()):
+        entry = raw if isinstance(raw, dict) else {}
+        transport = "http" if entry.get("url") else "stdio" if entry.get("command") else "unknown"
+        result.append({"name": str(name), "transport": transport,
+                       "status": "disabled" if entry.get("enabled") is False else "configured"})
+    return result
+
+
+def skill_inventory(env: Environment) -> list[dict[str, str]]:
+    """List skill identities and sources without reading skill contents."""
+    roots = ((env.home / ".hermes/skills", "hermes"), (env.home / ".claude/skills", "claude"),
+             (env.home / ".codex/skills", "codex"))
+    found: dict[tuple[str, str], dict[str, str]] = {}
+    for root, source in roots:
+        if not root.is_dir():
+            continue
+        for manifest in root.glob("*/SKILL.md"):
+            found[(manifest.parent.name, source)] = {
+                "name": manifest.parent.name, "source": source, "status": "installed",
+            }
+    return sorted(found.values(), key=lambda item: (item["name"], item["source"]))
+
+
 def _prompt(stdscr: "curses._CursesWindow", label: str) -> str:
     height, width = stdscr.getmaxyx()
     curses.echo(); curses.curs_set(1)
@@ -337,14 +419,6 @@ def _create_from_tui(stdscr: "curses._CursesWindow", registry: RuntimeRegistry,
         _notice(stdscr, f"Error: {exc}")
 
 
-def _snapshot(row: sqlite3.Row, lines: int) -> list[str]:
-    result = run("rmux", "capture-pane", "-p", "-t", str(row["rmux_session"]),
-                 "-S", f"-{max(20, lines * 3)}", check=False)
-    if result.returncode:
-        return ["Runtime unavailable", "", "Press R to restart the frontend."]
-    return result.stdout.rstrip().splitlines() or ["(no terminal output yet)"]
-
-
 def _safe_add(stdscr: "curses._CursesWindow", y: int, x: int, value: object,
               limit: int, attr: int = 0) -> None:
     height, width = stdscr.getmaxyx()
@@ -369,6 +443,13 @@ def tui(stdscr: "curses._CursesWindow", registry: RuntimeRegistry) -> None:
             rows = [row for row in session_rows if row["type"] in {"hermes", "claude", "codex", "agent", "workflow"}]
         elif view == "sessions":
             rows = session_rows
+        elif view in {"mcp", "skills"}:
+            capabilities = mcp_inventory(registry.env) if view == "mcp" else skill_inventory(registry.env)
+            if not capabilities:
+                _safe_add(stdscr, 5, 0, f"No {view.upper()} entries configured in this environment", width - 1)
+            for idx, item in enumerate(capabilities[:visible]):
+                detail = item.get("transport") or item.get("source") or ""
+                _safe_add(stdscr, 5 + idx, 0, f"● {item['name']:<32} {detail:<10} {item['status']}", width - 1)
         else:
             rows = []
         selected = max(0, min(selected, max(0, len(rows) - 1)))
@@ -503,7 +584,7 @@ def tui_v2(stdscr: "curses._CursesWindow", registry: RuntimeRegistry) -> None:
         max_scroll = 0
         if right and current is not None and not isinstance(current, dict) and view in {"sessions", "agents"}:
             x = left + 1; _safe_add(stdscr, 4, x, f"{str(current['name']).upper()} · LIVE OUTPUT", right - 1, curses.A_BOLD)
-            content = _snapshot(current, visible); max_scroll = max(0, len(content) - visible)
+            content = registry.runtime.snapshot(str(current["rmux_session"]), visible); max_scroll = max(0, len(content) - visible)
             if follow: scroll = max_scroll
             scroll = min(max(0, scroll), max_scroll)
             for n, line in enumerate(content[scroll:scroll + visible]): _safe_add(stdscr, 5 + n, x, line, right - 1)
@@ -680,8 +761,16 @@ def main() -> int:
         index = Path("/opt/agentik/os-registry/state/index.json")
         data = json.loads(index.read_text(encoding="utf-8")) if index.exists() else {"packages": []}
         print(f"Installed Operative Systems: {len(data.get('packages', []))}"); return 0
-    if args.command in {"mcp", "skills", "system"}:
-        print(f"{args.command.upper()} view · {env.name} · use Hermes canonical commands for details"); return 0
+    if args.command == "mcp":
+        items = mcp_inventory(env); print(f"MCP · {env.name.upper()} · {len(items)} configured")
+        for item in items: print(f"{item['status']:<10} {item['name']} · {item['transport']}")
+        return 0
+    if args.command == "skills":
+        items = skill_inventory(env); print(f"SKILLS · {env.name.upper()} · {len(items)} installed")
+        for item in items: print(f"{item['status']:<10} {item['name']} · {item['source']}")
+        return 0
+    if args.command == "system":
+        print(f"SYSTEM · {env.name.upper()} · {run('rmux','-V').stdout.strip()}"); return 0
     return 2
 
 
