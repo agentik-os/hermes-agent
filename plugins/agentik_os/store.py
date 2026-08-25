@@ -12,7 +12,14 @@ from pathlib import Path
 from typing import Iterator
 
 
-PREFIX = {"client": "CLI", "project": "PRJ", "mission": "MIS", "task": "TSK", "run": "RUN"}
+PREFIX = {
+    "client": "CLI", "project": "PRJ", "mission": "MIS", "task": "TSK", "run": "RUN",
+    "org": "ORG", "portfolio": "POR", "product": "PRO", "build": "BLD",
+    "release": "REL", "content": "CON", "growth": "GRO", "community": "COM",
+    "research": "RES", "deliverable": "DEL", "deploy": "DEP", "report": "REP",
+    "journal": "JOU", "decision": "DEC", "routine": "ROU", "idea": "IDE",
+    "review": "REV",
+}
 
 
 @dataclass(frozen=True)

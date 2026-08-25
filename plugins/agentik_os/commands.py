@@ -16,6 +16,8 @@ from .paths import (
     create_project_layout, normalize_slug,
 )
 from .store import ControlObject, ControlStore
+from .operator import COMMANDS as OPERATOR_COMMANDS, OperatorCommandService
+from .domain import DESCRIPTIONS as DOMAIN_DESCRIPTIONS, DOMAIN_COMMANDS, DomainCommandService
 
 
 DESCRIPTIONS = {
@@ -27,6 +29,8 @@ DESCRIPTIONS = {
     "task": "Create, list, open and manage tasks.",
     "run": "List and inspect execution runs.",
     "os": "Inspect the Operative System registry and active assignments.",
+    **OperatorCommandService.descriptions,
+    **DOMAIN_DESCRIPTIONS,
 }
 
 
@@ -36,11 +40,16 @@ class AgentikCommandService:
         self.data_environment = "mission" if environment == "collective" else environment
         self.store = store
         self.resolver = resolver
+        self.operator = OperatorCommandService() if environment == "operator" else None
+        self.domain = DomainCommandService(environment, store)
         common = ["home", "active", "os"]
         if environment in {"mission", "collective"}:
             common += ["client", "project", "mission", "task", "run"]
         elif environment in {"agentik", "private"}:
             common += ["project", "mission", "task", "run"]
+        elif environment == "operator":
+            common += list(OPERATOR_COMMANDS)
+        common += list(DOMAIN_COMMANDS.get(environment, ()))
         self.command_names = tuple(common)
 
     @classmethod
@@ -77,6 +86,10 @@ class AgentikCommandService:
                 return self._active()
             if command == "os":
                 return self._os(argv)
+            if self.operator and command in OPERATOR_COMMANDS:
+                return self.operator.dispatch(command, argv)
+            if command in DOMAIN_COMMANDS.get(self.environment, ()):
+                return self.domain.dispatch(command, argv)
             return self._object(command, argv)
         except (ValueError, PermissionError) as exc:
             return f"Error: {exc}"
