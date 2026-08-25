@@ -313,6 +313,28 @@ async def test_slash_command_registration_stays_under_discord_limit(adapter):
     assert len(registered_plugins) < 200, "cap did not drop any overflow commands"
 
 
+@pytest.mark.asyncio
+async def test_environment_plugin_commands_are_reserved_before_generic_overflow(adapter):
+    """Agentik environment commands must not disappear behind the global cap."""
+    commands = {
+        name: {
+            "handler": lambda _a: "ok",
+            "description": f"Agentik command {name}",
+            "args_hint": "<action> [target]",
+            "plugin": "agentik-os",
+        }
+        for name in (
+            "client", "project", "mission", "task", "run", "os", "active",
+            "deliverable", "deploy", "report",
+        )
+    }
+    with patch("hermes_cli.plugins.get_plugin_commands", return_value=commands):
+        adapter._register_slash_commands()
+
+    tree_names = set(adapter._client.tree.commands)
+    assert set(commands) <= tree_names
+
+
 # ------------------------------------------------------------------
 # _handle_thread_create_slash — success, session dispatch, failure
 # ------------------------------------------------------------------
@@ -629,4 +651,3 @@ def test_register_skill_command_payload_fits_discord_8kb_limit(adapter):
         f"Flat /skill command payload is ~{len(payload)} bytes — the whole "
         f"point of this design is that it stays small regardless of skill count"
     )
-

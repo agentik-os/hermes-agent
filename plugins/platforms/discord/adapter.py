@@ -6137,6 +6137,7 @@ class DiscordAdapter(BasePlatformAdapter):
         # slot for the consolidated ``/skill`` group registered further below.
         slot_cap = _DISCORD_MAX_APP_COMMANDS - 1
         dropped_over_cap = 0
+        plugin_entries: list[tuple[str, str, str]] = []
         try:
             from hermes_cli.commands import COMMAND_REGISTRY, _is_gateway_available, _resolve_config_gates
 
@@ -6147,6 +6148,30 @@ class DiscordAdapter(BasePlatformAdapter):
 
             config_overrides = _resolve_config_gates()
 
+            # Reserve capacity for environment-specific Agentik/plugin commands
+            # before filling the remaining slots with the large native registry.
+            # Otherwise the first 90+ generic Hermes commands consume the cap
+            # and the commands that define Operator/Agentik/Mission/Private are
+            # silently missing from Discord.
+            try:
+                from hermes_cli.plugins import discover_plugins
+                discover_plugins()  # idempotent
+                from hermes_cli.commands import _iter_plugin_command_entries
+                all_plugin_entries = list(_iter_plugin_command_entries())
+                registry_names = {item.name.lower()[:32] for item in COMMAND_REGISTRY}
+                plugin_entries = [
+                    item for item in all_plugin_entries
+                    if item[0].lower()[:32] not in already_registered
+                    and item[0].lower()[:32] not in registry_names
+                ]
+            except Exception as e:
+                logger.warning("Discord plugin command discovery failed: %s", e)
+
+            reserved_plugin_slots = min(
+                len(plugin_entries), max(0, slot_cap - len(already_registered))
+            )
+            native_slot_cap = slot_cap - reserved_plugin_slots
+
             for cmd_def in COMMAND_REGISTRY:
                 if not _is_gateway_available(cmd_def, config_overrides):
                     continue
@@ -6154,7 +6179,7 @@ class DiscordAdapter(BasePlatformAdapter):
                 discord_name = cmd_def.name.lower()[:32]
                 if discord_name in already_registered:
                     continue
-                if len(already_registered) >= slot_cap:
+                if len(already_registered) >= native_slot_cap:
                     dropped_over_cap += 1
                     continue
                 auto_cmd = _build_auto_slash_command(
@@ -6183,15 +6208,7 @@ class DiscordAdapter(BasePlatformAdapter):
         # autocomplete UX as for built-in commands. No per-platform plugin
         # API needed — plugin commands are platform-agnostic.
         try:
-            # Platform adapters can be constructed before the agent runtime
-            # performs its normal plugin-discovery pass.  Guarantee discovery
-            # here so enabled plugin commands are present on the *first*
-            # Discord tree build instead of only after a later agent turn.
-            from hermes_cli.plugins import discover_plugins
-            discover_plugins()  # idempotent
-            from hermes_cli.commands import _iter_plugin_command_entries
-
-            for plugin_name, plugin_desc, plugin_args_hint in _iter_plugin_command_entries():
+            for plugin_name, plugin_desc, plugin_args_hint in plugin_entries:
                 discord_name = plugin_name.lower()[:32]
                 if discord_name in already_registered:
                     continue
