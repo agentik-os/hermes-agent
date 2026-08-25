@@ -96,6 +96,8 @@ class AgentikCommandService:
                 return self._active()
             if command == "os":
                 return self._os(argv)
+            if command == "client" and self.data_environment == "mission":
+                return self._client(argv)
             if self.operator and command in OPERATOR_COMMANDS:
                 return self.operator.dispatch(command, argv)
             if command in DOMAIN_COMMANDS.get(self.environment, ()):
@@ -105,6 +107,72 @@ class AgentikCommandService:
             return f"Error: {exc}"
         except Exception as exc:
             return f"Agentik OS command failed safely: {exc}"
+
+    def _current_or_target_client(self, target: str | None = None) -> ControlObject | None:
+        if target:
+            return self.store.get("mission", "client", target)
+        object_id = self.context().get("client_id")
+        return self.store.get("mission", "client", object_id) if object_id else None
+
+    def _client(self, argv: list[str]) -> str:
+        action = argv[0].lower() if argv else "list"
+        rest = argv[1:]
+        if action in {"new", "list", "open", "current", "status", "info", "archive", "reactivate"}:
+            return self._object("client", argv)
+        if action in {"project", "mission", "task"}:
+            return self._object(action, rest)
+        client = self._current_or_target_client(rest[0] if rest and action in {"health"} else None)
+        if not client:
+            return "No current client. Use `/client open <id-or-slug>` first."
+        metadata = client.metadata
+        if action == "runtime" and rest and rest[0] == "set":
+            mode = rest[1].lower() if len(rest) > 1 else ""
+            if mode not in {"local", "vps", "cloud", "hybrid", "external"}:
+                return "Usage: /client runtime set local|vps|cloud|hybrid|external"
+            updated = self.store.update_metadata(client, {"runtime": mode})
+            return f"Client runtime updated: {updated.name} → {mode}."
+        if action in {"health", "infrastructure", "integrations", "credentials", "runtime", "activity", "report"}:
+            integrations = metadata.get("integrations", {}) if isinstance(metadata.get("integrations"), dict) else {}
+            runtime = metadata.get("runtime", "unconfigured")
+            if action == "credentials":
+                names = metadata.get("secret_names", [])
+                return "CLIENT CREDENTIALS · " + client.name + "\n" + (
+                    "\n".join(f"• {name}: configured" for name in names)
+                    if names else "No credential references configured. Secret values are never displayed."
+                )
+            lines = [f"CLIENT {action.upper()} · {client.name}", f"Runtime: {runtime}"]
+            for name in ("github", "vercel", "convex", "tailscale"):
+                lines.append(f"{name.title()}: {integrations.get(name, 'unconfigured')}")
+            return "\n".join(lines)
+        if action == "provision":
+            integrations = metadata.get("integrations", {}) if isinstance(metadata.get("integrations"), dict) else {}
+            checks = {
+                "identity": bool(client.path and Path(client.path, ".client").is_dir()),
+                "workspace": bool(client.path and Path(client.path, "projects").is_dir()),
+                "runtime": metadata.get("runtime") in {"local", "vps", "cloud", "hybrid", "external"},
+                "github": integrations.get("github") == "configured",
+                "vercel": integrations.get("vercel") in {"configured", "not-required"},
+                "convex": integrations.get("convex") in {"configured", "not-required"},
+                "secrets": bool(metadata.get("secret_names")),
+            }
+            lines = [f"CLIENT PROVISIONER · {client.name}"]
+            lines += [f"{'✓' if ready else '○'} {name}" for name, ready in checks.items()]
+            lines.append("READY" if all(checks.values()) else "PARTIAL · configure missing integrations explicitly")
+            return "\n".join(lines)
+        if action in {"github", "vercel", "convex"}:
+            subaction = rest[0].lower() if rest else "status"
+            integrations = dict(metadata.get("integrations", {})) if isinstance(metadata.get("integrations"), dict) else {}
+            if subaction in {"status", "projects", "repos", "deployments", "logs"}:
+                return f"{action.title()} for {client.name}: {integrations.get(action, 'unconfigured')}."
+            if subaction == "connect":
+                return (f"Use the secure {action.title()} connector flow for {client.name}. "
+                        "Credentials are refused in Discord/chat arguments.")
+            return f"Usage: /client {action} status|connect"
+        if action in {"export", "handoff"}:
+            return f"{action.title()} requires an explicit approved workflow; no data was exported."
+        return ("Unknown /client action. Supported: new, list, open, current, status, health, "
+                "provision, infrastructure, integrations, credentials, runtime, github, vercel, "
+                "convex, project, mission, task, report, archive, reactivate, handoff, export.")
 
     def _active(self) -> str:
         ctx = self.context()

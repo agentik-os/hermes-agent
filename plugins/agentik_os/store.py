@@ -162,6 +162,23 @@ class ControlStore:
             )
         return self.get(obj.environment, obj.kind, obj.id)
 
+    def update_metadata(self, obj: ControlObject, updates: dict) -> ControlObject:
+        """Merge non-secret control metadata and emit an auditable event."""
+        metadata = dict(obj.metadata)
+        metadata.update(updates)
+        now = time.time()
+        with self.connect() as db:
+            db.execute(
+                "UPDATE objects SET metadata_json=?, updated_at=? WHERE id=?",
+                (json.dumps(metadata, sort_keys=True), now, obj.id),
+            )
+            db.execute(
+                "INSERT INTO events(environment,action,object_id,payload_json,created_at) VALUES(?,?,?,?,?)",
+                (obj.environment, f"{obj.kind}.metadata.updated", obj.id,
+                 json.dumps({"keys": sorted(updates)}, sort_keys=True), now),
+            )
+        return self.get(obj.environment, obj.kind, obj.id)
+
     def context(self, key: str, environment: str) -> dict:
         with self.connect() as db:
             row = db.execute("SELECT * FROM contexts WHERE context_key=?", (key,)).fetchone()

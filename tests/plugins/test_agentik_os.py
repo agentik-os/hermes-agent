@@ -88,6 +88,43 @@ def test_lifecycle_transition_is_persisted(mission_service):
     assert stored.status == "completed"
 
 
+def test_client_provisioner_reports_real_partial_state(mission_service):
+    mission_service.dispatch("client", "new Moonbase")
+    result = mission_service.dispatch("client", "provision")
+    assert "CLIENT PROVISIONER · Moonbase" in result
+    assert "✓ identity" in result
+    assert "○ github" in result
+    assert "PARTIAL" in result
+    assert "READY" not in result.splitlines()[-1]
+
+
+def test_client_runtime_mode_is_persisted_and_audited(mission_service):
+    mission_service.dispatch("client", "new Moonbase")
+    assert "→ hybrid" in mission_service.dispatch("client", "runtime set hybrid")
+    assert "Runtime: hybrid" in mission_service.dispatch("client", "runtime")
+    with mission_service.store.connect() as db:
+        event = db.execute(
+            "SELECT action,payload_json FROM events WHERE action='client.metadata.updated'"
+        ).fetchone()
+    assert event is not None
+    assert "runtime" in event["payload_json"]
+
+
+def test_client_nested_task_alias_uses_current_hierarchy(mission_service):
+    mission_service.dispatch("client", "new Moonbase")
+    mission_service.dispatch("client", "project new Dashboard")
+    mission_service.dispatch("client", "mission new Audit")
+    result = mission_service.dispatch("client", "task new Review")
+    assert "Task created: Review" in result
+
+
+def test_client_connector_never_accepts_credentials_in_chat(mission_service):
+    mission_service.dispatch("client", "new Moonbase")
+    result = mission_service.dispatch("client", "github connect secret-token")
+    assert "secure Github connector flow" in result
+    assert "secret-token" not in result
+
+
 def test_root_slug_is_unique_even_with_null_parent(mission_service):
     mission_service.store.create(
         environment="mission", kind="client", slug="moonbase", name="Moonbase"

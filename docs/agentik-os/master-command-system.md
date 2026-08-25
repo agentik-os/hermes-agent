@@ -41,6 +41,28 @@ Environment commands:
 - Private: `/journal`, `/decision`, `/routine`, `/idea`, `/review`, plus the
   canonical project/mission/task/run hierarchy.
 
+Mission exposes truthful client provisioning without pretending external
+resources exist:
+
+```text
+/client new <name>
+/client open <id-or-slug>
+/client provision
+/client health
+/client runtime set local|vps|cloud|hybrid|external
+/client github status|connect
+/client vercel status|connect
+/client convex status|connect
+/client project new <name>
+/client mission new <name>
+/client task new <name>
+```
+
+`provision` evaluates the actual workspace and stored connector references. It
+returns `PARTIAL` until every required component is genuinely configured.
+Connector commands never accept secrets through chat or Discord; `connect`
+routes the user toward the secure connector flow instead.
+
 All mutations create an audit event in `~/.agentik/control.db`. Operator
 infrastructure mutations are approval-gated and allowlisted; there is no
 arbitrary-sudo command bridge.
