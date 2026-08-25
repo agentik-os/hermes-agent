@@ -8,6 +8,15 @@ rmux_version=0.10.0
 source_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 target_user=$(id -un)
 
+# Claude Code fleet policy, applied per AGK identity.
+#
+# Deliberately NOT /etc/claude-code/managed-settings.json: that file is read by
+# every account on the host, root included, and managed settings outrank user
+# settings, so root could not opt out of it. root runs its own Claude sessions
+# and must keep permission prompts. The identity list is the safety boundary.
+claude_policy_users=${AGK_CLAUDE_POLICY_USERS:-"operator agentik mission private"}
+claude_default_mode=${AGK_CLAUDE_DEFAULT_MODE:-bypassPermissions}
+
 usage() {
   cat <<'EOF'
 Usage: agk-install [--user] [--environment NAME] [--source PATH]
@@ -17,6 +26,10 @@ Usage: agk-install [--user] [--environment NAME] [--source PATH]
 --environment NAME operator|agentik|mission|private (default: agentik).
 --fleet            Configure operator/agentik/mission/private independently.
 --source PATH      Hermes/AGK checkout or immutable release root.
+
+Claude Code policy is applied per identity in --fleet mode, never machine-wide:
+root keeps its permission prompts and is rejected even if added to the list.
+Tune with AGK_CLAUDE_DEFAULT_MODE=default or AGK_CLAUDE_POLICY_USERS="a b".
 
 Credentials are never accepted as arguments or written by this installer.
 Hermes and RMUX state are never shared between Linux identities.
@@ -35,6 +48,10 @@ while (($#)); do
 done
 
 case "$environment" in operator|agentik|mission|private) ;; *) echo "Invalid environment: $environment" >&2; exit 2;; esac
+case "$claude_default_mode" in
+  default|acceptEdits|plan|dontAsk|auto|bypassPermissions) ;;
+  *) echo "Invalid AGK_CLAUDE_DEFAULT_MODE: $claude_default_mode" >&2; exit 2 ;;
+esac
 [ -x "$source_root/scripts/agk" ] && [ -x "$source_root/scripts/agk_control.py" ] || {
   echo "Source does not contain the AGK runtime: $source_root" >&2; exit 1;
 }
@@ -97,6 +114,54 @@ else
   echo "Release packages normally include a prebuilt native AGK TUI."
 fi
 
+# Write one identity's Claude Code config.
+#   mode=seed  : fill in absent keys only (install time; never clobbers choices)
+#   mode=apply : force the fleet policy onto the identity (explicit policy push)
+# Credentials are never written: each identity runs its own `claude login`.
+write_claude_settings() {
+  local user=$1 home_dir=$2 how=${3:-seed} claude_dir target tmp existing filter uid
+  uid=$(id -u "$user" 2>/dev/null) || { echo "Unknown user: $user" >&2; return 1; }
+  [ "$uid" -ne 0 ] || { echo "Refusing to apply AGK Claude policy to uid 0 ($user)" >&2; return 1; }
+  claude_dir="$home_dir/.claude"
+  target="$claude_dir/settings.json"
+  install -d -m 700 -o "$user" -g "$user" "$claude_dir" "$claude_dir/skills"
+  command -v jq >/dev/null || { echo "jq is required for Claude Code policy" >&2; return 1; }
+  existing='{}'
+  if [ -f "$target" ]; then
+    existing=$(cat "$target")
+    jq -e . >/dev/null 2>&1 <<<"$existing" || {
+      echo "Refusing to rewrite malformed $target" >&2; return 1;
+    }
+  fi
+  if [ "$how" = apply ]; then
+    filter='.permissions = ((.permissions // {}) | .defaultMode = $mode)
+            | .skipDangerousModePermissionPrompt = true'
+  else
+    # Seed only absent keys. `//=` is wrong here: jq treats an explicit `false`
+    # as absent, which would silently flip an identity's opt-out back on.
+    filter='.permissions = ((.permissions // {})
+              | if has("defaultMode") then . else .defaultMode = $mode end)
+            | if has("skipDangerousModePermissionPrompt") then .
+              else .skipDangerousModePermissionPrompt = true end'
+  fi
+  tmp=$(mktemp)
+  jq --arg mode "$claude_default_mode" "$filter" <<<"$existing" > "$tmp"
+  install -m 600 -o "$user" -g "$user" "$tmp" "$target"
+  rm -f "$tmp"
+}
+
+# Push the fleet policy to every AGK identity. root is absent from the list by
+# construction and rejected by write_claude_settings even if someone adds it.
+apply_claude_policy() {
+  local user home_dir
+  for user in $claude_policy_users; do
+    home_dir=$(getent passwd "$user" | cut -d: -f6) || true
+    [ -n "$home_dir" ] || { echo "Skipping Claude policy for missing user: $user" >&2; continue; }
+    write_claude_settings "$user" "$home_dir" apply
+    echo "Claude Code policy ($claude_default_mode) applied for $user"
+  done
+}
+
 install_one() {
   local user=$1 env=$2 home_dir bin_dir config_dir state_dir registry_dir projects tmp
   home_dir=$(getent passwd "$user" | cut -d: -f6)
@@ -125,11 +190,13 @@ install_one() {
   printf 'environment: %s\nprojects_root: %s\n' "$env" "$projects" > "$tmp"
   install -m 600 -o "$user" -g "$user" "$tmp" "$config_dir/environment.yaml"
   rm -f "$tmp"
+  write_claude_settings "$user" "$home_dir" seed
   echo "Installed AGK for $user ($env)"
 }
 
 if [ "$mode" = fleet ]; then
   [ "$(id -u)" -eq 0 ] || { echo "--fleet requires root." >&2; exit 1; }
+  apply_claude_policy
   for target_user in operator agentik mission private; do
     getent passwd "$target_user" >/dev/null || { echo "Missing canonical user: $target_user" >&2; exit 1; }
     install_one "$target_user" "$target_user"
