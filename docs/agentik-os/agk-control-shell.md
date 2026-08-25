@@ -103,3 +103,11 @@ force interactive shells to exit merely because they are outside RMUX.
 
 Gateway, API, Docker and Convex daemons remain under systemd/Docker. They do not
 belong inside RMUX. Web Share is not enabled by Agentik OS.
+
+## Hermes runtime orchestration
+
+Hermes receives the scoped `agentik_runtime` tool. It can list and inspect only
+runtimes registered in the current user's `runtime.db`, spawn Hermes, Claude or
+Codex through `agk`, and send literal input to a stable RMUX pane ID. Spawn paths
+must remain beneath the current Linux home. The tool cannot see another user's
+RMUX daemon and does not expose a root or cross-environment execution bridge.
