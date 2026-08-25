@@ -6132,6 +6132,12 @@ class DiscordAdapter(BasePlatformAdapter):
         # autocomplete UX as for built-in commands. No per-platform plugin
         # API needed — plugin commands are platform-agnostic.
         try:
+            # Platform adapters can be constructed before the agent runtime
+            # performs its normal plugin-discovery pass.  Guarantee discovery
+            # here so enabled plugin commands are present on the *first*
+            # Discord tree build instead of only after a later agent turn.
+            from hermes_cli.plugins import discover_plugins
+            discover_plugins()  # idempotent
             from hermes_cli.commands import _iter_plugin_command_entries
 
             for plugin_name, plugin_desc, plugin_args_hint in _iter_plugin_command_entries():

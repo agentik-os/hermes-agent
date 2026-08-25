@@ -204,6 +204,35 @@ async def test_auto_registers_plugin_commands_for_discord(adapter):
 
 
 @pytest.mark.asyncio
+async def test_discovers_plugins_before_building_native_command_tree(adapter):
+    """Discord must not depend on a previous agent turn to discover plugins."""
+    discovered = False
+
+    def fake_discover():
+        nonlocal discovered
+        discovered = True
+
+    def fake_commands():
+        assert discovered, "plugin commands were read before discovery"
+        return {
+            "client": {
+                "handler": lambda _a: "ok",
+                "description": "Manage clients",
+                "args_hint": "<action> [target]",
+                "plugin": "agentik-os",
+            }
+        }
+
+    with (
+        patch("hermes_cli.plugins.discover_plugins", side_effect=fake_discover),
+        patch("hermes_cli.plugins.get_plugin_commands", side_effect=fake_commands),
+    ):
+        adapter._register_slash_commands()
+
+    assert "client" in adapter._client.tree.commands
+
+
+@pytest.mark.asyncio
 async def test_plugin_command_name_conflict_skipped(adapter):
     """A plugin command that collides with a built-in must not override it."""
     adapter._run_simple_slash = AsyncMock()
@@ -600,5 +629,4 @@ def test_register_skill_command_payload_fits_discord_8kb_limit(adapter):
         f"Flat /skill command payload is ~{len(payload)} bytes — the whole "
         f"point of this design is that it stays small regardless of skill count"
     )
-
 
