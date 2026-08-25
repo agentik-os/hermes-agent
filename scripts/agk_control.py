@@ -71,6 +71,19 @@ class RuntimeRegistry:
           payload TEXT NOT NULL DEFAULT '{}', created_at REAL NOT NULL
         );
         """)
+        self._migrate()
+
+    def _migrate(self) -> None:
+        columns = {row[1] for row in self.db.execute("PRAGMA table_info(runtime_sessions)")}
+        additions = {
+            "native_session": "TEXT",
+            "command_json": "TEXT NOT NULL DEFAULT '[]'",
+            "exit_code": "INTEGER",
+        }
+        for name, sql_type in additions.items():
+            if name not in columns:
+                self.db.execute(f"ALTER TABLE runtime_sessions ADD COLUMN {name} {sql_type}")
+        self.db.commit()
 
     def rows(self, include_archived: bool = False) -> list[sqlite3.Row]:
         where = "" if include_archived else " WHERE archived_at IS NULL"
@@ -85,7 +98,8 @@ class RuntimeRegistry:
 
     def create(self, *, name: str, kind: str, cwd: Path, client: str | None = None,
                project: str | None = None, mission: str | None = None,
-               parent: str | None = None, command: list[str] | None = None) -> sqlite3.Row:
+               parent: str | None = None, command: list[str] | None = None,
+               native_session: str | None = None) -> sqlite3.Row:
         if kind not in TYPES:
             raise ValueError(f"unsupported session type: {kind}")
         if not NAME_RE.fullmatch(name):
@@ -103,11 +117,16 @@ class RuntimeRegistry:
         run("rmux", "new-session", "-d", "-s", name, "-n", kind.upper(), "-c", str(cwd), *env_args, *launch)
         now = time.time()
         runtime_id = "RT-" + uuid.uuid4().hex[:12].upper()
-        self.db.execute(
-            "INSERT INTO runtime_sessions VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-            (runtime_id, name, kind, self.env.name, client, project, mission, None,
-             name, str(cwd), "running", parent, now, now, None),
-        )
+        self.db.execute("""
+            INSERT INTO runtime_sessions(
+              id,name,type,environment,client,project,mission,hermes_session,
+              rmux_session,cwd,status,parent_session_id,created_at,last_activity,
+              archived_at,native_session,command_json,exit_code
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        """, (runtime_id, name, kind, self.env.name, client, project, mission,
+               native_session if kind == "hermes" else None, name, str(cwd),
+               "running", parent, now, now, None, native_session,
+               json.dumps(launch), None))
         self.db.execute(
             "INSERT INTO runtime_events(runtime_id,event,created_at) VALUES(?,?,?)",
             (runtime_id, "runtime.created", now),
@@ -115,9 +134,93 @@ class RuntimeRegistry:
         self.db.commit()
         return self.get(runtime_id)  # type: ignore[return-value]
 
+    def update(self, row: sqlite3.Row, **values: object) -> sqlite3.Row:
+        allowed = {"name", "status", "rmux_session", "last_activity", "archived_at", "exit_code"}
+        unknown = set(values) - allowed
+        if unknown:
+            raise ValueError(f"unsupported runtime update: {sorted(unknown)}")
+        values.setdefault("last_activity", time.time())
+        fields = ",".join(f"{key}=?" for key in values)
+        self.db.execute(f"UPDATE runtime_sessions SET {fields} WHERE id=?", (*values.values(), row["id"]))
+        self.db.commit()
+        return self.get(row["id"])  # type: ignore[return-value]
+
+    def event(self, row: sqlite3.Row, event: str, payload: dict[str, object] | None = None) -> None:
+        self.db.execute(
+            "INSERT INTO runtime_events(runtime_id,event,payload,created_at) VALUES(?,?,?,?)",
+            (row["id"], event, json.dumps(payload or {}, sort_keys=True), time.time()),
+        )
+        self.db.commit()
+
+    def rename(self, row: sqlite3.Row, name: str) -> sqlite3.Row:
+        if not NAME_RE.fullmatch(name):
+            raise ValueError("name must be 3-80 lowercase letters, digits or hyphens")
+        run("rmux", "rename-session", "-t", row["rmux_session"], name)
+        updated = self.update(row, name=name, rmux_session=name)
+        self.event(updated, "runtime.renamed", {"previous": row["name"]})
+        return updated
+
+    def archive(self, row: sqlite3.Row) -> sqlite3.Row:
+        updated = self.update(row, status="archived", archived_at=time.time())
+        self.event(updated, "runtime.archived")
+        return updated
+
+    def terminate(self, row: sqlite3.Row) -> sqlite3.Row:
+        run("rmux", "kill-session", "-t", row["rmux_session"], check=False)
+        updated = self.update(row, status="interrupted", exit_code=-15)
+        self.event(updated, "runtime.terminated")
+        return updated
+
+    def restart_frontend(self, row: sqlite3.Row) -> sqlite3.Row:
+        command = json.loads(row["command_json"] or "[]")
+        if not command:
+            command = default_command(row["type"], row["native_session"])
+        if run("rmux", "has-session", "-t", row["rmux_session"], check=False).returncode == 0:
+            run("rmux", "respawn-pane", "-k", "-t", f"{row['rmux_session']}:1.1",
+                "-c", row["cwd"], *command)
+        else:
+            run("rmux", "new-session", "-d", "-s", row["rmux_session"], "-n",
+                row["type"].upper(), "-c", row["cwd"], "-e", "AGENTIK_RMUX=1",
+                "-e", f"AGENTIK_ENVIRONMENT={self.env.name}", *command)
+        updated = self.update(row, status="running", exit_code=None)
+        self.event(updated, "runtime.frontend_restarted", {"native_session": row["native_session"]})
+        return updated
+
+    def fork(self, row: sqlite3.Row, name: str) -> sqlite3.Row:
+        native = row["native_session"]
+        if row["type"] == "codex" and native:
+            command = ["codex", "fork", native]
+        elif row["type"] == "claude" and native:
+            command = ["claude", "--resume", native, "--fork-session"]
+        elif row["type"] == "hermes" and native:
+            # Hermes has resume but no documented fork flag. Start a new lineage
+            # while retaining the parent link in Agentik metadata.
+            command = ["hermes", "--in", row["cwd"]]
+            native = None
+        else:
+            command = default_command(row["type"])
+            native = None
+        return self.create(name=name, kind=row["type"], cwd=Path(row["cwd"]),
+                           client=row["client"], project=row["project"],
+                           mission=row["mission"], parent=row["id"],
+                           command=command, native_session=native)
+
     def reconcile(self) -> tuple[int, list[str]]:
-        proc = run("rmux", "list-sessions", "-F", "#{session_name}", check=False)
-        live = {line.strip() for line in proc.stdout.splitlines() if line.strip()} if proc.returncode == 0 else set()
+        proc = run("rmux", "list-panes", "-a", "-F",
+                   "#{session_name}|#{pane_dead}|#{pane_activity}|#{pane_current_command}",
+                   check=False)
+        live_info: dict[str, list[tuple[bool, float, str]]] = {}
+        if proc.returncode == 0:
+            for line in proc.stdout.splitlines():
+                parts = line.split("|", 3)
+                if len(parts) != 4:
+                    continue
+                try:
+                    activity = float(parts[2] or 0)
+                except ValueError:
+                    activity = 0
+                live_info.setdefault(parts[0], []).append((parts[1] == "1", activity, parts[3]))
+        live = set(live_info)
         managed = {row["rmux_session"] for row in self.rows(include_archived=True)}
         changed = 0
         now = time.time()
@@ -125,8 +228,14 @@ class RuntimeRegistry:
             desired = row["status"]
             if row["rmux_session"] not in live and desired not in {"complete", "failed", "archived"}:
                 desired = "interrupted"
-            elif row["rmux_session"] in live and desired == "interrupted":
-                desired = "running"
+            elif row["rmux_session"] in live and desired not in {"complete", "archived"}:
+                panes = live_info[row["rmux_session"]]
+                if panes and all(dead for dead, _, _ in panes):
+                    desired = "failed"
+                else:
+                    last = max((activity for _, activity, _ in panes), default=0)
+                    age = now - last if last else 999999
+                    desired = "working" if age < 15 else "running" if age < 300 else "idle"
             if desired != row["status"]:
                 self.db.execute("UPDATE runtime_sessions SET status=?,last_activity=? WHERE id=?", (desired, now, row["id"]))
                 changed += 1
@@ -134,11 +243,11 @@ class RuntimeRegistry:
         return changed, sorted(live - managed)
 
 
-def default_command(kind: str) -> list[str]:
+def default_command(kind: str, native_session: str | None = None) -> list[str]:
     commands = {
-        "hermes": ["hermes"],
-        "claude": ["rmux", "claude"],
-        "codex": ["codex"],
+        "hermes": ["hermes", "--resume", native_session] if native_session else ["hermes"],
+        "claude": ["claude", "--resume", native_session] if native_session else ["claude"],
+        "codex": ["codex", "resume", native_session] if native_session else ["codex"],
         "shell": [os.environ.get("SHELL", "/bin/bash"), "-l"],
     }
     if kind not in commands:
@@ -165,47 +274,131 @@ def filtered(rows: list[sqlite3.Row], query: str) -> list[sqlite3.Row]:
     return out
 
 
+def _prompt(stdscr: "curses._CursesWindow", label: str) -> str:
+    height, width = stdscr.getmaxyx()
+    curses.echo(); curses.curs_set(1)
+    stdscr.move(height - 1, 0); stdscr.clrtoeol(); stdscr.addnstr(height - 1, 0, label, width - 1)
+    value = stdscr.getstr(height - 1, len(label), max(1, width - len(label) - 1)).decode(errors="replace").strip()
+    curses.noecho(); curses.curs_set(0)
+    return value
+
+
+def _notice(stdscr: "curses._CursesWindow", message: str) -> None:
+    height, width = stdscr.getmaxyx()
+    stdscr.move(height - 1, 0); stdscr.clrtoeol(); stdscr.addnstr(height - 1, 0, message, width - 1)
+    stdscr.getch()
+
+
+def _create_from_tui(stdscr: "curses._CursesWindow", registry: RuntimeRegistry,
+                     kind: str, cwd: Path | None = None, project: str | None = None) -> None:
+    name = _prompt(stdscr, f"New {kind} session name: ")
+    if not name:
+        return
+    try:
+        registry.create(name=name, kind=kind, cwd=cwd or registry.env.home,
+                        project=project, command=default_command(kind))
+    except Exception as exc:
+        _notice(stdscr, f"Error: {exc}")
+
+
 def tui(stdscr: "curses._CursesWindow", registry: RuntimeRegistry) -> None:
     curses.curs_set(0)
-    selected, query = 0, ""
+    selected, query, view = 0, "", "sessions"
+    views = {ord("1"): "sessions", ord("2"): "projects", ord("3"): "agents",
+             ord("4"): "os", ord("5"): "mcp", ord("6"): "skills", ord("s"): "system"}
     while True:
         registry.reconcile()
-        rows = filtered(registry.rows(), query)
+        session_rows = filtered(registry.rows(), query)
+        if view == "projects":
+            rows: list[dict[str, object] | sqlite3.Row] = canonical_projects(registry.env)
+        elif view == "agents":
+            rows = [row for row in session_rows if row["type"] in {"hermes", "claude", "codex", "agent", "workflow"}]
+        elif view == "sessions":
+            rows = session_rows
+        else:
+            rows = []
         selected = max(0, min(selected, max(0, len(rows) - 1)))
         stdscr.erase()
         height, width = stdscr.getmaxyx()
-        header = f" AGK · {registry.env.name.upper()} "
+        header = f" AGK · {registry.env.name.upper()} · CONTROL MODE "
         stdscr.addnstr(0, 0, header + " " * max(1, width - len(header) - 10) + "● ONLINE", width - 1, curses.A_BOLD)
-        stdscr.addnstr(1, 0, " Session  Projects  Agents  OS  MCP  Skills  ──  System  Settings  Help ", width - 1)
-        stdscr.addnstr(3, 0, "ACTIVE" + (f"  / {query}" if query else ""), width - 1, curses.A_BOLD)
-        for idx, row in enumerate(rows[: max(0, height - 9)]):
-            marker = "▶" if idx == selected else " "
-            state = {"running": "●", "working": "◉", "idle": "○", "waiting": "◌", "failed": "×", "complete": "✓"}.get(row["status"], "!")
-            label = f"{marker} {state} {row['name']:<42} {row['type'].upper():<9} {row['status'].upper()}"
-            stdscr.addnstr(5 + idx, 0, label, width - 1, curses.A_REVERSE if idx == selected else 0)
-        footer = "↑↓/jk Navigate  Enter Open  n New  / Search  i Info  A Archive  K Kill  ? Help  q Quit"
+        stdscr.addnstr(1, 0, " 1 Session  2 Projects  3 Agents  4 OS  5 MCP  6 Skills  ──  s System  , Settings  ? Help ", width - 1)
+        stdscr.addnstr(3, 0, view.upper() + (f"  / {query}" if query else ""), width - 1, curses.A_BOLD)
+        if view in {"sessions", "agents"}:
+            for idx, row in enumerate(rows[: max(0, height - 9)]):
+                marker = "▶" if idx == selected else " "
+                state = {"running": "●", "working": "◉", "idle": "○", "waiting": "◌", "failed": "×", "complete": "✓"}.get(str(row["status"]), "!")
+                context = row["project"] or row["client"] or registry.env.name
+                label = f"{marker} {state} {str(row['name']):<38} {str(row['type']).upper():<9} {str(context):<18} {str(row['status']).upper()}"
+                stdscr.addnstr(5 + idx, 0, label, width - 1, curses.A_REVERSE if idx == selected else 0)
+        elif view == "projects":
+            for idx, row in enumerate(rows[: max(0, height - 9)]):
+                linked = sum(1 for item in registry.rows() if item["project"] in {row["id"], row["slug"]})
+                label = f"{'▶' if idx == selected else ' '} {'●' if row['status']=='active' else '○'} {str(row['name']):<42} {linked} sessions · {row['status']}"
+                stdscr.addnstr(5 + idx, 0, label, width - 1, curses.A_REVERSE if idx == selected else 0)
+        elif view == "os":
+            stdscr.addnstr(5, 0, "No Operative Systems installed. Registry is ready; packages are never invented.", width - 1)
+        elif view in {"mcp", "skills"}:
+            stdscr.addnstr(5, 0, f"{view.upper()} capabilities are managed by Hermes in the current isolated environment.", width - 1)
+        elif view == "system":
+            stdscr.addnstr(5, 0, f"Machine AGK Core · Environment {registry.env.name.upper()} · RMUX {run('rmux','-V').stdout.strip()}", width - 1)
+        footer = "↑↓/jk Navigate  Enter Open  n New  / Search  Ctrl-p Palette  R Restart  f Fork  A Archive  K Kill  q Quit"
         stdscr.addnstr(height - 2, 0, footer, width - 1)
         stdscr.refresh()
         key = stdscr.getch()
-        if key in (ord("q"), 27):
+        if key == ord("q"):
             return
-        if key in (curses.KEY_DOWN, ord("j")) and rows:
+        if key == 27:
+            view, query, selected = "sessions", "", 0
+        elif key in views:
+            view, selected = views[key], 0
+        elif key in (curses.KEY_DOWN, ord("j")) and rows:
             selected = min(len(rows) - 1, selected + 1)
         elif key in (curses.KEY_UP, ord("k")) and rows:
             selected = max(0, selected - 1)
         elif key in (10, 13) and rows:
-            curses.endwin()
-            subprocess.run(["rmux", "attach-session", "-t", rows[selected]["rmux_session"]])
-            stdscr.refresh()
+            row = rows[selected]
+            if view in {"sessions", "agents"}:
+                curses.endwin(); subprocess.run(["rmux", "attach-session", "-t", str(row["rmux_session"])]); stdscr.refresh()
+            elif view == "projects":
+                related = [item for item in registry.rows() if item["project"] in {row["id"], row["slug"]}]
+                if related:
+                    curses.endwin(); subprocess.run(["rmux", "attach-session", "-t", related[0]["rmux_session"]]); stdscr.refresh()
         elif key == ord("/"):
-            curses.echo(); curses.curs_set(1)
-            stdscr.addstr(height - 1, 0, "Search: ")
-            query = stdscr.getstr(height - 1, 8, max(1, width - 10)).decode(errors="replace")
-            curses.noecho(); curses.curs_set(0); selected = 0
-        elif key == ord("i") and rows:
-            stdscr.erase(); stdscr.addstr(0, 0, json.dumps(dict(rows[selected]), indent=2)); stdscr.addstr(height - 1, 0, "Press any key"); stdscr.getch()
+            query, selected = _prompt(stdscr, "Search/filter: "), 0
+        elif key == 16:  # Ctrl-p command palette / quick switcher
+            palette = _prompt(stdscr, "> ")
+            if palette.startswith("open "):
+                query, view, selected = palette[5:].strip(), "sessions", 0
+            elif palette.startswith("new ") and palette[4:].strip() in {"hermes", "claude", "codex", "shell"}:
+                _create_from_tui(stdscr, registry, palette[4:].strip())
+            else:
+                query, view, selected = palette, "sessions", 0
+        elif key in (ord("h"), ord("c"), ord("x"), ord("t")) and view in {"sessions", "projects"}:
+            kind = {ord("h"): "hermes", ord("c"): "claude", ord("x"): "codex", ord("t"): "shell"}[key]
+            project = rows[selected] if view == "projects" and rows else None
+            _create_from_tui(stdscr, registry, kind,
+                             Path(str(project["path"])) if project and project["path"] else None,
+                             str(project["id"]) if project else None)
+        elif key == ord("n"):
+            choice = _prompt(stdscr, "New [h]ermes [c]laude code[x] [t]erminal: ").lower()[:1]
+            kind = {"h": "hermes", "c": "claude", "x": "codex", "t": "shell"}.get(choice)
+            if kind: _create_from_tui(stdscr, registry, kind)
+        elif view in {"sessions", "agents"} and rows and key == ord("i"):
+            stdscr.erase(); stdscr.addnstr(0, 0, json.dumps(dict(rows[selected]), indent=2), max(1, height * width - 2)); _notice(stdscr, "Press any key")
+        elif view in {"sessions", "agents"} and rows and key == ord("R"):
+            registry.restart_frontend(rows[selected])
+        elif view == "sessions" and rows and key == ord("f"):
+            name = _prompt(stdscr, "Fork name: ")
+            if name:
+                try: registry.fork(rows[selected], name)
+                except Exception as exc: _notice(stdscr, f"Error: {exc}")
+        elif view in {"sessions", "agents"} and rows and key == ord("A"):
+            registry.archive(rows[selected])
+        elif view in {"sessions", "agents"} and rows and key == ord("K"):
+            if _prompt(stdscr, f"Kill {rows[selected]['name']}? type YES: ") == "YES": registry.terminate(rows[selected])
         elif key == ord("?"):
-            stdscr.erase(); stdscr.addstr(0, 0, "CONTROL MODE\nEnter attaches. Ctrl-b d detaches without killing work.\nq exits AGK only. K is destructive and requires the CLI confirmation.\n\nPress any key."); stdscr.getch()
+            _notice(stdscr, "CONTROL MODE. Enter attaches; Ctrl-b d detaches. q exits UI only. Uppercase K kills after confirmation.")
 
 
 def doctor(env: Environment, registry: RuntimeRegistry) -> int:
@@ -225,16 +418,44 @@ def doctor(env: Environment, registry: RuntimeRegistry) -> int:
     return 0 if all(ok for _, ok in checks) else 1
 
 
+def canonical_projects(env: Environment) -> list[dict[str, object]]:
+    db_path = env.home / ".agentik" / "control.db"
+    if not db_path.exists():
+        return []
+    db = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    db.row_factory = sqlite3.Row
+    try:
+        return [dict(row) for row in db.execute(
+            "SELECT id,slug,name,status,path,parent_id FROM objects "
+            "WHERE environment=? AND kind='project' ORDER BY updated_at DESC",
+            (env.name,),
+        )]
+    finally:
+        db.close()
+
+
+def require_runtime(registry: RuntimeRegistry, target: str) -> sqlite3.Row:
+    row = registry.get(target)
+    if row is None:
+        raise SystemExit(f"Runtime session not found: {target}")
+    return row
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(prog="agk")
     sub = parser.add_subparsers(dest="command")
     sub.add_parser("status"); sub.add_parser("doctor"); sub.add_parser("sessions")
     new = sub.add_parser("new")
     new.add_argument("type", choices=sorted(TYPES)); new.add_argument("name")
-    new.add_argument("--cwd", type=Path); new.add_argument("--client"); new.add_argument("--project"); new.add_argument("--mission")
+    new.add_argument("--cwd", type=Path); new.add_argument("--client"); new.add_argument("--project"); new.add_argument("--mission"); new.add_argument("--native-session")
     resume = sub.add_parser("resume"); resume.add_argument("target", nargs="?")
     open_p = sub.add_parser("open"); open_p.add_argument("target")
     agent = sub.add_parser("agent"); agent.add_argument("type", choices=("hermes", "claude", "codex")); agent.add_argument("name", nargs="?")
+    for action in ("info", "archive", "kill", "restart"):
+        item = sub.add_parser(action); item.add_argument("target")
+    rename = sub.add_parser("rename"); rename.add_argument("target"); rename.add_argument("name")
+    fork = sub.add_parser("fork"); fork.add_argument("target"); fork.add_argument("name")
+    sub.add_parser("reconcile")
     sub.add_parser("projects"); sub.add_parser("agents"); sub.add_parser("os"); sub.add_parser("mcp"); sub.add_parser("skills"); sub.add_parser("system")
     args = parser.parse_args()
     env = Environment.current(); registry = RuntimeRegistry(env); registry.reconcile()
@@ -248,7 +469,10 @@ def main() -> int:
         return 0
     if args.command == "doctor": return doctor(env, registry)
     if args.command == "new":
-        row = registry.create(name=args.name, kind=args.type, cwd=args.cwd or env.home, client=args.client, project=args.project, mission=args.mission, command=default_command(args.type))
+        row = registry.create(name=args.name, kind=args.type, cwd=args.cwd or env.home,
+                              client=args.client, project=args.project, mission=args.mission,
+                              command=default_command(args.type, args.native_session),
+                              native_session=args.native_session)
         print(f"Created {row['id']} · {row['name']} · {row['type'].upper()}"); return 0
     if args.command == "agent":
         name = args.name or f"{env.name}-{args.type}-{time.strftime('%Y%m%d-%H%M%S')}"
@@ -259,8 +483,28 @@ def main() -> int:
         row = registry.get(target) if target else (registry.rows()[0] if registry.rows() else None)
         if not row: print("No resumable session.", file=sys.stderr); return 1
         os.execvp("rmux", ["rmux", "attach-session", "-t", row["rmux_session"]])
+    if args.command == "info":
+        print(json.dumps(dict(require_runtime(registry, args.target)), indent=2, sort_keys=True)); return 0
+    if args.command == "archive":
+        row = registry.archive(require_runtime(registry, args.target)); print(f"Archived {row['name']}"); return 0
+    if args.command == "kill":
+        if not sys.stdin.isatty() or input(f"Kill runtime {args.target}? History remains. [y/N] ").lower() != "y":
+            print("Cancelled."); return 1
+        row = registry.terminate(require_runtime(registry, args.target)); print(f"Stopped {row['name']}"); return 0
+    if args.command == "restart":
+        row = registry.restart_frontend(require_runtime(registry, args.target)); print(f"Restarted frontend {row['name']}"); return 0
+    if args.command == "rename":
+        row = registry.rename(require_runtime(registry, args.target), args.name); print(f"Renamed to {row['name']}"); return 0
+    if args.command == "fork":
+        row = registry.fork(require_runtime(registry, args.target), args.name); print(f"Forked {row['name']} from {row['parent_session_id']}"); return 0
+    if args.command == "reconcile":
+        changed, unmanaged = registry.reconcile(); print(f"Updated: {changed}\nUnmanaged: {', '.join(unmanaged) if unmanaged else 'none'}"); return 0
     if args.command == "projects":
-        for row in sorted(env.projects.glob("*")) if env.projects.exists() else []: print(row.name)
+        projects = canonical_projects(env)
+        if projects:
+            for row in projects: print(f"{row['status']:<10} {row['name']} · {row['id']} · {row['path'] or '—'}")
+        else:
+            for row in sorted(env.projects.glob("*")) if env.projects.exists() else []: print(row.name)
         return 0
     if args.command == "agents":
         for row in registry.rows():
@@ -268,7 +512,7 @@ def main() -> int:
         return 0
     if args.command == "os":
         index = Path("/opt/agentik/os-registry/state/index.json")
-        data = json.loads(index.read_text()) if index.exists() else {"packages": []}
+        data = json.loads(index.read_text(encoding="utf-8")) if index.exists() else {"packages": []}
         print(f"Installed Operative Systems: {len(data.get('packages', []))}"); return 0
     if args.command in {"mcp", "skills", "system"}:
         print(f"{args.command.upper()} view · {env.name} · use Hermes canonical commands for details"); return 0
