@@ -159,6 +159,18 @@ pub fn handle_key(app: &mut App, key: KeyEvent, detail_available: bool) -> Actio
             app.overlay = Overlay::NewKind { selected: 0 };
             Action::None
         }
+        KeyCode::Char('h') if app.view == View::Sessions && app.focus == Focus::List => {
+            new_session_name(app, SessionKind::Hermes)
+        }
+        KeyCode::Char('c') if app.view == View::Sessions && app.focus == Focus::List => {
+            new_session_name(app, SessionKind::Claude)
+        }
+        KeyCode::Char('x') if app.view == View::Sessions && app.focus == Focus::List => {
+            new_session_name(app, SessionKind::Codex)
+        }
+        KeyCode::Char('t') if app.view == View::Sessions && app.focus == Focus::List => {
+            new_session_name(app, SessionKind::Shell)
+        }
         KeyCode::Char('r') | KeyCode::F(5) => Action::Refresh,
         KeyCode::Tab => {
             app.tab(Instant::now(), detail_available);
@@ -295,6 +307,14 @@ pub fn handle_key(app: &mut App, key: KeyEvent, detail_available: bool) -> Actio
         }
         _ => Action::None,
     }
+}
+
+fn new_session_name(app: &mut App, kind: SessionKind) -> Action {
+    app.overlay = Overlay::NewName {
+        kind,
+        value: String::new(),
+    };
+    Action::None
 }
 
 fn handle_overlay_key(app: &mut App, key: KeyEvent) -> Action {
@@ -655,6 +675,27 @@ mod tests {
             handle_key(&mut app, key(KeyCode::Enter), true),
             Action::EnterTerminal
         );
+    }
+
+    #[test]
+    fn direct_session_shortcuts_open_the_correct_name_dialog() {
+        for (key_code, expected) in [
+            (KeyCode::Char('h'), SessionKind::Hermes),
+            (KeyCode::Char('c'), SessionKind::Claude),
+            (KeyCode::Char('x'), SessionKind::Codex),
+            (KeyCode::Char('t'), SessionKind::Shell),
+        ] {
+            let mut app = app();
+            app.focus = Focus::List;
+            handle_key(&mut app, key(key_code), true);
+            assert_eq!(
+                app.overlay,
+                Overlay::NewName {
+                    kind: expected,
+                    value: String::new(),
+                }
+            );
+        }
     }
 
     #[test]

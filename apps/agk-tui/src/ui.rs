@@ -828,6 +828,11 @@ fn draw_help(frame: &mut Frame, app: &App, area: Rect, colors: Palette) {
         help_key("f / F11", "Expand or restore live preview", colors),
         help_key("v", "Toggle persistent split preview", colors),
         help_key("n", "Create via the existing AGK client", colors),
+        help_key(
+            "h / c / x / t",
+            "New Hermes / Claude / Codex / terminal session",
+            colors,
+        ),
         Line::raw(""),
         heading("COMMANDS", colors),
         help_key("/", "Search; Enter accepts, Esc restores", colors),
@@ -854,7 +859,7 @@ fn draw_help(frame: &mut Frame, app: &App, area: Rect, colors: Palette) {
 fn draw_footer(frame: &mut Frame, app: &App, area: Rect, size: Density, colors: Palette) {
     let rows = Layout::vertical([Constraint::Length(1), Constraint::Length(2)]).split(area);
     let hint = app.status.as_deref().unwrap_or(match app.view {
-        View::Sessions => "↑↓ move · Enter terminal · Tab focus · f expand · v preview · n new · / search · Ctrl-p palette · q detach",
+        View::Sessions => "↑↓ move · Enter open · Tab focus · h Hermes · c Claude · x Codex · t terminal · n menu · / search · q detach",
         View::Settings => "↑↓ select/preview · Tab focus · ←→ change · Enter save · Esc revert · ? help",
         View::Help => "↑↓ or PgUp/PgDn scroll · 1–6 switch · q detach",
         _ => "↑↓ move · Enter detail · Tab focus · / search · r refresh · Ctrl-p palette · ? help · q detach",
