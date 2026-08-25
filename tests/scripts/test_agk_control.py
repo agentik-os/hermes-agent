@@ -91,6 +91,23 @@ def test_responsive_layout_and_navigation_model():
     assert agk.cycle_view("sessions", reverse=True) == "help"
 
 
+def test_session_sections_prioritize_attention_then_active_then_recent():
+    rows = [
+        {"status": "idle", "name": "recent"},
+        {"status": "working", "name": "active"},
+        {"status": "failed", "name": "failed"},
+    ]
+    sections = agk.session_sections(rows)
+    assert [name for name, _ in sections] == ["ATTENTION", "ACTIVE", "RECENT"]
+    assert [values[0]["name"] for _, values in sections] == ["failed", "active", "recent"]
+
+
+def test_age_format_is_compact_and_stable():
+    assert agk.format_age(990, now=1000) == "10s"
+    assert agk.format_age(700, now=1000) == "5m"
+    assert agk.format_age(1000 - 7200, now=1000) == "2h"
+
+
 def test_mcp_inventory_is_redacted(tmp_path):
     env = agk.Environment("mission", tmp_path, tmp_path / "workspace/clients")
     (tmp_path / ".hermes").mkdir()
