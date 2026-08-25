@@ -60,6 +60,46 @@ class PathResolver:
         root = _contained(project_path, project_path / "missions")
         return _contained(root, root / normalize_slug(slug))
 
+    def resolve(self, object_type: str, *, slug: str | None = None,
+                client_slug: str | None = None, project_path: Path | None = None,
+                scope_path: Path | None = None) -> Path:
+        """Resolve every canonical storage class without creating it.
+
+        Callers must resolve ownership and scope before mutation. Returning a
+        path never grants authority and never creates files or directories.
+        """
+        kind = object_type.strip().lower().replace("-", "_")
+        if kind == "client":
+            if not slug: raise ValueError("client resolution requires a slug")
+            return self.client(slug)
+        if kind == "project":
+            if not slug: raise ValueError("project resolution requires a slug")
+            return self.project(slug, client_slug=client_slug)
+        if kind == "mission":
+            if not slug or project_path is None: raise ValueError("mission resolution requires slug and project_path")
+            return self.mission(slug, project_path=project_path)
+        if kind == "hermes_state":
+            return _contained(self.home, self.home / ".hermes")
+        if kind == "workspace":
+            if self.environment == "operator": raise PermissionError("Operator has no business workspace")
+            return _contained(self.home, self.home / "workspace")
+        if kind in {"knowledge", "artifact"}:
+            workspace = self.resolve("workspace")
+            root = _contained(workspace, scope_path) if scope_path else workspace
+            directory = "knowledge" if kind == "knowledge" else "artifacts"
+            return _contained(root, root / directory)
+        if kind == "secrets":
+            return _contained(self.home, self.home / ".secrets")
+        if kind in {"runtime", "logs", "backups"}:
+            root = Path("/var/agentik") / kind
+            return _contained(root, root / self.environment)
+        if kind == "os_registry":
+            return Path("/opt/agentik/os-registry")
+        if kind == "operator_admin":
+            if self.environment != "operator": raise PermissionError("operator administration belongs to Operator")
+            return _contained(self.home, self.home / "admin")
+        raise ValueError(f"unknown Agentik path object type: {object_type}")
+
 
 def create_client_layout(path: Path, *, object_id: str, name: str, slug: str) -> None:
     for child in (
@@ -89,4 +129,3 @@ def create_mission_layout(path: Path, *, object_id: str, name: str) -> None:
         f"schema_version: 1\nid: {object_id}\nname: {name!r}\nstatus: planned\n",
         encoding="utf-8",
     )
-

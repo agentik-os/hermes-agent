@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import hashlib
+import os
 import shlex
 from pathlib import Path
 from typing import Callable
@@ -37,11 +38,15 @@ DESCRIPTIONS = {
 
 
 class AgentikCommandService:
-    def __init__(self, environment: str, store: ControlStore, resolver: PathResolver):
+    def __init__(self, environment: str, store: ControlStore, resolver: PathResolver,
+                 os_registry_root: Path = Path("/opt/agentik/os-registry"),
+                 os_assignment_path: Path | None = None):
         self.environment = environment
         self.data_environment = "mission" if environment == "collective" else environment
         self.store = store
         self.resolver = resolver
+        self.os_registry_root = os_registry_root
+        self.os_assignment_path = os_assignment_path
         self.operator = OperatorCommandService() if environment == "operator" else None
         self.domain = DomainCommandService(environment, store)
         common = ["home", "active", "os"]
@@ -307,11 +312,10 @@ class AgentikCommandService:
 
     def _os(self, argv: list[str]) -> str:
         action = argv[0].lower() if argv else "list"
-        registry = Path("/opt/agentik/os-registry")
-        registry_api = OSRegistry(registry)
+        registry_api = OSRegistry(self.os_registry_root)
         packages = registry_api.packages()
-        assignment_path = (Path("/etc/agentik/operator-os/assignments.yaml")
-                           if self.environment == "operator" else Path.home() / ".agentik" / "os-assignments.yaml")
+        assignment_path = self.os_assignment_path or (Path("/etc/agentik/operator-os/assignments.yaml")
+                           if self.environment == "operator" else self.resolver.home / ".agentik" / "os-assignments.yaml")
         try:
             assignments = (yaml.safe_load(assignment_path.read_text(encoding="utf-8")) or {}).get("assignments", [])
         except Exception:
@@ -343,5 +347,57 @@ class AgentikCommandService:
             if healthy:
                 return f"OPERATIVE SYSTEM DOCTOR\n✓ Registry valid\nInstalled packages: {len(packages)}\nAssignments: valid"
             return "OPERATIVE SYSTEM DOCTOR\n✗ " + "\n✗ ".join(errors)
+        if action in {"assign", "apply"}:
+            if len(argv) < 2:
+                return f"Usage: /os {action} <id@version> [environment|client|project|session]"
+            reference = argv[1]
+            matches = [p for p in packages if isinstance(p, dict) and f"{p.get('id')}@{p.get('version')}" == reference]
+            if not matches:
+                return f"Operative System not installed: {reference}"
+            scope = (argv[2].lower() if len(argv) > 2 else ("session" if action == "apply" else "environment"))
+            if scope not in {"environment", "client", "project", "session"}:
+                return "OS assignment scope must be environment, client, project, or session."
+            context = self.context(); invocation = self.invocation()
+            target = self.data_environment if scope == "environment" else (
+                invocation.get("session_id") if scope == "session" else context.get(f"{scope}_id")
+            )
+            if not target:
+                return f"No active {scope} context; OS was not assigned."
+            allowed = set(matches[0].get("scope") or [])
+            if self.data_environment not in allowed and scope not in allowed and "global" not in allowed:
+                return f"OS {reference} is not allowed in {self.data_environment}."
+            record = {"os": reference, "scope": scope, "target": str(target)}
+            records = [item for item in assignments if isinstance(item, dict)]
+            if record not in records:
+                records.append(record); self._write_assignments(assignment_path, records)
+            return f"OS assigned: {reference} → {scope}:{target}."
+        if action in {"unassign", "unload"}:
+            if len(argv) < 2:
+                return f"Usage: /os {action} <id@version>"
+            reference = argv[1]; context = self.context(); invocation = self.invocation()
+            requested_scope = "session" if action == "unload" else (argv[2].lower() if len(argv) > 2 else None)
+            targets = {self.data_environment, context.get("client_id"), context.get("project_id"), invocation.get("session_id")}
+            before = [item for item in assignments if isinstance(item, dict)]
+            after = [item for item in before if not (
+                item.get("os") == reference and item.get("target") in targets
+                and (requested_scope is None or item.get("scope") == requested_scope)
+            )]
+            if len(after) == len(before):
+                return f"No matching active assignment for {reference}."
+            self._write_assignments(assignment_path, after)
+            return f"OS unassigned: {reference}."
         return ("OS mutation commands are intentionally unavailable until the signed package "
                 "installer and validator are deployed. No OS was changed.")
+
+    @staticmethod
+    def _write_assignments(path: Path, records: list[dict]) -> None:
+        """Atomically persist references only; package contents remain immutable."""
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+        try:
+            temporary.write_text(yaml.safe_dump({"schema_version": 1, "assignments": records}, sort_keys=False), encoding="utf-8")
+            temporary.chmod(0o600)
+            os.replace(temporary, path)
+        finally:
+            try: temporary.unlink()
+            except FileNotFoundError: pass

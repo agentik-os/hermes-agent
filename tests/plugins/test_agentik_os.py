@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pytest
@@ -67,6 +68,30 @@ def test_path_resolver_rejects_wrong_environment_and_normalizes(tmp_path):
     assert normalize_slug("  CEO / Q4  ") == "ceo-q4"
     with pytest.raises(PermissionError):
         PathResolver("private", tmp_path).client("moonbase")
+
+
+def test_path_resolver_covers_state_work_artifacts_and_runtime(tmp_path):
+    home = tmp_path / "agentik"
+    resolver = PathResolver("agentik", home)
+    assert resolver.resolve("hermes_state") == home / ".hermes"
+    assert resolver.resolve("knowledge") == home / "workspace" / "knowledge"
+    project = home / "workspace" / "projects" / "demo"
+    assert resolver.resolve("artifact", scope_path=project) == project / "artifacts"
+    assert resolver.resolve("runtime") == Path("/var/agentik/runtime/agentik")
+    assert resolver.resolve("logs") == Path("/var/agentik/logs/agentik")
+    assert resolver.resolve("backups") == Path("/var/agentik/backups/agentik")
+    assert resolver.resolve("os_registry") == Path("/opt/agentik/os-registry")
+
+
+def test_path_resolver_does_not_create_or_expand_authority(tmp_path):
+    resolver = PathResolver("mission", tmp_path / "mission")
+    target = resolver.resolve("secrets")
+    assert target == tmp_path / "mission" / ".secrets"
+    assert not target.exists()
+    with pytest.raises(ValueError, match="escapes"):
+        resolver.resolve("artifact", scope_path=tmp_path / "private")
+    with pytest.raises(PermissionError):
+        resolver.resolve("operator_admin")
 
 
 def test_os_registry_empty_is_truthful(mission_service, monkeypatch, tmp_path):
@@ -173,3 +198,22 @@ def test_run_is_part_of_context_and_active_report(mission_service):
     run_id = created.split("(", 1)[1].split(")", 1)[0]
     assert mission_service.context()["run_id"] == run_id
     assert f"Run: Worker ({run_id})" in mission_service.dispatch("active", "")
+
+
+def test_os_assignment_requires_installed_package_and_respects_scope(tmp_path):
+    home = tmp_path / "mission"
+    registry = tmp_path / "registry"; package = registry / "packages/research-os/1.0.0"
+    package.mkdir(parents=True); (registry / "state").mkdir()
+    manifest = {"id": "research-os", "name": "Research OS", "version": "1.0.0",
+                "description": "Method", "scope": ["mission"], "dependencies": [],
+                "capabilities": [], "skills": [], "workflows": [], "agents": [],
+                "tools": [], "commands": [], "knowledge": [], "evals": []}
+    (registry / "state/index.json").write_text(json.dumps({"packages": [manifest]}), encoding="utf-8")
+    assignments = home / ".agentik/os-assignments.yaml"
+    service = AgentikCommandService("mission", ControlStore(home / ".agentik/control.db"),
+                                    PathResolver("mission", home), registry, assignments)
+    assert "not installed" in service.dispatch("os", "assign fake-os@1.0.0")
+    assert "OS assigned" in service.dispatch("os", "assign research-os@1.0.0")
+    assert "research-os@1.0.0" in service.dispatch("os", "stack")
+    assert "OS unassigned" in service.dispatch("os", "unassign research-os@1.0.0")
+    assert service.dispatch("os", "stack").endswith("(empty)")
