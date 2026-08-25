@@ -385,7 +385,11 @@ def skill_inventory(env: Environment) -> list[dict[str, str]]:
     for root, source in roots:
         if not root.is_dir():
             continue
-        for manifest in root.glob("*/SKILL.md"):
+        manifests = list(root.glob("*/DESCRIPTION.md")) + list(root.glob("*/SKILL.md"))
+        # Codex system/plugin skills may be namespaced one level deeper.
+        if source == "codex":
+            manifests += list(root.glob("*/*/SKILL.md"))
+        for manifest in manifests[:500]:
             found[(manifest.parent.name, source)] = {
                 "name": manifest.parent.name, "source": source, "status": "installed",
             }
