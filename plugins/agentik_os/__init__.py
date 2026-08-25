@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from .commands import AgentikCommandService
 from .runtime_tool import RUNTIME_TOOL_SCHEMA, handle_runtime, runtime_available
+from .agent_registry import AGENT_TOOL_SCHEMA, AgentCommandService, handle_agent
 
 
 def register(ctx) -> None:
@@ -27,4 +28,20 @@ def register(ctx) -> None:
         check_fn=runtime_available,
         description="Persistent per-user Hermes, Claude and Codex orchestration through AGK/RMUX.",
         emoji="🧭",
+    )
+    agent_service = AgentCommandService()
+    ctx.register_command(
+        "agent",
+        handler=agent_service.dispatch,
+        description="List and operate specialized agents through durable AGK/RMUX sessions.",
+        args_hint="list|start|status|message|logs <agent> [instruction]",
+    )
+    ctx.register_tool(
+        name="agentik_agent",
+        toolset="agentik_runtime",
+        schema=AGENT_TOOL_SCHEMA,
+        handler=handle_agent,
+        check_fn=runtime_available,
+        description="Specialized Hermes agents backed by persistent AGK/RMUX runtimes.",
+        emoji="🤖",
     )
