@@ -1,0 +1,88 @@
+from pathlib import Path
+
+import pytest
+
+from plugins.agentik_os.commands import AgentikCommandService
+from plugins.agentik_os.paths import PathResolver, normalize_slug
+from plugins.agentik_os.store import ControlStore
+
+
+@pytest.fixture
+def mission_service(tmp_path: Path) -> AgentikCommandService:
+    home = tmp_path / "mission"
+    (home / "workspace" / "clients").mkdir(parents=True)
+    return AgentikCommandService(
+        "mission",
+        ControlStore(home / ".agentik" / "control.db"),
+        PathResolver("mission", home),
+    )
+
+
+def test_mission_vertical_slice_creates_hierarchy_and_paths(mission_service):
+    client = mission_service.dispatch("client", 'new "Moonbase Labs"')
+    assert "Client created" in client
+    assert "moonbase-labs" in client
+
+    project = mission_service.dispatch("project", 'new "Operator Dashboard"')
+    assert "Project created" in project
+    mission = mission_service.dispatch("mission", 'new "CEO Reporting"')
+    assert "Mission created" in mission
+    task = mission_service.dispatch("task", 'new "Audit KPI workflow"')
+    assert "Task created" in task
+
+    active = mission_service.dispatch("active", "")
+    assert "Moonbase Labs" in active
+    assert "Operator Dashboard" in active
+    assert "CEO Reporting" in active
+    assert "Audit KPI workflow" in active
+
+    client_path = mission_service.resolver.home / "workspace/clients/moonbase-labs"
+    project_path = client_path / "projects/operator-dashboard"
+    mission_path = project_path / "missions/ceo-reporting"
+    assert (client_path / "CLIENT.md").is_file()
+    assert (project_path / "PROJECT.md").is_file()
+    assert (mission_path / "mission.yaml").is_file()
+
+
+def test_project_requires_open_client_in_mission(mission_service):
+    result = mission_service.dispatch("project", "new orphan")
+    assert "open a client" in result
+    assert not (mission_service.resolver.home / "workspace/clients/orphan").exists()
+
+
+def test_context_home_clears_hierarchy(mission_service):
+    mission_service.dispatch("client", "new Moonbase")
+    mission_service.dispatch("project", "new Dashboard")
+    assert mission_service.context()["project_id"]
+    mission_service.dispatch("home", "")
+    context = mission_service.context()
+    assert context["client_id"] is None
+    assert context["project_id"] is None
+    assert context["mission_id"] is None
+    assert context["task_id"] is None
+
+
+def test_path_resolver_rejects_wrong_environment_and_normalizes(tmp_path):
+    assert normalize_slug("  CEO / Q4  ") == "ceo-q4"
+    with pytest.raises(PermissionError):
+        PathResolver("private", tmp_path).client("moonbase")
+
+
+def test_os_registry_empty_is_truthful(mission_service, monkeypatch, tmp_path):
+    # The command degrades truthfully when no registry is mounted in a test.
+    result = mission_service.dispatch("os", "list")
+    assert "Installed packages: 0" in result
+    assert "No Operative Systems are installed" in result
+
+
+def test_lifecycle_transition_is_persisted(mission_service):
+    mission_service.dispatch("client", "new Moonbase")
+    mission_service.dispatch("project", "new Dashboard")
+    mission_service.dispatch("mission", "new Audit")
+    created = mission_service.dispatch("task", "new Review")
+    task_id = created.split("(", 1)[1].split(")", 1)[0]
+    assert "running" in mission_service.dispatch("task", f"start {task_id}")
+    assert "paused" in mission_service.dispatch("task", f"pause {task_id}")
+    assert "completed" in mission_service.dispatch("task", f"complete {task_id}")
+    stored = mission_service.store.get("mission", "task", task_id)
+    assert stored.status == "completed"

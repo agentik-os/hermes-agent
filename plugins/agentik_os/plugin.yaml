@@ -1,0 +1,5 @@
+name: agentik-os
+version: 0.1.0
+description: "Canonical Agentik OS command and state layer for clients, projects, missions, tasks, runs, context, and Operative System registry discovery."
+author: "Agentik OS"
+
