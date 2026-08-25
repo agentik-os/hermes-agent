@@ -66,20 +66,32 @@ fn draw_terminal(frame: &mut Frame, app: &App, pane: Option<&PaneState>, area: R
         ),
         rows[0],
     );
-    if let Some(state) = pane {
+    if app.session_drawer {
+        let columns = if area.width >= 100 {
+            Layout::horizontal([Constraint::Percentage(38), Constraint::Percentage(62)])
+                .split(rows[1])
+        } else {
+            Layout::horizontal([Constraint::Percentage(48), Constraint::Percentage(52)])
+                .split(rows[1])
+        };
+        draw_sessions(frame, app, columns[0]);
+        let block = Block::bordered()
+            .title(" SELECTED SESSION · LIVE PREVIEW ")
+            .border_style(Style::default().fg(accent(app.theme)));
+        let inner = block.inner(columns[1]);
+        frame.render_widget(block, columns[1]);
+        if let Some(state) = pane {
+            frame.render_widget(PaneWidget::new(state), inner);
+        }
+    } else if let Some(state) = pane {
         frame.render_widget(PaneWidget::new(state), rows[1]);
     }
-    if app.session_drawer {
-        let drawer = Rect::new(
-            area.x,
-            area.y + 2,
-            area.width.min(50),
-            area.height.saturating_sub(3),
-        );
-        draw_sessions(frame, app, drawer);
-    }
     frame.render_widget(
-        Paragraph::new("Input → RMUX │ Tab drawer │ ↑↓ select │ Enter switch │ Esc control"),
+        Paragraph::new(if app.session_drawer {
+            "SESSION NAVIGATOR │ ↑↓ preview │ Enter switch │ Tab close │ Esc control"
+        } else {
+            "Input → RMUX │ Tab session navigator │ Esc control"
+        }),
         rows[2],
     );
 }
@@ -322,5 +334,25 @@ mod tests {
             assert!(rendered.contains("AGK"));
             assert!(rendered.contains("Moonbase") || rendered.contains("moonbase"));
         }
+    }
+
+    #[test]
+    fn terminal_mode_keeps_session_navigator_and_preview_visible() {
+        let mut app = app();
+        app.mode = Mode::Terminal;
+        app.session_drawer = true;
+        let backend = TestBackend::new(140, 40);
+        let mut terminal = Terminal::new(backend).unwrap();
+        terminal.draw(|frame| draw(frame, &app, None)).unwrap();
+        let rendered = terminal
+            .backend()
+            .buffer()
+            .content
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect::<String>();
+        assert!(rendered.contains("SESSION NAVIGATOR"));
+        assert!(rendered.contains("LIVE PREVIEW"));
+        assert!(rendered.contains("mission-moonbase-hermes"));
     }
 }
