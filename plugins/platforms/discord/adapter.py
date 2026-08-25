@@ -1336,7 +1336,10 @@ class DiscordAdapter(BasePlatformAdapter):
             # a username to resolve — requesting Members for it would silently
             # fail bots that never enabled Members Intent in the Developer Portal.
             intents = Intents.default()
-            intents.message_content = True
+            # Slash-command-only gateways can opt out while an application
+            # owner is still enabling the privileged Message Content toggle.
+            # Normal conversational messages require the default ``true``.
+            intents.message_content = _env_bool("DISCORD_MESSAGE_CONTENT_INTENT", True)
             intents.dm_messages = True
             intents.guild_messages = True
             intents.members = _needs_server_members_intent(
