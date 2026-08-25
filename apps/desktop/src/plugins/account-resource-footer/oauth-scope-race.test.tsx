@@ -28,10 +28,12 @@ vi.mock('@hermes/plugin-sdk', async importOriginal => {
   const React = await import('react')
 
   const states = {
+    activeSessionId: actual.atom('old-session'),
     connectionId: actual.atom('old-connection'),
     focusedSessionProfile: actual.atom('old-profile'),
     focusedUsage: actual.atom({}),
-    gateway: actual.atom('open')
+    gateway: actual.atom('open'),
+    profile: actual.atom('old-profile')
   }
 
   Object.assign(harness.states, states)
@@ -82,6 +84,7 @@ function setScope(connection: string, profile: string) {
   act(() => {
     harness.states.connectionId.set(connection)
     harness.states.focusedSessionProfile.set(profile)
+    harness.states.profile.set(profile)
   })
 }
 
@@ -90,10 +93,13 @@ function installBaseHost() {
   harness.connections.mockResolvedValue([{ id: 'old-connection', kind: 'local', label: 'Old' }])
   harness.profileRoutes.mockImplementation(async () => {
     const connectionId = String(harness.states.connectionId.get())
-    const profile = String(harness.states.focusedSessionProfile.get())
+    const profile = String(harness.states.profile.get())
 
     return [{ connectionId, profile, targetProfile: profile }]
   })
+  harness.requestProfile.mockImplementation(async (_route, method, params) =>
+    harness.request(method, params)
+  )
 }
 
 describe('account footer OAuth scope races', () => {
@@ -103,7 +109,12 @@ describe('account footer OAuth scope races', () => {
     installBaseHost()
   })
 
-  afterEach(() => cleanup())
+  afterEach(() => {
+    const close = screen.queryByRole('button', { name: 'Close authorization' })
+
+    if (close) {fireEvent.click(close)}
+    cleanup()
+  })
 
   it('stale PKCE completion neither notifies nor clears a newer busy operation', async () => {
     const submit = deferred<{ status: string }>()
@@ -130,7 +141,7 @@ describe('account footer OAuth scope races', () => {
 
       return null
     })
-    harness.requestProfile.mockImplementation(async (_route: unknown, method: string) => {
+    harness.requestProfile.mockImplementation(async (_route: unknown, method: string, params?: Record<string, unknown>) => {
       if (method === 'auth.oauth.start') {
         startCount += 1
 
@@ -141,11 +152,13 @@ describe('account footer OAuth scope races', () => {
 
       if (method === 'auth.oauth.submit') {return submit.promise}
 
-      return { status: 'cancelled' }
+      return harness.request(method, params)
     })
 
     mountFooter()
-    await waitFor(() => expect(harness.request).toHaveBeenCalledWith('account.usage', {}))
+    await waitFor(() => expect(harness.request).toHaveBeenCalledWith('account.usage', {
+      profile: 'old-profile'
+    }))
     fireEvent.click(screen.getByRole('button', { name: 'Connect OpenAI' }))
     fireEvent.change(await screen.findByLabelText('OpenAI authorization code'), { target: { value: 'code' } })
     fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
@@ -190,7 +203,7 @@ describe('account footer OAuth scope races', () => {
 
       return null
     })
-    harness.requestProfile.mockImplementation(async (_route: unknown, method: string) => {
+    harness.requestProfile.mockImplementation(async (_route: unknown, method: string, params?: Record<string, unknown>) => {
       if (method === 'auth.oauth.start') {
         startCount += 1
 
@@ -203,11 +216,13 @@ describe('account footer OAuth scope races', () => {
 
       if (method === 'auth.oauth.poll') {return { status: 'approved' }}
 
-      return { status: 'cancelled' }
+      return harness.request(method, params)
     })
 
     mountFooter()
-    await waitFor(() => expect(harness.request).toHaveBeenCalledWith('account.usage', {}))
+    await waitFor(() => expect(harness.request).toHaveBeenCalledWith('account.usage', {
+      profile: 'old-profile'
+    }))
     holdRefresh = true
     fireEvent.click(screen.getByRole('button', { name: 'Connect OpenAI' }))
     await waitFor(() => expect(staleRefreshStarted).toHaveBeenCalled())

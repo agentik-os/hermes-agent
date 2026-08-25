@@ -5,13 +5,37 @@ from .method_ctx import HandlerRegistry
 
 _registry = HandlerRegistry()
 method = _registry.method
+_profile_scoped = _registry.profile_scoped
 
 
 def register(ctx: dict) -> None:
     _registry.install(ctx)
 
 
+@method("auth.cli.accounts")
+@_profile_scoped
+def _(rid, params: dict) -> dict:
+    try:
+        from hermes_cli.cli_auth_broker import CliAuthBroker
+
+        provider = str(params.get("provider") or "").strip().lower()
+        if not provider:
+            return _err(rid, 4003, "provider required")
+        return _ok(
+            rid,
+            {
+                "provider": provider,
+                "accounts": CliAuthBroker().list_statuses(provider),
+            },
+        )
+    except ValueError as exc:
+        return _err(rid, 4003, str(exc))
+    except Exception:
+        return _err(rid, 5029, "CLI account status unavailable")
+
+
 @method("auth.cli.start")
+@_profile_scoped
 def _(rid, params: dict) -> dict:
     try:
         from hermes_cli.cli_auth_broker import CliAuthBroker
@@ -28,6 +52,7 @@ def _(rid, params: dict) -> dict:
 
 
 @method("auth.cli.poll")
+@_profile_scoped
 def _(rid, params: dict) -> dict:
     try:
         from hermes_cli.cli_auth_broker import CliAuthBroker
@@ -45,6 +70,7 @@ def _(rid, params: dict) -> dict:
 
 
 @method("auth.cli.submit")
+@_profile_scoped
 def _(rid, params: dict) -> dict:
     try:
         from hermes_cli.cli_auth_broker import CliAuthBroker
@@ -65,6 +91,7 @@ def _(rid, params: dict) -> dict:
 
 
 @method("auth.cli.cancel")
+@_profile_scoped
 def _(rid, params: dict) -> dict:
     try:
         from hermes_cli.cli_auth_broker import CliAuthBroker
