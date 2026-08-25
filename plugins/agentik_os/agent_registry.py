@@ -62,6 +62,18 @@ def _definition(agent_id: str) -> dict | None:
     return next((item for item in _definitions() if item["id"] == agent_id), None)
 
 
+def agent_router_prompt(_session_info: dict | None = None) -> str:
+    available = ", ".join(item["id"] for item in _definitions()) or "none"
+    return (
+        "Agentik specialized-agent routing:\n"
+        f"Installed agent ids: {available}.\n"
+        "When the user explicitly asks to start, call, use, or continue an installed specialized agent, "
+        "use the agentik_agent tool. Start creates or resumes its durable Hermes + AGK/RMUX runtime; "
+        "message sends a follow-up; logs reads its bounded output. Never pretend to have launched an agent, "
+        "never create a second ad-hoc session system, and never cross the current Linux environment boundary."
+    )
+
+
 def _environment() -> str:
     return os.environ.get("AGENTIK_ENVIRONMENT") or os.environ.get("USER") or "agentik"
 

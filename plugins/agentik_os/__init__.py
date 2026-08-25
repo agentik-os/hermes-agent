@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from .commands import AgentikCommandService
 from .runtime_tool import RUNTIME_TOOL_SCHEMA, handle_runtime, runtime_available
-from .agent_registry import AGENT_TOOL_SCHEMA, AgentCommandService, handle_agent
+from .agent_registry import AGENT_TOOL_SCHEMA, AgentCommandService, agent_router_prompt, handle_agent
 
 
 def register(ctx) -> None:
@@ -44,4 +44,10 @@ def register(ctx) -> None:
         check_fn=runtime_available,
         description="Specialized Hermes agents backed by persistent AGK/RMUX runtimes.",
         emoji="🤖",
+    )
+    ctx.register_system_prompt_section(
+        "agentik.agent-router",
+        agent_router_prompt,
+        position="after_tools",
+        max_chars=1400,
     )

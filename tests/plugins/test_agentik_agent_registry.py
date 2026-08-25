@@ -47,3 +47,11 @@ def test_scope_blocks_cross_environment_launch(tmp_path, monkeypatch):
     payload = json.loads(agent_registry.handle_agent({"action": "start", "agent": "master-os-builder"}))
     assert "error" in payload
     assert "not allowed" in payload["error"]
+
+
+def test_router_requires_real_runtime_instead_of_simulation(tmp_path, monkeypatch):
+    monkeypatch.setattr(agent_registry, "_catalog_root", lambda: _catalog(tmp_path))
+    prompt = agent_registry.agent_router_prompt()
+    assert "master-os-builder" in prompt
+    assert "use the agentik_agent tool" in prompt
+    assert "Never pretend" in prompt
