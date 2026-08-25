@@ -16,7 +16,7 @@ This matrix records verified state, not intended architecture.
 | Gateway/API health | DONE | Four gateways and four control APIs healthy |
 | Discord channel isolation | DONE | Dedicated allowlists and configured home channels |
 | Collective Discord access | DONE | Live API proves guild/channel access; live response observed |
-| Discord native command parity | PARTIAL | Desired plugin-priority tree deployed; Discord is rate-limiting overwrite |
+| Discord native command parity | DONE | Live Discord API proves every environment-specific command is published |
 | Operator free-text Discord | BLOCKED | Empty payload observed; Message Content Intent requires Developer Portal change |
 | Structured Convex projection | PARTIAL | Canonical local event state exists; remote projection is not deployed |
 | Desktop/Web control API | DONE | Authenticated runtime list/snapshot and canonical command endpoints |
