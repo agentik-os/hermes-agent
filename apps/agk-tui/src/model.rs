@@ -43,6 +43,7 @@ impl View {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Focus {
+    Nav,
     List,
     Preview,
 }
@@ -138,6 +139,22 @@ impl App {
     pub fn current(&self) -> Option<&RuntimeItem> {
         self.sessions.get(self.selected)
     }
+    pub fn next_view(&mut self) {
+        let index = View::ALL
+            .iter()
+            .position(|view| *view == self.view)
+            .unwrap_or(0);
+        self.view = View::ALL[(index + 1) % View::ALL.len()];
+        self.selected = 0;
+    }
+    pub fn previous_view(&mut self) {
+        let index = View::ALL
+            .iter()
+            .position(|view| *view == self.view)
+            .unwrap_or(0);
+        self.view = View::ALL[(index + View::ALL.len() - 1) % View::ALL.len()];
+        self.selected = 0;
+    }
     pub fn set_sessions(&mut self, sessions: Vec<RuntimeItem>) {
         let identity = self.current().map(|item| item.name.clone());
         self.sessions = sessions;
@@ -146,20 +163,30 @@ impl App {
             .unwrap_or(self.selected.min(self.sessions.len().saturating_sub(1)));
     }
     pub fn tab(&mut self, now: Instant, preview_available: bool) {
-        if self
-            .last_tab
-            .is_some_and(|previous| now.duration_since(previous) <= Duration::from_millis(420))
+        if self.focus != Focus::Nav
+            && self
+                .last_tab
+                .is_some_and(|previous| now.duration_since(previous) <= Duration::from_millis(420))
         {
             self.expanded = !self.expanded;
             self.last_tab = None;
-        } else if preview_available {
-            self.focus = if self.focus == Focus::List {
-                Focus::Preview
-            } else {
-                Focus::List
+        } else {
+            self.focus = match (self.focus, preview_available) {
+                (Focus::Nav, _) => Focus::List,
+                (Focus::List, true) => Focus::Preview,
+                (Focus::List, false) | (Focus::Preview, _) => Focus::Nav,
             };
             self.last_tab = Some(now);
         }
+    }
+
+    pub fn back_tab(&mut self, preview_available: bool) {
+        self.last_tab = None;
+        self.focus = match (self.focus, preview_available) {
+            (Focus::Nav, true) => Focus::Preview,
+            (Focus::Nav, false) | (Focus::List, _) => Focus::Nav,
+            (Focus::Preview, _) => Focus::List,
+        };
     }
 }
 
@@ -182,6 +209,18 @@ mod tests {
         assert_eq!(app.focus, Focus::Preview);
         app.tab(now + Duration::from_millis(100), true);
         assert!(app.expanded);
+    }
+
+    #[test]
+    fn keyboard_can_reach_and_operate_top_navigation() {
+        let mut app = App::new("mission".into());
+        let now = Instant::now();
+        app.tab(now, false);
+        assert_eq!(app.focus, Focus::Nav);
+        app.next_view();
+        assert_eq!(app.view, View::Projects);
+        app.tab(now + Duration::from_secs(1), false);
+        assert_eq!(app.focus, Focus::List);
     }
 
     #[test]

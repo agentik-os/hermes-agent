@@ -74,11 +74,12 @@ fn draw_nav(frame: &mut Frame, app: &App, area: Rect, mode: Density) {
         .map(|view| Line::from(view.label()))
         .collect::<Vec<_>>();
     let selected = views.iter().position(|view| *view == app.view).unwrap_or(0);
+    let nav_style = if app.focus == Focus::Nav { GOLD } else { MUTED };
     frame.render_widget(
         Tabs::new(titles)
             .select(selected)
             .divider("  ")
-            .style(Style::default().fg(MUTED))
+            .style(Style::default().fg(nav_style))
             .highlight_style(Style::default().fg(GOLD).add_modifier(Modifier::BOLD)),
         area,
     );

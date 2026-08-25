@@ -94,18 +94,26 @@ async fn run(
             (KeyCode::Char('s'), _) => app.view = View::System,
             (KeyCode::Char(','), _) => app.view = View::Settings,
             (KeyCode::Char('?'), _) => app.view = View::Help,
+            (KeyCode::Right | KeyCode::Char('l'), _) if app.focus == Focus::Nav => app.next_view(),
+            (KeyCode::Left | KeyCode::Char('h'), _) if app.focus == Focus::Nav => {
+                app.previous_view()
+            }
+            (KeyCode::Down | KeyCode::Char('j'), _) if app.focus == Focus::Nav => {
+                app.focus = Focus::List
+            }
             (KeyCode::Down | KeyCode::Char('j'), _) => app.select_next(),
-            (KeyCode::Up | KeyCode::Char('k'), _) => app.select_previous(),
-            (KeyCode::Tab, _) => app.tab(Instant::now(), terminal.size()?.width >= 120),
-            (KeyCode::BackTab, _) => {
-                app.focus = if app.focus == Focus::List {
-                    Focus::Preview
+            (KeyCode::Up | KeyCode::Char('k'), _) if app.focus == Focus::List => {
+                if app.selected == 0 {
+                    app.focus = Focus::Nav
                 } else {
-                    Focus::List
+                    app.select_previous()
                 }
             }
+            (KeyCode::Tab, _) => app.tab(Instant::now(), terminal.size()?.width >= 120),
+            (KeyCode::BackTab, _) => app.back_tab(terminal.size()?.width >= 120),
             (KeyCode::Char('v'), _) => app.split = !app.split,
             (KeyCode::Char('p'), KeyModifiers::CONTROL) => app.palette = true,
+            (KeyCode::Enter, _) if app.focus == Focus::Nav => app.focus = Focus::List,
             (KeyCode::Enter, _) if app.view == View::Sessions => {
                 if let Some(name) = app.current().map(|item| item.name.clone()) {
                     disable_raw_mode()?;
