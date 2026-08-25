@@ -278,7 +278,12 @@ describe('SidebarSessionRow', () => {
         vi.advanceTimersByTime(700)
       })
 
-      expect(screen.getByRole('tooltip').textContent).toContain(title)
+      const tooltip = screen.getByRole('tooltip')
+
+      expect(tooltip.textContent).toContain(title)
+      expect(tooltip.getAttribute('data-variant')).toBe('surface')
+      expect(tooltip.querySelector('span')?.className).toContain('[overflow-wrap:anywhere]')
+      expect(el.className).not.toContain('hover-marquee')
     })
 
     it('stays closed when the title fits', () => {
