@@ -3826,6 +3826,44 @@ class DiscordAdapter(BasePlatformAdapter):
             logger.error("[%s] Failed to edit Discord message %s: %s", self.name, message_id, e, exc_info=True)
             return SendResult(success=False, error=str(e))
 
+    async def delete_message(self, chat_id: str, message_id: str) -> bool:
+        """Delete one Discord message by id (best effort)."""
+        if not self._client:
+            return False
+        try:
+            channel = self._client.get_channel(int(chat_id))
+            if not channel:
+                channel = await self._client.fetch_channel(int(chat_id))
+            await channel.get_partial_message(int(message_id)).delete()
+            return True
+        except Exception as exc:
+            logger.warning("[%s] Failed to delete Discord message %s: %s", self.name, message_id, exc)
+            return False
+
+    async def delete_recent_own_messages(self, chat_id: str, count: int = 10) -> int:
+        """Delete up to ``count`` recent messages authored by this bot only."""
+        if not self._client or not getattr(self._client, "user", None):
+            return 0
+        channel = self._client.get_channel(int(chat_id))
+        if not channel:
+            channel = await self._client.fetch_channel(int(chat_id))
+        own_id = int(self._client.user.id)
+        deleted = 0
+        # Scan more than the target because user messages are deliberately
+        # skipped. Discord permits bots to delete their own messages without
+        # granting the broad Manage Messages permission.
+        async for message in channel.history(limit=min(max(count * 5, 25), 200)):
+            if int(getattr(getattr(message, "author", None), "id", 0)) != own_id:
+                continue
+            try:
+                await message.delete()
+                deleted += 1
+            except Exception as exc:
+                logger.warning("[%s] Failed to delete own Discord message %s: %s", self.name, getattr(message, "id", "?"), exc)
+            if deleted >= count:
+                break
+        return deleted
+
     @staticmethod
     def _is_length_overflow_error(err: Exception) -> bool:
         """True when a Discord edit/send failed because text exceeded 2,000.

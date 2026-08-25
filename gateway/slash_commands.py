@@ -352,6 +352,45 @@ class GatewaySlashCommandsMixin:
             return EphemeralReply(f"{header}\n\n{session_info}{_tip_line}")
         return EphemeralReply(f"{header}{_tip_line}")
 
+    async def _handle_clear_command(self, event: MessageEvent) -> Union[str, EphemeralReply]:
+        """Handle ``/clear [count]`` (alias ``/clean``) on messaging gateways.
+
+        Only messages authored by the connected bot are deleted. This keeps
+        the operation useful without requiring Manage Messages or granting a
+        chat command the power to erase other people's content.
+        """
+        raw_count = (event.get_command_args() or "").strip()
+        if raw_count:
+            try:
+                count = int(raw_count)
+            except ValueError:
+                return "Usage: `/clear [count]` — count must be between 1 and 50."
+            if count < 1 or count > 50:
+                return "Usage: `/clear [count]` — count must be between 1 and 50."
+        else:
+            count = 10
+
+        source = event.source
+        adapter = self._adapter_for_source(source)
+        deleted = 0
+        purge = getattr(adapter, "delete_recent_own_messages", None) if adapter else None
+        if callable(purge) and getattr(source, "chat_id", None):
+            try:
+                deleted = await purge(str(source.chat_id), count)
+            except Exception:
+                logger.warning("Visible transcript cleanup failed", exc_info=True)
+
+        # Do not let the numeric deletion count become a /new session title.
+        event.text = "/new"
+        reset_reply = await self._handle_reset_command(event)
+        prefix = f"🧹 {deleted} recent bot message{'s' if deleted != 1 else ''} deleted.\n\n"
+        if isinstance(reset_reply, EphemeralReply):
+            return EphemeralReply(
+                prefix + str(reset_reply),
+                ttl_seconds=reset_reply.ttl_seconds,
+            )
+        return prefix + str(reset_reply)
+
     async def _handle_profile_command(self, event: MessageEvent) -> str:
         """Handle /profile — show the profile serving this source and its home.
 

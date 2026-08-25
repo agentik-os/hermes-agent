@@ -16126,6 +16126,7 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
                 "start": self._busy_start_command,
                 "stop": self._busy_stop_command,
                 "new": self._busy_new_command,
+                "clear": self._busy_clear_command,
                 "queue": self._busy_queue_command,
                 "steer": self._busy_steer_command,
                 "egress": self._busy_egress_command,
@@ -16250,6 +16251,16 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
         # Clean up the running agent entry so the reset handler
         # doesn't think an agent is still active.
         return await self._handle_reset_command(event)
+
+    async def _busy_clear_command(self, event: MessageEvent, quick_key: str, source):
+        """Interrupt active work, clean the visible bot transcript, and reset."""
+        await self._interrupt_and_clear_session(
+            quick_key,
+            source,
+            interrupt_reason=_INTERRUPT_REASON_RESET,
+            invalidation_reason="clear_command",
+        )
+        return await self._handle_clear_command(event)
 
     async def _busy_queue_command(self, event: MessageEvent, quick_key: str, source):
         # /queue <prompt> — queue without interrupting.
@@ -17285,6 +17296,9 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
                 ),
                 execute=_do_reset,
             )
+
+        if canonical == "clear":
+            return await self._handle_clear_command(event)
 
         if canonical == "topic":
             return await self._handle_topic_command(event)
