@@ -111,3 +111,17 @@ runtimes registered in the current user's `runtime.db`, spawn Hermes, Claude or
 Codex through `agk`, and send literal input to a stable RMUX pane ID. Spawn paths
 must remain beneath the current Linux home. The tool cannot see another user's
 RMUX daemon and does not expose a root or cross-environment execution bridge.
+
+## Desktop and Web API
+
+The authenticated control server exposes:
+
+- `GET /api/agk/runtimes` for redacted managed runtime metadata;
+- `GET /api/agk/runtimes/{id}/snapshot` for bounded RMUX output;
+- `POST /api/agk/command` for the same environment-specific command service
+  used by Discord and local Hermes sessions.
+
+The command endpoint requires a stable `context_id`, binds context to the Web
+surface, and rejects commands unavailable in the current Linux environment.
+Protocol version 2 advertises `rmux_runtime`, `agentik_commands` and
+`operative_systems`. Raw RMUX is never exposed publicly.

@@ -19,7 +19,8 @@ This matrix records verified state, not intended architecture.
 | Discord native command parity | PARTIAL | Desired plugin-priority tree deployed; Discord is rate-limiting overwrite |
 | Operator free-text Discord | BLOCKED | Empty payload observed; Message Content Intent requires Developer Portal change |
 | Structured Convex projection | PARTIAL | Canonical local event state exists; remote projection is not deployed |
-| Desktop/Web graphical views | PARTIAL | Runtime contract/API exists; full object UI remains future work |
+| Desktop/Web control API | DONE | Authenticated runtime list/snapshot and canonical command endpoints |
+| Desktop/Web graphical views | PARTIAL | Backend is operational; full graphical object views remain future product UI |
 | Actual Operative System content | NOT INSTALLED | Intentionally zero until validated ZIPs are supplied |
 
 `PARTIAL` and `BLOCKED` entries must never be represented as completed by

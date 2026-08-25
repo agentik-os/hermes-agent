@@ -36,6 +36,7 @@ import secrets
 import shlex
 import shutil
 import socket
+import sqlite3
 import stat
 import subprocess
 import sys
@@ -3508,7 +3509,7 @@ async def get_health():
     }
 
 
-AGK_SESSION_PROTOCOL_VERSION = 1
+AGK_SESSION_PROTOCOL_VERSION = 2
 
 
 def _agk_runtime_contract(
@@ -3547,6 +3548,9 @@ def _agk_runtime_contract(
             "desktop_api": True,
             "web_api": True,
             "discord": discord_enabled,
+            "rmux_runtime": True,
+            "agentik_commands": True,
+            "operative_systems": True,
         },
     }
 
@@ -3572,6 +3576,84 @@ async def get_runtime_version(request: Request):
 async def get_runtime_capabilities(request: Request):
     _require_token(request)
     return _current_agk_runtime_contract()
+
+
+def _agk_runtime_rows(hermes_home: Path) -> List[Dict[str, Any]]:
+    """Read the current Linux identity's redacted AGK runtime registry."""
+    path = hermes_home.parent / ".agentik" / "runtime.db"
+    if not path.is_file():
+        return []
+    db = sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=2)
+    db.row_factory = sqlite3.Row
+    try:
+        columns = (
+            "id,name,type,environment,client,project,mission,native_session,"
+            "rmux_session,cwd,status,parent_session_id,created_at,last_activity"
+        )
+        return [dict(row) for row in db.execute(
+            f"SELECT {columns} FROM runtime_sessions WHERE archived_at IS NULL ORDER BY last_activity DESC LIMIT 500"
+        )]
+    except sqlite3.Error:
+        return []
+    finally:
+        db.close()
+
+
+def _agk_runtime_target(hermes_home: Path, target: str) -> Dict[str, Any] | None:
+    return next((row for row in _agk_runtime_rows(hermes_home) if target in {row["id"], row["name"]}), None)
+
+
+@app.get("/api/agk/runtimes")
+async def get_agk_runtimes(request: Request):
+    _require_token(request)
+    rows = await asyncio.to_thread(_agk_runtime_rows, get_hermes_home())
+    return {"runtimes": rows, "count": len(rows)}
+
+
+@app.get("/api/agk/runtimes/{runtime_id}/snapshot")
+async def get_agk_runtime_snapshot(request: Request, runtime_id: str):
+    _require_token(request)
+    row = await asyncio.to_thread(_agk_runtime_target, get_hermes_home(), runtime_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Managed AGK runtime not found")
+    result = await asyncio.to_thread(
+        subprocess.run,
+        ["rmux", "capture-pane", "-p", "-t", row["rmux_session"], "-S", "-500"],
+        capture_output=True, text=True, check=False, timeout=10,
+    )
+    if result.returncode:
+        raise HTTPException(status_code=409, detail="RMUX runtime is unavailable")
+    return {"runtime_id": row["id"], "status": row["status"], "output": result.stdout[-40000:]}
+
+
+@app.post("/api/agk/command")
+async def post_agk_command(request: Request, body: Dict[str, Any]):
+    """Execute the same environment-scoped Agentik action used by chat surfaces."""
+    _require_token(request)
+    command = str(body.get("command") or "").strip().lower().lstrip("/")
+    raw_args = str(body.get("args") or "")
+    context_id = str(body.get("context_id") or "desktop").strip()
+    if not re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}", context_id):
+        raise HTTPException(status_code=400, detail="Invalid Agentik context ID")
+    from plugins.agentik_os.commands import AgentikCommandService
+    from hermes_cli.plugins import (
+        reset_plugin_command_invocation_context,
+        set_plugin_command_invocation_context,
+    )
+    service = AgentikCommandService.from_runtime()
+    if command not in service.command_names:
+        raise HTTPException(status_code=404, detail="Agentik command unavailable in this environment")
+    token = set_plugin_command_invocation_context({
+        "surface": "web", "scope_id": service.environment,
+        "chat_id": context_id, "actor_id": "authenticated-owner",
+        "session_id": str(body.get("session_id") or "")[:128] or None,
+        "machine_id": _current_agk_runtime_contract()["machine_id"],
+    })
+    try:
+        result = await asyncio.to_thread(service.dispatch, command, raw_args)
+    finally:
+        reset_plugin_command_invocation_context(token)
+    return {"ok": True, "command": command, "result": result, "context_id": context_id}
 
 
 _PROFILE_PLATFORM_STATUS_KEY_RE = re.compile(
