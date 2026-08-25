@@ -35,6 +35,7 @@ import re
 import secrets
 import shlex
 import shutil
+import socket
 import stat
 import subprocess
 import sys
@@ -3505,6 +3506,72 @@ async def get_health():
         "version": __version__,
         "auth_required": bool(getattr(app.state, "auth_required", False)),
     }
+
+
+AGK_SESSION_PROTOCOL_VERSION = 1
+
+
+def _agk_runtime_contract(
+    config: Dict[str, Any], hermes_home: Path, hostname: str
+) -> Dict[str, Any]:
+    """Build the stable Agentik runtime identity and capability contract."""
+    identity = config.get("runtime_identity")
+    if not isinstance(identity, dict):
+        identity = {}
+    environment_id = str(identity.get("environment_id") or hermes_home.parent.name)
+    machine_id = str(identity.get("machine_id") or hostname)
+    config_version = int(config.get("_config_version") or 0)
+    discord = config.get("discord")
+    discord_enabled = isinstance(discord, dict) and bool(discord.get("allowed_channels"))
+    return {
+        "machine_id": machine_id,
+        "environment_id": environment_id,
+        "hermes": {"version": __version__, "release_date": __release_date__},
+        "protocol": {
+            "name": "agentik-canonical-session",
+            "version": AGK_SESSION_PROTOCOL_VERSION,
+            "session_key": [
+                "machine_id",
+                "environment_id",
+                "project_or_client_id",
+                "session_id",
+            ],
+        },
+        "state_schema": {"version": config_version},
+        "capabilities": {
+            "sessions": True,
+            "agents": True,
+            "memory": True,
+            "cron": True,
+            "tools": True,
+            "desktop_api": True,
+            "web_api": True,
+            "discord": discord_enabled,
+        },
+    }
+
+
+def _current_agk_runtime_contract() -> Dict[str, Any]:
+    return _agk_runtime_contract(load_config(), get_hermes_home(), socket.gethostname())
+
+
+@app.get("/api/version")
+async def get_runtime_version(request: Request):
+    _require_token(request)
+    contract = _current_agk_runtime_contract()
+    return {
+        "machine_id": contract["machine_id"],
+        "environment_id": contract["environment_id"],
+        "hermes": contract["hermes"],
+        "protocol": contract["protocol"],
+        "state_schema": contract["state_schema"],
+    }
+
+
+@app.get("/api/capabilities")
+async def get_runtime_capabilities(request: Request):
+    _require_token(request)
+    return _current_agk_runtime_contract()
 
 
 _PROFILE_PLATFORM_STATUS_KEY_RE = re.compile(
