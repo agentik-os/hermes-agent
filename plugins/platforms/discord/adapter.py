@@ -1115,6 +1115,7 @@ class DiscordAdapter(BasePlatformAdapter):
         self._typing_tasks: Dict[str, asyncio.Task] = {}
         self._bot_task: Optional[asyncio.Task] = None
         self._post_connect_task: Optional[asyncio.Task] = None
+        self._command_sync_retry_task: Optional[asyncio.Task] = None
         # WebSocket-level liveness probe. Discord REST and Gateway are distinct
         # transports: a REST 200 cannot prove that this client is still receiving
         # Gateway events. Sample the current Discord WebSocket's ready/open/ACK
@@ -2189,6 +2190,12 @@ class DiscordAdapter(BasePlatformAdapter):
                 await self._post_connect_task
             except asyncio.CancelledError:
                 pass
+        if self._command_sync_retry_task and not self._command_sync_retry_task.done():
+            self._command_sync_retry_task.cancel()
+            try:
+                await self._command_sync_retry_task
+            except asyncio.CancelledError:
+                pass
         if self._missed_message_backfill_task and not self._missed_message_backfill_task.done():
             self._missed_message_backfill_task.cancel()
             try:
@@ -2200,6 +2207,7 @@ class DiscordAdapter(BasePlatformAdapter):
         self._client = None
         self._ready_event.clear()
         self._post_connect_task = None
+        self._command_sync_retry_task = None
         self._liveness_task = None
         self._missed_message_backfill_task = None
 
@@ -2268,6 +2276,13 @@ class DiscordAdapter(BasePlatformAdapter):
         ):
             return "same slash-command fingerprint already synced"
         return None
+
+    def _command_sync_retry_delay(self, app_id: Any) -> Optional[float]:
+        entry = self._read_command_sync_state().get(self._command_sync_state_key(app_id))
+        if not isinstance(entry, dict):
+            return None
+        remaining = float(entry.get("retry_after_until") or 0) - time.time()
+        return remaining if remaining > 0 else None
 
     def _record_command_sync_attempt(self, app_id: Any, fingerprint: str) -> None:
         state = self._read_command_sync_state()
@@ -2399,6 +2414,23 @@ class DiscordAdapter(BasePlatformAdapter):
         if interval > 0:
             await asyncio.sleep(interval)
 
+    def _schedule_command_sync_retry(self, delay: float) -> None:
+        """Retry command reconciliation without requiring a gateway restart."""
+        if self._command_sync_retry_task and not self._command_sync_retry_task.done():
+            return
+        self._command_sync_retry_task = asyncio.create_task(
+            self._retry_command_sync_after(max(1.0, float(delay)) + 1.0),
+            name=f"discord-command-sync-retry-{self.name}",
+        )
+
+    async def _retry_command_sync_after(self, delay: float) -> None:
+        await asyncio.sleep(delay)
+        # Clear before entering initialization so a second 429 can schedule
+        # the next retry rather than being suppressed by this active task.
+        self._command_sync_retry_task = None
+        if self._client and self._running:
+            await self._run_post_connect_initialization()
+
     async def _run_post_connect_initialization(self) -> None:
         """Finish non-critical startup work after Discord is connected."""
         if not self._client:
@@ -2418,6 +2450,9 @@ class DiscordAdapter(BasePlatformAdapter):
             fingerprint = self._desired_command_sync_fingerprint()
             skip_reason = self._command_sync_skip_reason(app_id, fingerprint)
             if skip_reason:
+                retry_delay = self._command_sync_retry_delay(app_id)
+                if retry_delay is not None:
+                    self._schedule_command_sync_retry(retry_delay)
                 logger.info("[%s] Skipping Discord slash command sync: %s", self.name, skip_reason)
                 return
             self._record_command_sync_attempt(app_id, fingerprint)
@@ -2443,6 +2478,7 @@ class DiscordAdapter(BasePlatformAdapter):
                     # conservative default so we don't slam the bucket again.
                     retry_after = _DISCORD_COMMAND_SYNC_MAX_RATE_LIMIT_SLEEP_SECONDS
                 self._record_command_sync_rate_limit(app_id, fingerprint, retry_after)
+                self._schedule_command_sync_retry(retry_after)
                 logger.warning(
                     "[%s] Discord rate-limited slash command sync; retrying after %.0fs",
                     self.name,
@@ -2465,6 +2501,9 @@ class DiscordAdapter(BasePlatformAdapter):
                 summary["deleted"],
             )
         except asyncio.TimeoutError:
+            self._schedule_command_sync_retry(
+                _DISCORD_COMMAND_SYNC_MAX_RATE_LIMIT_SLEEP_SECONDS
+            )
             logger.warning(
                 "[%s] Slash command sync timed out — Discord rate-limit bucket "
                 "may be saturated; will retry on next reconnect",
