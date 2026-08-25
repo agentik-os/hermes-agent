@@ -60,6 +60,7 @@ def test_context_home_clears_hierarchy(mission_service):
     assert context["project_id"] is None
     assert context["mission_id"] is None
     assert context["task_id"] is None
+    assert context["run_id"] is None
 
 
 def test_path_resolver_rejects_wrong_environment_and_normalizes(tmp_path):
@@ -146,3 +147,29 @@ def test_parent_cannot_cross_environment(tmp_path):
             environment="agentik", kind="project", slug="dashboard",
             name="Dashboard", parent_id=client.id,
         )
+
+
+def test_opening_child_by_id_restores_its_complete_canonical_lineage(mission_service):
+    mission_service.dispatch("client", "new Alpha")
+    alpha_project = mission_service.dispatch("project", "new Dashboard")
+    alpha_id = alpha_project.split("(", 1)[1].split(")", 1)[0]
+    mission_service.dispatch("client", "new Beta")
+    mission_service.dispatch("project", "new Dashboard")
+
+    result = mission_service.dispatch("project", f"open {alpha_id}")
+    assert "Opened project" in result
+    context = mission_service.context()
+    alpha = mission_service.store.get("mission", "client", "alpha")
+    assert context["client_id"] == alpha.id
+    assert context["project_id"] == alpha_id
+
+
+def test_run_is_part_of_context_and_active_report(mission_service):
+    mission_service.dispatch("client", "new Moonbase")
+    mission_service.dispatch("project", "new Dashboard")
+    mission_service.dispatch("mission", "new Audit")
+    mission_service.dispatch("task", "new Review")
+    created = mission_service.dispatch("run", "new Worker")
+    run_id = created.split("(", 1)[1].split(")", 1)[0]
+    assert mission_service.context()["run_id"] == run_id
+    assert f"Run: Worker ({run_id})" in mission_service.dispatch("active", "")

@@ -84,6 +84,7 @@ class ControlStore:
                     project_id TEXT,
                     mission_id TEXT,
                     task_id TEXT,
+                    run_id TEXT,
                     updated_at REAL NOT NULL
                 );
                 CREATE TABLE IF NOT EXISTS events (
@@ -95,6 +96,9 @@ class ControlStore:
                     created_at REAL NOT NULL
                 );
             """)
+            columns = {row[1] for row in db.execute("PRAGMA table_info(contexts)")}
+            if "run_id" not in columns:
+                db.execute("ALTER TABLE contexts ADD COLUMN run_id TEXT")
 
     @staticmethod
     def _row(row: sqlite3.Row | None) -> ControlObject | None:
@@ -133,11 +137,20 @@ class ControlStore:
             )
         return self.get(environment, kind, object_id)
 
-    def get(self, environment: str, kind: str, target: str) -> ControlObject | None:
+    def get(self, environment: str, kind: str, target: str,
+            parent_id: str | None = None) -> ControlObject | None:
+        parent_sql = ""
+        args: list[object] = [environment, kind, target]
+        # Canonical IDs are globally unambiguous inside an environment. Slugs
+        # are only unambiguous inside their parent scope.
+        if not target.startswith(f"{PREFIX[kind]}-") and parent_id is not None:
+            parent_sql = " AND parent_id=?"
+            args.append(parent_id)
         with self.connect() as db:
             row = db.execute(
-                "SELECT * FROM objects WHERE environment=? AND kind=? AND (id=? OR slug=?) ORDER BY updated_at DESC LIMIT 1",
-                (environment, kind, target, target),
+                "SELECT * FROM objects WHERE environment=? AND kind=? AND (id=? OR slug=?)"
+                + parent_sql + " ORDER BY updated_at DESC LIMIT 1",
+                [environment, kind, target, target, *args[3:]],
             ).fetchone()
         return self._row(row)
 
@@ -184,7 +197,7 @@ class ControlStore:
             row = db.execute("SELECT * FROM contexts WHERE context_key=?", (key,)).fetchone()
         if not row:
             return {"environment": environment, "client_id": None, "project_id": None,
-                    "mission_id": None, "task_id": None}
+                    "mission_id": None, "task_id": None, "run_id": None}
         return dict(row)
 
     def set_context(self, key: str, environment: str, **updates: str | None) -> dict:
@@ -192,15 +205,33 @@ class ControlStore:
         current.update(updates)
         with self.connect() as db:
             db.execute("""
-                INSERT INTO contexts(context_key,environment,client_id,project_id,mission_id,task_id,updated_at)
-                VALUES(?,?,?,?,?,?,?) ON CONFLICT(context_key) DO UPDATE SET
+                INSERT INTO contexts(context_key,environment,client_id,project_id,mission_id,task_id,run_id,updated_at)
+                VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(context_key) DO UPDATE SET
                 environment=excluded.environment, client_id=excluded.client_id,
                 project_id=excluded.project_id, mission_id=excluded.mission_id,
-                task_id=excluded.task_id, updated_at=excluded.updated_at
+                task_id=excluded.task_id, run_id=excluded.run_id, updated_at=excluded.updated_at
             """, (key, environment, current.get("client_id"), current.get("project_id"),
-                  current.get("mission_id"), current.get("task_id"), time.time()))
+                  current.get("mission_id"), current.get("task_id"), current.get("run_id"), time.time()))
         return self.context(key, environment)
 
     def clear_context(self, key: str, environment: str) -> dict:
         return self.set_context(key, environment, client_id=None, project_id=None,
-                                mission_id=None, task_id=None)
+                                mission_id=None, task_id=None, run_id=None)
+
+    def lineage(self, obj: ControlObject) -> list[ControlObject]:
+        """Return root→object lineage, rejecting broken or cross-env chains."""
+        chain = [obj]
+        seen = {obj.id}
+        current = obj
+        while current.parent_id:
+            with self.connect() as db:
+                row = db.execute("SELECT * FROM objects WHERE id=?", (current.parent_id,)).fetchone()
+            parent = self._row(row)
+            if parent is None:
+                raise ValueError(f"broken object lineage at {current.parent_id}")
+            if parent.environment != obj.environment:
+                raise PermissionError("object lineage crosses an environment boundary")
+            if parent.id in seen:
+                raise ValueError("cyclic object lineage")
+            seen.add(parent.id); chain.append(parent); current = parent
+        return list(reversed(chain))

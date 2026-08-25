@@ -83,6 +83,10 @@ class AgentikCommandService:
     def context(self) -> dict:
         return self.store.context(self.context_key, self.data_environment)
 
+    def invocation(self) -> dict:
+        from hermes_cli.plugins import get_plugin_command_invocation_context
+        return get_plugin_command_invocation_context() or {}
+
     def dispatch(self, command: str, raw_args: str) -> str:
         try:
             argv = shlex.split(raw_args)
@@ -177,13 +181,19 @@ class AgentikCommandService:
     def _active(self) -> str:
         ctx = self.context()
         lines = [f"AGENTIK OS · {self.environment.upper()}", "", "ACTIVE CONTEXT"]
-        for kind in ("client", "project", "mission", "task"):
+        invocation = self.invocation()
+        lines.append(f"Machine: {invocation.get('machine_id') or 'agk-core'}")
+        lines.append(f"Surface: {invocation.get('surface') or 'local'}")
+        lines.append(f"Session: {invocation.get('session_id') or '—'}")
+        for kind in ("client", "project", "mission", "task", "run"):
             object_id = ctx.get(f"{kind}_id")
             obj = self.store.get(self.data_environment, kind, object_id) if object_id else None
             lines.append(f"{kind.title()}: {obj.name} ({obj.id})" if obj else f"{kind.title()}: —")
         active_tasks = [o for o in self.store.list(self.data_environment, "task") if o.status in {"active", "running", "paused"}]
         active_runs = [o for o in self.store.list(self.data_environment, "run") if o.status in {"active", "running", "paused"}]
         lines += ["", f"Active tasks: {len(active_tasks)}", f"Active runs: {len(active_runs)}"]
+        stack = self._os(["stack"]).splitlines()[1:]
+        lines.append("Active OS: " + (", ".join(item.removeprefix("• ") for item in stack) if stack else "—"))
         return "\n".join(lines)
 
     def _object(self, kind: str, argv: list[str]) -> str:
@@ -205,7 +215,7 @@ class AgentikCommandService:
         if action in transitions:
             if not rest:
                 return f"Usage: /{kind} {action} <id-or-slug>"
-            obj = self.store.get(self.data_environment, kind, rest[0])
+            obj = self.store.get(self.data_environment, kind, rest[0], self._scope_parent_id(kind))
             if not obj:
                 return f"{kind.title()} not found: {rest[0]}"
             obj = self.store.transition(obj, transitions[action])
@@ -273,7 +283,7 @@ class AgentikCommandService:
             object_id = self.context().get(f"{kind}_id")
             obj = self.store.get(self.data_environment, kind, object_id) if object_id else None
         else:
-            obj = self.store.get(self.data_environment, kind, rest[0])
+            obj = self.store.get(self.data_environment, kind, rest[0], self._scope_parent_id(kind))
         if not obj:
             return f"No current {kind}." if not rest else f"{kind.title()} not found: {rest[0]}"
         if action == "open":
@@ -285,11 +295,15 @@ class AgentikCommandService:
         ])
 
     def _open(self, obj: ControlObject) -> None:
-        clears = {"client": {"project_id": None, "mission_id": None, "task_id": None},
-                  "project": {"mission_id": None, "task_id": None},
-                  "mission": {"task_id": None}, "task": {}, "run": {}}
-        self.store.set_context(self.context_key, self.data_environment,
-                               **{f"{obj.kind}_id": obj.id}, **clears.get(obj.kind, {}))
+        clears = {"client": {"project_id": None, "mission_id": None, "task_id": None, "run_id": None},
+                  "project": {"mission_id": None, "task_id": None, "run_id": None},
+                  "mission": {"task_id": None, "run_id": None},
+                  "task": {"run_id": None}, "run": {}}
+        updates: dict[str, str | None] = dict(clears.get(obj.kind, {}))
+        for ancestor in self.store.lineage(obj):
+            if ancestor.kind in {"client", "project", "mission", "task", "run"}:
+                updates[f"{ancestor.kind}_id"] = ancestor.id
+        self.store.set_context(self.context_key, self.data_environment, **updates)
 
     def _os(self, argv: list[str]) -> str:
         action = argv[0].lower() if argv else "list"
@@ -314,7 +328,7 @@ class AgentikCommandService:
                 "environment_id": self.data_environment,
                 "client_id": self.context().get("client_id"),
                 "project_id": self.context().get("project_id"),
-                "session_id": None,
+                "session_id": self.invocation().get("session_id"),
             })
             if not stack:
                 return "ACTIVE OS STACK\n(empty)"
