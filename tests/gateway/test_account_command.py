@@ -127,6 +127,23 @@ async def test_account_command_rejects_unavailable_or_malformed_selection(monkey
 
 
 @pytest.mark.asyncio
+async def test_account_command_lists_for_discord_group_admin(monkeypatch):
+    pools = {
+        "openai-codex": Pool([Entry("oa-1", "private@example.com")]),
+        "anthropic": Pool([]),
+    }
+    monkeypatch.setattr("agent.credential_pool.load_pool", lambda provider: pools[provider])
+    evt = event("/account", chat_type="group")
+    evt.source.platform = types.SimpleNamespace(value="discord")
+
+    result = await GatewaySlashCommandsMixin._handle_account_command(runner(), evt)
+
+    assert "Accounts on this gateway" in result
+    assert "oa-1" in result
+    assert "private@example.com" not in result
+
+
+@pytest.mark.asyncio
 async def test_account_command_requires_admin_and_direct_message(monkeypatch):
     monkeypatch.setattr("agent.credential_pool.load_pool", lambda provider: Pool([]))
 

@@ -5317,7 +5317,16 @@ class GatewaySlashCommandsMixin:
         source = getattr(event, "source", None)
         user_id = (getattr(source, "user_id", None) or "").strip()
         chat_type = (getattr(source, "chat_type", None) or "").lower()
-        if chat_type not in {"dm", "direct", "private"}:
+        platform = getattr(
+            getattr(source, "platform", None),
+            "value",
+            getattr(source, "platform", ""),
+        )
+        platform = str(platform or "").lower()
+        # Discord native slash responses are ephemeral, so an explicit admin can
+        # safely list redacted account metadata from a guild channel. Other
+        # platforms keep the DM-only rule because their command reply may be public.
+        if chat_type not in {"dm", "direct", "private"} and platform != "discord":
             return "For privacy, /account is available only in a direct message."
 
         multiplexed = bool(getattr(getattr(self, "config", None), "multiplex_profiles", False))

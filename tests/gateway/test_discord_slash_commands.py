@@ -115,6 +115,26 @@ def adapter():
 
 
 # ------------------------------------------------------------------
+# /account interactive registration
+# ------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_registers_interactive_account_command(adapter):
+    adapter._run_simple_slash = AsyncMock()
+    adapter._register_slash_commands()
+
+    command = adapter._client.tree.commands["account"]
+    assert callable(command) and not hasattr(command, "callback")
+
+    interaction = SimpleNamespace()
+    await command(interaction, provider="openai", account="oa-2")
+    adapter._run_simple_slash.assert_awaited_once_with(
+        interaction, "/account use openai oa-2"
+    )
+
+
+# ------------------------------------------------------------------
 # /thread slash command registration
 # ------------------------------------------------------------------
 

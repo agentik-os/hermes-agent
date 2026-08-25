@@ -5337,6 +5337,28 @@ class DiscordAdapter(BasePlatformAdapter):
         chan_obj = getattr(interaction, "channel", None)
         in_dm = isinstance(chan_obj, discord.DMChannel) if chan_obj is not None else False
 
+        # Explicit slash administrators may control a bot from a different guild
+        # channel without widening the bot's normal text-message routing. This is
+        # intentionally scoped to slash interactions: ordinary messages still
+        # obey DISCORD_ALLOWED_CHANNELS exactly as before.
+        interaction_user = getattr(interaction, "user", None)
+        interaction_user_id = str(getattr(interaction_user, "id", "") or "")
+        extra = getattr(self.config, "extra", None)
+        extra = extra if isinstance(extra, dict) else {}
+        admin_key = "allow_admin_from" if in_dm else "group_allow_admin_from"
+        raw_admins = extra.get(admin_key)
+        if isinstance(raw_admins, str):
+            slash_admin_ids = {part.strip() for part in raw_admins.split(",") if part.strip()}
+        elif isinstance(raw_admins, (list, tuple, set, frozenset)):
+            slash_admin_ids = {str(part).strip() for part in raw_admins if str(part).strip()}
+        elif raw_admins is None:
+            slash_admin_ids = set()
+        else:
+            slash_admin_ids = {str(raw_admins).strip()}
+        explicit_slash_admin = bool(
+            interaction_user_id and interaction_user_id in slash_admin_ids
+        )
+
         channel_ids: set = set()
         channel_keys: set = set()
         # ── Channel scope (mirrors on_message lines 3374-3388) ──
@@ -5366,7 +5388,7 @@ class DiscordAdapter(BasePlatformAdapter):
             )
 
             allowed = self._get_allowed_channels()
-            if allowed:
+            if allowed and not explicit_slash_admin:
                 if "*" not in allowed:
                     if not channel_ids:
                         # Channel policy is configured but the interaction
@@ -6014,6 +6036,69 @@ class DiscordAdapter(BasePlatformAdapter):
         @discord.app_commands.describe(name="Model name (e.g. anthropic/claude-sonnet-4). Leave empty to see current.")
         async def slash_model(interaction: discord.Interaction, name: str = ""):
             await self._run_simple_slash(interaction, f"/model {name}".strip())
+
+        async def account_autocomplete(interaction: discord.Interaction, current: str):
+            allowed, _reason = self._evaluate_slash_authorization(interaction)
+            if not allowed:
+                return []
+            namespace = getattr(interaction, "namespace", None)
+            provider_value = str(getattr(namespace, "provider", "") or "").lower()
+            provider = {"openai": "openai-codex", "claude": "anthropic"}.get(
+                provider_value
+            )
+            if provider is None:
+                return []
+            try:
+                from agent.credential_pool import load_pool
+
+                entries = sorted(
+                    load_pool(provider).entries(), key=lambda entry: entry.priority
+                )
+            except Exception:
+                return []
+            query = str(current or "").lower()
+            choices = []
+            for index, entry in enumerate(entries):
+                credential_id = str(getattr(entry, "id", "") or "")
+                if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", credential_id):
+                    continue
+                raw_status = str(getattr(entry, "last_status", None) or "ok").lower()
+                status = (
+                    raw_status
+                    if raw_status in {"ok", "exhausted", "dead"}
+                    else "unknown"
+                )
+                label = f"Account {index + 1} [{credential_id}] · {status}"
+                if query and query not in label.lower():
+                    continue
+                choices.append(
+                    discord.app_commands.Choice(
+                        name=label[:100], value=credential_id
+                    )
+                )
+                if len(choices) >= 25:
+                    break
+            return choices
+
+        @tree.command(name="account", description="List or switch provider accounts")
+        @discord.app_commands.describe(
+            provider="Provider account pool",
+            account="Choose an eligible account; leave empty to list all accounts",
+        )
+        @discord.app_commands.choices(provider=[
+            discord.app_commands.Choice(name="OpenAI / ChatGPT", value="openai"),
+            discord.app_commands.Choice(name="Claude / Anthropic", value="claude"),
+        ])
+        @discord.app_commands.autocomplete(account=account_autocomplete)
+        async def slash_account(
+            interaction: discord.Interaction,
+            provider: str = "",
+            account: str = "",
+        ):
+            command = "/account"
+            if provider and account:
+                command = f"/account use {provider} {account}"
+            await self._run_simple_slash(interaction, command)
 
         @tree.command(name="reasoning", description="Show/change reasoning effort, or toggle showing it")
         @discord.app_commands.describe(effort="Pick a level, reset the override, or show/hide reasoning. Leave empty to see current.")

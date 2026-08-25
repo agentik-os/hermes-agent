@@ -249,6 +249,18 @@ async def test_role_member_passes(adapter):
 
 
 @pytest.mark.asyncio
+async def test_explicit_group_slash_admin_bypasses_channel_allowlist(adapter, monkeypatch):
+    """A configured slash admin may control a bot outside its text-routing channels."""
+    monkeypatch.setenv("DISCORD_ALLOWED_CHANNELS", "1111,2222")
+    adapter._allowed_user_ids = {"100200300"}
+    adapter.config.extra["group_allow_admin_from"] = ["100200300"]
+    interaction = _make_interaction("100200300", channel_id=9999)
+
+    assert await adapter._check_slash_authorization(interaction, "/model") is True
+    interaction.response.send_message.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_channel_not_in_allowlist_rejected(adapter, monkeypatch, caplog):
     """on_message blocks messages in channels not in DISCORD_ALLOWED_CHANNELS;
     slash must do the same. This is the EXACT bypass prajer exploited.
