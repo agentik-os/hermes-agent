@@ -7,16 +7,27 @@ use ratatui::{
 };
 use ratatui_rmux::{PaneState, PaneWidget};
 
-use crate::model::{App, Density, Focus, View, density};
+use crate::model::{App, Density, Focus, Mode, Theme, View, density};
 
 const GOLD: Color = Color::Rgb(242, 190, 58);
 const INK: Color = Color::Rgb(226, 232, 240);
 const MUTED: Color = Color::Rgb(107, 122, 144);
 const PANEL: Color = Color::Rgb(35, 43, 57);
 const GREEN: Color = Color::Rgb(73, 209, 140);
+fn accent(theme: Theme) -> Color {
+    match theme {
+        Theme::Gold => GOLD,
+        Theme::Ocean => Color::Rgb(55, 180, 255),
+        Theme::Mono => Color::White,
+    }
+}
 
 pub fn draw(frame: &mut Frame, app: &App, pane: Option<&PaneState>) {
     let area = frame.area();
+    if app.mode == Mode::Terminal {
+        draw_terminal(frame, app, pane, area);
+        return;
+    }
     let mode = density(area.width, area.height);
     let shell = Layout::default()
         .direction(Direction::Vertical)
@@ -33,13 +44,53 @@ pub fn draw(frame: &mut Frame, app: &App, pane: Option<&PaneState>) {
     draw_footer(frame, app, shell[3], mode);
 }
 
+fn draw_terminal(frame: &mut Frame, app: &App, pane: Option<&PaneState>, area: Rect) {
+    let rows = Layout::vertical([
+        Constraint::Length(2),
+        Constraint::Min(3),
+        Constraint::Length(1),
+    ])
+    .split(area);
+    let name = app
+        .current()
+        .map(|item| item.name.as_str())
+        .unwrap_or("NO SESSION");
+    frame.render_widget(
+        Paragraph::new(format!(
+            " AGK · TERMINAL MODE · {name}   Tab Sessions   Esc Control"
+        ))
+        .style(
+            Style::default()
+                .fg(accent(app.theme))
+                .add_modifier(Modifier::BOLD),
+        ),
+        rows[0],
+    );
+    if let Some(state) = pane {
+        frame.render_widget(PaneWidget::new(state), rows[1]);
+    }
+    if app.session_drawer {
+        let drawer = Rect::new(
+            area.x,
+            area.y + 2,
+            area.width.min(50),
+            area.height.saturating_sub(3),
+        );
+        draw_sessions(frame, app, drawer);
+    }
+    frame.render_widget(
+        Paragraph::new("Input → RMUX │ Tab drawer │ ↑↓ select │ Enter switch │ Esc control"),
+        rows[2],
+    );
+}
+
 fn draw_header(frame: &mut Frame, app: &App, area: Rect) {
     let online = Line::from(vec![
         Span::styled(
             " AGK ",
             Style::default()
                 .fg(Color::Black)
-                .bg(GOLD)
+                .bg(accent(app.theme))
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
@@ -74,13 +125,22 @@ fn draw_nav(frame: &mut Frame, app: &App, area: Rect, mode: Density) {
         .map(|view| Line::from(view.label()))
         .collect::<Vec<_>>();
     let selected = views.iter().position(|view| *view == app.view).unwrap_or(0);
-    let nav_style = if app.focus == Focus::Nav { GOLD } else { MUTED };
+    let nav_style = if app.focus == Focus::Nav {
+        accent(app.theme)
+    } else {
+        MUTED
+    };
     frame.render_widget(
         Tabs::new(titles)
             .select(selected)
             .divider("  ")
             .style(Style::default().fg(nav_style))
-            .highlight_style(Style::default().fg(GOLD).add_modifier(Modifier::BOLD)),
+            .highlight_style(
+                Style::default()
+                    .fg(Color::Black)
+                    .bg(accent(app.theme))
+                    .add_modifier(Modifier::BOLD),
+            ),
         area,
     );
 }
@@ -94,7 +154,9 @@ fn draw_body(frame: &mut Frame, app: &App, pane: Option<&PaneState>, area: Rect,
             View::Mcp => "MCP connections are scoped and credentials are always redacted.",
             View::Skills => "Skills are reusable capabilities; OS are methodologies.",
             View::System => "System health and runtime reconciliation.",
-            View::Settings => "Models, defaults, RMUX behavior and interface preferences.",
+            View::Settings => {
+                "APPEARANCE\n\nEnter  Change theme\n\nThemes: AGK Gold · Ocean · Mono"
+            }
             View::Help => {
                 "Press 1–6 to navigate, Tab to focus, Tab Tab to expand, q to detach Control."
             }
@@ -162,7 +224,7 @@ fn draw_sessions(frame: &mut Frame, app: &App, area: Rect) {
             Block::bordered()
                 .title(title)
                 .border_style(Style::default().fg(if app.focus == Focus::List {
-                    GOLD
+                    accent(app.theme)
                 } else {
                     PANEL
                 })),
@@ -182,7 +244,7 @@ fn draw_preview(frame: &mut Frame, app: &App, pane: Option<&PaneState>, area: Re
     let block = Block::bordered()
         .title(title)
         .border_style(Style::default().fg(if app.focus == Focus::Preview {
-            GOLD
+            accent(app.theme)
         } else {
             PANEL
         }));
@@ -219,7 +281,10 @@ fn draw_footer(frame: &mut Frame, app: &App, area: Rect, mode: Density) {
         .unwrap_or_else(|| app.environment.to_ascii_uppercase());
     frame.render_widget(
         Paragraph::new(Line::from(vec![
-            Span::styled(format!(" {context}  "), Style::default().fg(GOLD)),
+            Span::styled(
+                format!(" {context} │ {}  ", app.theme.name()),
+                Style::default().fg(accent(app.theme)),
+            ),
             Span::styled(keys, Style::default().fg(MUTED)),
         ])),
         area,

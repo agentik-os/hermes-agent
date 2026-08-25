@@ -49,6 +49,36 @@ pub enum Focus {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Theme {
+    Gold,
+    Ocean,
+    Mono,
+}
+
+impl Theme {
+    pub const fn next(self) -> Self {
+        match self {
+            Self::Gold => Self::Ocean,
+            Self::Ocean => Self::Mono,
+            Self::Mono => Self::Gold,
+        }
+    }
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Gold => "AGK Gold",
+            Self::Ocean => "Ocean",
+            Self::Mono => "Mono",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Mode {
+    Control,
+    Terminal,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Density {
     Compact,
     Standard,
@@ -101,6 +131,9 @@ impl RuntimeItem {
 #[derive(Debug)]
 pub struct App {
     pub environment: String,
+    pub theme: Theme,
+    pub mode: Mode,
+    pub session_drawer: bool,
     pub view: View,
     pub focus: Focus,
     pub sessions: Vec<RuntimeItem>,
@@ -116,6 +149,9 @@ impl App {
     pub fn new(environment: String) -> Self {
         Self {
             environment,
+            theme: Theme::Gold,
+            mode: Mode::Control,
+            session_drawer: false,
             view: View::Sessions,
             focus: Focus::List,
             sessions: Vec::new(),

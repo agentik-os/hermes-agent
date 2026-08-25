@@ -7,13 +7,12 @@ use crossterm::{
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
-use model::{App, Focus, RuntimeItem, View};
+use model::{App, Focus, Mode, RuntimeItem, View};
 use ratatui::{Terminal, backend::CrosstermBackend};
 use ratatui_rmux::PaneState;
 use rmux_sdk::Rmux;
 use std::{
     io,
-    process::Command,
     time::{Duration, Instant},
 };
 
@@ -83,6 +82,28 @@ async fn run(
         if key.kind != KeyEventKind::Press {
             continue;
         }
+        if app.mode == Mode::Terminal {
+            if key.code == KeyCode::Esc {
+                app.mode = Mode::Control;
+                app.session_drawer = false;
+                continue;
+            }
+            if key.code == KeyCode::Tab {
+                app.session_drawer = !app.session_drawer;
+                continue;
+            }
+            if app.session_drawer {
+                match key.code {
+                    KeyCode::Down | KeyCode::Char('j') => app.select_next(),
+                    KeyCode::Up | KeyCode::Char('k') => app.select_previous(),
+                    KeyCode::Enter => app.session_drawer = false,
+                    _ => {}
+                }
+                continue;
+            }
+            send_terminal_key(rmux, app, key.code, key.modifiers).await;
+            continue;
+        }
         match (key.code, key.modifiers) {
             (KeyCode::Char('q'), _) => break,
             (KeyCode::Char('1'), _) => app.view = View::Sessions,
@@ -114,17 +135,9 @@ async fn run(
             (KeyCode::Char('v'), _) => app.split = !app.split,
             (KeyCode::Char('p'), KeyModifiers::CONTROL) => app.palette = true,
             (KeyCode::Enter, _) if app.focus == Focus::Nav => app.focus = Focus::List,
+            (KeyCode::Enter, _) if app.view == View::Settings => app.theme = app.theme.next(),
             (KeyCode::Enter, _) if app.view == View::Sessions => {
-                if let Some(name) = app.current().map(|item| item.name.clone()) {
-                    disable_raw_mode()?;
-                    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
-                    let _ = Command::new("rmux")
-                        .args(["attach-session", "-t", &name])
-                        .status();
-                    enable_raw_mode()?;
-                    execute!(terminal.backend_mut(), EnterAlternateScreen)?;
-                    terminal.clear()?;
-                }
+                app.mode = Mode::Terminal;
             }
             (KeyCode::Esc, _) => {
                 app.palette = false;
@@ -135,4 +148,32 @@ async fn run(
         }
     }
     Ok(())
+}
+
+async fn send_terminal_key(rmux: &Rmux, app: &App, code: KeyCode, modifiers: KeyModifiers) {
+    let Some(name) = app.current().map(|item| item.name.clone()) else {
+        return;
+    };
+    let Ok(name) = rmux_sdk::SessionName::new(name) else {
+        return;
+    };
+    let Ok(session) = rmux.session(name).await else {
+        return;
+    };
+    let keyboard = session.pane(0, 0).keyboard();
+    let result = match code {
+        KeyCode::Char(ch) if modifiers.contains(KeyModifiers::CONTROL) => {
+            keyboard.press(format!("C-{ch}")).await
+        }
+        KeyCode::Char(ch) => keyboard.type_text(ch.to_string()).await,
+        KeyCode::Enter => keyboard.press("Enter").await,
+        KeyCode::Backspace => keyboard.press("Backspace").await,
+        KeyCode::Delete => keyboard.press("Delete").await,
+        KeyCode::Left => keyboard.press("Left").await,
+        KeyCode::Right => keyboard.press("Right").await,
+        KeyCode::Up => keyboard.press("Up").await,
+        KeyCode::Down => keyboard.press("Down").await,
+        _ => return,
+    };
+    let _ = result;
 }
