@@ -44,56 +44,16 @@ pub fn draw(frame: &mut Frame, app: &App, pane: Option<&PaneState>) {
     draw_footer(frame, app, shell[3], mode);
 }
 
-fn draw_terminal(frame: &mut Frame, app: &App, pane: Option<&PaneState>, area: Rect) {
-    let rows = Layout::vertical([
-        Constraint::Length(2),
-        Constraint::Min(3),
-        Constraint::Length(1),
-    ])
-    .split(area);
-    let name = app
-        .current()
-        .map(|item| item.name.as_str())
-        .unwrap_or("NO SESSION");
-    frame.render_widget(
-        Paragraph::new(format!(
-            " AGK · TERMINAL MODE · {name}   Tab Sessions   Esc Control"
-        ))
-        .style(
-            Style::default()
-                .fg(accent(app.theme))
-                .add_modifier(Modifier::BOLD),
-        ),
-        rows[0],
-    );
-    if app.session_drawer {
-        let columns = if area.width >= 100 {
-            Layout::horizontal([Constraint::Percentage(38), Constraint::Percentage(62)])
-                .split(rows[1])
-        } else {
-            Layout::horizontal([Constraint::Percentage(48), Constraint::Percentage(52)])
-                .split(rows[1])
-        };
-        draw_sessions(frame, app, columns[0]);
-        let block = Block::bordered()
-            .title(" SELECTED SESSION · LIVE PREVIEW ")
-            .border_style(Style::default().fg(accent(app.theme)));
-        let inner = block.inner(columns[1]);
-        frame.render_widget(block, columns[1]);
-        if let Some(state) = pane {
-            frame.render_widget(PaneWidget::new(state), inner);
-        }
-    } else if let Some(state) = pane {
-        frame.render_widget(PaneWidget::new(state), rows[1]);
+fn draw_terminal(frame: &mut Frame, _app: &App, pane: Option<&PaneState>, area: Rect) {
+    if let Some(state) = pane {
+        frame.render_widget(PaneWidget::new(state), area);
+    } else {
+        frame.render_widget(
+            Paragraph::new("Session RMUX indisponible · Tab pour revenir à AGK")
+                .alignment(Alignment::Center),
+            area,
+        );
     }
-    frame.render_widget(
-        Paragraph::new(if app.session_drawer {
-            "SESSION NAVIGATOR │ ↑↓ preview │ Enter switch │ Tab close │ Esc control"
-        } else {
-            "Input → RMUX │ Tab session navigator │ Esc control"
-        }),
-        rows[2],
-    );
 }
 
 fn draw_header(frame: &mut Frame, app: &App, area: Rect) {
@@ -337,10 +297,9 @@ mod tests {
     }
 
     #[test]
-    fn terminal_mode_keeps_session_navigator_and_preview_visible() {
+    fn terminal_mode_is_a_full_screen_session() {
         let mut app = app();
         app.mode = Mode::Terminal;
-        app.session_drawer = true;
         let backend = TestBackend::new(140, 40);
         let mut terminal = Terminal::new(backend).unwrap();
         terminal.draw(|frame| draw(frame, &app, None)).unwrap();
@@ -351,8 +310,7 @@ mod tests {
             .iter()
             .map(|cell| cell.symbol())
             .collect::<String>();
-        assert!(rendered.contains("SESSION NAVIGATOR"));
-        assert!(rendered.contains("LIVE PREVIEW"));
-        assert!(rendered.contains("mission-moonbase-hermes"));
+        assert!(rendered.contains("Tab pour revenir à AGK"));
+        assert!(!rendered.contains("MISSION CONTROL"));
     }
 }

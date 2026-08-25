@@ -85,20 +85,14 @@ async fn run(
         if app.mode == Mode::Terminal {
             if key.code == KeyCode::Esc {
                 app.mode = Mode::Control;
-                app.session_drawer = false;
+                app.view = View::Sessions;
+                app.focus = Focus::List;
                 continue;
             }
             if key.code == KeyCode::Tab {
-                app.session_drawer = !app.session_drawer;
-                continue;
-            }
-            if app.session_drawer {
-                match key.code {
-                    KeyCode::Down | KeyCode::Char('j') => app.select_next(),
-                    KeyCode::Up | KeyCode::Char('k') => app.select_previous(),
-                    KeyCode::Enter => app.session_drawer = false,
-                    _ => {}
-                }
+                app.mode = Mode::Control;
+                app.view = View::Sessions;
+                app.focus = Focus::List;
                 continue;
             }
             send_terminal_key(rmux, app, key.code, key.modifiers).await;
