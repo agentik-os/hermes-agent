@@ -86,3 +86,26 @@ def test_lifecycle_transition_is_persisted(mission_service):
     assert "completed" in mission_service.dispatch("task", f"complete {task_id}")
     stored = mission_service.store.get("mission", "task", task_id)
     assert stored.status == "completed"
+
+
+def test_root_slug_is_unique_even_with_null_parent(mission_service):
+    mission_service.store.create(
+        environment="mission", kind="client", slug="moonbase", name="Moonbase"
+    )
+    with pytest.raises(Exception, match="UNIQUE constraint failed"):
+        mission_service.store.create(
+            environment="mission", kind="client", slug="moonbase", name="Moonbase"
+        )
+    assert len(mission_service.store.list("mission", "client")) == 1
+
+
+def test_parent_cannot_cross_environment(tmp_path):
+    store = ControlStore(tmp_path / "control.db")
+    client = store.create(
+        environment="mission", kind="client", slug="moonbase", name="Moonbase"
+    )
+    with pytest.raises(PermissionError):
+        store.create(
+            environment="agentik", kind="project", slug="dashboard",
+            name="Dashboard", parent_id=client.id,
+        )

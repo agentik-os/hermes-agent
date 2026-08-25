@@ -68,6 +68,8 @@ class ControlStore:
                 );
                 CREATE INDEX IF NOT EXISTS idx_objects_scope
                     ON objects(environment, kind, parent_id, status);
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_objects_unique_scope
+                    ON objects(environment, kind, COALESCE(parent_id, ''), slug);
                 CREATE TABLE IF NOT EXISTS contexts (
                     context_key TEXT PRIMARY KEY,
                     environment TEXT NOT NULL,
@@ -104,6 +106,14 @@ class ControlStore:
         now = time.time()
         object_id = f"{PREFIX[kind]}-{uuid.uuid4().hex[:10].upper()}"
         with self.connect() as db:
+            if parent_id is not None:
+                parent = db.execute(
+                    "SELECT environment FROM objects WHERE id=?", (parent_id,)
+                ).fetchone()
+                if parent is None:
+                    raise ValueError(f"parent object does not exist: {parent_id}")
+                if parent["environment"] != environment:
+                    raise PermissionError("parent object belongs to another environment")
             db.execute(
                 "INSERT INTO objects VALUES (?,?,?,?,?,?,?,?,?,?,?)",
                 (object_id, environment, kind, slug, name, parent_id, status,
@@ -170,4 +180,3 @@ class ControlStore:
     def clear_context(self, key: str, environment: str) -> dict:
         return self.set_context(key, environment, client_id=None, project_id=None,
                                 mission_id=None, task_id=None)
-
