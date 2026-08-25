@@ -1,0 +1,112 @@
+#!/usr/bin/env bash
+# AGK bootstrap: user-scoped by default, fleet-aware for operators.
+set -euo pipefail
+
+mode=user
+environment=agentik
+rmux_version=0.10.0
+source_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+target_user=$(id -un)
+
+usage() {
+  cat <<'EOF'
+Usage: agk-install [--user] [--environment NAME] [--source PATH]
+       sudo agk-install --fleet [--source PATH]
+
+--user             Install AGK for the current Linux user (default; no sudo).
+--environment NAME operator|agentik|mission|private (default: agentik).
+--fleet            Configure operator/agentik/mission/private independently.
+--source PATH      Hermes/AGK checkout or immutable release root.
+
+Credentials are never accepted as arguments or written by this installer.
+Hermes and RMUX state are never shared between Linux identities.
+EOF
+}
+
+while (($#)); do
+  case "$1" in
+    --user) mode=user; shift ;;
+    --fleet) mode=fleet; shift ;;
+    --environment) environment=${2:?missing environment}; shift 2 ;;
+    --source) source_root=$(cd "${2:?missing source}" && pwd); shift 2 ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
+  esac
+done
+
+case "$environment" in operator|agentik|mission|private) ;; *) echo "Invalid environment: $environment" >&2; exit 2;; esac
+[ -x "$source_root/scripts/agk" ] && [ -x "$source_root/scripts/agk_control.py" ] || {
+  echo "Source does not contain the AGK runtime: $source_root" >&2; exit 1;
+}
+install_rmux() {
+  local os arch artifact base tmp_dir prefix expected
+  os=$(uname -s | tr '[:upper:]' '[:lower:]')
+  case "$os" in linux) os=linux ;; darwin) os=macos ;; *) echo "Unsupported RMUX platform: $os" >&2; exit 1;; esac
+  case "$(uname -m)" in x86_64|amd64) arch=x86_64 ;; aarch64|arm64) arch=aarch64 ;; *) echo "Unsupported RMUX architecture" >&2; exit 1;; esac
+  [ "$mode" != fleet ] || [ "$os" = linux ] || { echo "Fleet install requires Linux." >&2; exit 1; }
+  artifact="rmux-${rmux_version}-${os}-${arch}.tar.gz"
+  base="https://github.com/Helvesec/rmux/releases/download/v${rmux_version}"
+  tmp_dir=$(mktemp -d)
+  trap 'rm -rf -- "$tmp_dir"' RETURN
+  curl -fsSL "$base/SHA256SUMS" -o "$tmp_dir/SHA256SUMS"
+  curl -fsSL "$base/$artifact" -o "$tmp_dir/$artifact"
+  expected=$(awk -v name="$artifact" '$2 == name || $2 == "*" name {print $1}' "$tmp_dir/SHA256SUMS")
+  [ -n "$expected" ] || { echo "RMUX checksum is missing for $artifact" >&2; exit 1; }
+  printf '%s  %s\n' "$expected" "$tmp_dir/$artifact" | sha256sum -c -
+  tar -xzf "$tmp_dir/$artifact" -C "$tmp_dir"
+  prefix="$HOME/.local"
+  [ "$mode" = fleet ] && prefix=/usr/local
+  local packaged_installer
+  packaged_installer=$(find "$tmp_dir" -mindepth 2 -maxdepth 3 -type f -name install.sh -print -quit)
+  [ -n "$packaged_installer" ] || { echo "RMUX release installer missing" >&2; exit 1; }
+  bash "$packaged_installer" --prefix "$prefix"
+  export PATH="$prefix/bin:$PATH"
+  trap - RETURN
+  rm -rf -- "$tmp_dir"
+}
+
+if ! command -v rmux >/dev/null; then
+  echo "Installing checksum-verified RMUX v${rmux_version}..."
+  install_rmux
+fi
+rmux -V
+rmux list-commands >/dev/null
+rmux diagnose --human >/dev/null
+
+install_one() {
+  local user=$1 env=$2 home_dir bin_dir config_dir state_dir registry_dir projects tmp
+  home_dir=$(getent passwd "$user" | cut -d: -f6)
+  [ -n "$home_dir" ] || { echo "Linux user not found: $user" >&2; return 1; }
+  bin_dir="$home_dir/.local/bin"
+  config_dir="$home_dir/.config/agk"
+  state_dir="$home_dir/.local/share/agk"
+  registry_dir="$state_dir/os-registry"
+  install -d -m 700 -o "$user" -g "$user" "$config_dir" "$state_dir" "$registry_dir/state" "$home_dir/.agentik"
+  install -d -m 755 -o "$user" -g "$user" "$bin_dir"
+  install -m 755 -o "$user" -g "$user" "$source_root/scripts/agk" "$bin_dir/agk"
+  install -m 755 -o "$user" -g "$user" "$source_root/scripts/agk_control.py" "$state_dir/agk_control.py"
+  projects="$home_dir/workspace/projects"
+  [ "$env" = mission ] && projects="$home_dir/workspace/clients"
+  install -d -m 700 -o "$user" -g "$user" "$projects"
+  tmp=$(mktemp)
+  printf 'environment: %s\nprojects_root: %s\n' "$env" "$projects" > "$tmp"
+  install -m 600 -o "$user" -g "$user" "$tmp" "$config_dir/environment.yaml"
+  rm -f "$tmp"
+  echo "Installed AGK for $user ($env)"
+}
+
+if [ "$mode" = fleet ]; then
+  [ "$(id -u)" -eq 0 ] || { echo "--fleet requires root." >&2; exit 1; }
+  for target_user in operator agentik mission private; do
+    getent passwd "$target_user" >/dev/null || { echo "Missing canonical user: $target_user" >&2; exit 1; }
+    install_one "$target_user" "$target_user"
+  done
+else
+  install_one "$target_user" "$environment"
+fi
+
+cat <<'EOF'
+AGK installed. Ensure ~/.local/bin is in PATH, then run:
+  agk doctor
+  agk
+EOF

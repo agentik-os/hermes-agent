@@ -91,6 +91,42 @@ def test_responsive_layout_and_navigation_model():
     assert agk.cycle_view("sessions", reverse=True) == "help"
 
 
+def test_public_single_user_environment_config(tmp_path, monkeypatch):
+    config = tmp_path / ".config/agk/environment.yaml"
+    config.parent.mkdir(parents=True)
+    config.write_text(
+        f"environment: mission\nprojects_root: {tmp_path}/work/clients\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("USER", "public-user")
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("AGK_ENV_CONFIG", str(config))
+    env = agk.Environment.current()
+    assert env.name == "mission"
+    assert env.home == tmp_path
+    assert env.projects == tmp_path / "work/clients"
+
+
+def test_public_environment_rejects_unknown_scope(tmp_path, monkeypatch):
+    config = tmp_path / "environment.yaml"
+    config.write_text("environment: super-root\n", encoding="utf-8")
+    monkeypatch.setenv("USER", "public-user")
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("AGK_ENV_CONFIG", str(config))
+    try:
+        agk.Environment.current()
+    except SystemExit as exc:
+        assert "Unsupported AGK environment" in str(exc)
+    else:
+        raise AssertionError("unknown public environment was accepted")
+
+
+def test_os_registry_prefers_explicit_path(tmp_path, monkeypatch):
+    target = tmp_path / "registry"
+    monkeypatch.setenv("AGK_OS_REGISTRY", str(target))
+    assert agk.os_registry_path() == target
+
+
 def test_session_sections_prioritize_attention_then_active_then_recent():
     rows = [
         {"status": "idle", "name": "recent"},

@@ -19,10 +19,19 @@ fi
 
 case "$self_user" in
   operator|agentik|mission|private) ;;
-  *) echo "Unsupported AGK identity: $self_user" >&2; exit 1 ;;
+  *)
+    config="${AGK_ENV_CONFIG:-$HOME/.config/agk/environment.yaml}"
+    [ -f "$config" ] || {
+      echo "AGK is not initialized for $self_user. Run: agk-install --user" >&2
+      exit 1
+    }
+    ;;
 esac
 
-control=/opt/agentik/hermes/current/scripts/agk_control.py
+control=${AGK_CONTROL_SCRIPT:-/opt/agentik/hermes/current/scripts/agk_control.py}
+if [ ! -x "$control" ]; then
+  control=${AGK_INSTALL_ROOT:-$HOME/.local/share/agk}/agk_control.py
+fi
 [ -x "$control" ] || {
   echo "AGK Control Shell is missing from the active Hermes release." >&2
   exit 1

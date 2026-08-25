@@ -19,7 +19,7 @@ from pathlib import Path
 import yaml
 
 
-USERS = {
+CANONICAL_USERS = {
     "operator": ("operator", Path("/home/operator"), Path("/home/operator/src")),
     "agentik": ("agentik", Path("/home/agentik"), Path("/home/agentik/workspace/projects")),
     "mission": ("mission", Path("/home/mission"), Path("/home/mission/workspace/clients")),
@@ -114,9 +114,36 @@ class Environment:
     @classmethod
     def current(cls) -> "Environment":
         user = os.environ.get("USER") or run("id", "-un").stdout.strip()
-        if user not in USERS:
-            raise SystemExit("agk is restricted to operator, agentik, mission, and private")
-        return cls(*USERS[user])
+        if user in CANONICAL_USERS:
+            return cls(*CANONICAL_USERS[user])
+        home = Path.home()
+        config_path = Path(os.environ.get(
+            "AGK_ENV_CONFIG", home / ".config/agk/environment.yaml"
+        ))
+        config: dict[str, object] = {}
+        try:
+            config = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+        except FileNotFoundError:
+            pass
+        except (OSError, ValueError, yaml.YAMLError) as exc:
+            raise SystemExit(f"Invalid AGK environment config: {config_path}: {exc}") from exc
+        name = str(os.environ.get("AGK_ENVIRONMENT") or config.get("environment") or "agentik")
+        if name not in {"operator", "agentik", "mission", "private"}:
+            raise SystemExit(f"Unsupported AGK environment: {name}")
+        default_projects = home / "workspace" / ("clients" if name == "mission" else "projects")
+        projects = Path(str(config.get("projects_root") or default_projects)).expanduser()
+        return cls(name, home, projects)
+
+
+def os_registry_path() -> Path:
+    """Resolve the system or user registry without fabricating OS packages."""
+    override = os.environ.get("AGK_OS_REGISTRY")
+    if override:
+        return Path(override).expanduser()
+    system = Path("/opt/agentik/os-registry")
+    if system.is_dir():
+        return system
+    return Path.home() / ".local/share/agk/os-registry"
 
 
 class RmuxRuntime:
@@ -772,7 +799,7 @@ def doctor(env: Environment, registry: RuntimeRegistry) -> int:
         result = run(*command, check=False)
         checks.append((label, result.returncode == 0))
     _, unmanaged = registry.reconcile()
-    checks += [("Runtime registry", True), ("OS Registry", Path("/opt/agentik/os-registry").is_dir()),
+    checks += [("Runtime registry", True), ("OS Registry", os_registry_path().is_dir()),
                ("Isolated home", env.home.stat().st_mode & 0o077 == 0)]
     print(f"AGENTIK OS DOCTOR · {env.name.upper()}")
     for label, ok in checks:
@@ -874,7 +901,7 @@ def main() -> int:
             if row["type"] in {"hermes", "claude", "codex", "agent"}: print(f"{row['status']:<12} {row['type']:<8} {row['name']}")
         return 0
     if args.command == "os":
-        index = Path("/opt/agentik/os-registry/state/index.json")
+        index = os_registry_path() / "state/index.json"
         data = json.loads(index.read_text(encoding="utf-8")) if index.exists() else {"packages": []}
         print(f"Installed Operative Systems: {len(data.get('packages', []))}"); return 0
     if args.command == "mcp":
