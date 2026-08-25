@@ -216,6 +216,28 @@ async def test_budget_convergence_prioritizes_account_switcher(adapter):
 
 
 @pytest.mark.asyncio
+async def test_budget_convergence_prioritizes_control_center_commands(adapter):
+    existing = [SimpleNamespace(id=f"old-{i}", name=f"old-{i}", type=1) for i in range(4)]
+    desired = [_FakeTreeCommand(name) for name in (
+        "help", "new", "status", "model", "account", "panel", "clear", "other",
+    )]
+    adapter._client.tree.fetch_commands = AsyncMock(return_value=existing)
+    adapter._client.tree.get_commands = MagicMock(return_value=desired)
+
+    with (
+        patch("hermes_cli.commands._iter_plugin_command_entries", return_value=[]),
+        patch("hermes_cli.plugins.get_plugin_commands", return_value={}),
+    ):
+        await adapter._safe_sync_slash_commands()
+
+    installed = {
+        call.args[-1]["name"]
+        for call in adapter._client.http.edit_global_command.await_args_list
+    }
+    assert installed == {"clear", "panel", "account", "model"}
+
+
+@pytest.mark.asyncio
 async def test_budget_convergence_keeps_all_agentik_commands_before_other_plugins(adapter):
     existing = [SimpleNamespace(id=f"old-{i}", name=f"old-{i}", type=1) for i in range(6)]
     desired_names = ("help", "status", "client", "project", "mission", "task", "other-a", "other-b")
