@@ -6095,6 +6095,9 @@ class DiscordAdapter(BasePlatformAdapter):
             provider: str = "",
             account: str = "",
         ):
+            if not provider and not account:
+                await self._send_account_picker_interaction(interaction)
+                return
             command = "/account"
             if provider and account:
                 command = f"/account use {provider} {account}"
@@ -8032,6 +8035,250 @@ class DiscordAdapter(BasePlatformAdapter):
             return SendResult(success=True, message_id=str(msg.id))
         except Exception as e:
             return SendResult(success=False, error=str(e))
+
+    async def _send_account_picker_interaction(
+        self,
+        interaction: "discord.Interaction",
+    ) -> None:
+        """Open an ephemeral provider/account control panel for the owner."""
+        if not await self._check_slash_authorization(interaction, "/account"):
+            return
+
+        def load_entries(provider: str) -> list:
+            try:
+                from agent.credential_pool import load_pool
+
+                return sorted(
+                    [
+                        entry
+                        for entry in load_pool(provider).entries()
+                        if re.fullmatch(
+                            r"[A-Za-z0-9_-]{1,64}",
+                            str(getattr(entry, "id", "") or ""),
+                        )
+                    ],
+                    key=lambda entry: entry.priority,
+                )
+            except Exception:
+                return []
+
+        def entry_status(entry) -> str:
+            raw = str(getattr(entry, "last_status", None) or "ok").lower()
+            return raw if raw in {"ok", "exhausted", "dead"} else "unknown"
+
+        def snapshot() -> dict[str, list]:
+            return {
+                "openai-codex": load_entries("openai-codex"),
+                "anthropic": load_entries("anthropic"),
+            }
+
+        def panel_embed(entries_by_provider: dict[str, list]):
+            lines = []
+            for provider, label in (
+                ("openai-codex", "OpenAI / ChatGPT"),
+                ("anthropic", "Claude / Anthropic"),
+            ):
+                lines.append(f"**{label}**")
+                entries = entries_by_provider.get(provider) or []
+                if not entries:
+                    lines.append("• Not connected")
+                for index, entry in enumerate(entries):
+                    marker = "●" if int(getattr(entry, "priority", index) or 0) == 0 else "○"
+                    lines.append(
+                        f"{marker} Account {index + 1} "
+                        f"[`{entry.id}`] · `{entry_status(entry)}`"
+                    )
+                lines.append("")
+            return discord.Embed(
+                title="🔐 Provider Accounts",
+                description="\n".join(lines).strip(),
+                color=discord.Color.blue(),
+            )
+
+        adapter = self
+
+        class AccountPanelView(discord.ui.View):
+            def __init__(self):
+                super().__init__(timeout=180)
+                self.entries = snapshot()
+                self._build_provider_controls()
+
+            def _authorized(self, component_interaction) -> bool:
+                return _component_check_auth(
+                    component_interaction,
+                    adapter._allowed_user_ids,
+                    adapter._allowed_role_ids,
+                )
+
+            async def _reject(self, component_interaction) -> None:
+                await component_interaction.response.send_message(
+                    "You're not authorized to use this panel.", ephemeral=True
+                )
+
+            def _build_provider_controls(self):
+                self.clear_items()
+                options = []
+                for provider, label in (
+                    ("openai-codex", "OpenAI / ChatGPT"),
+                    ("anthropic", "Claude / Anthropic"),
+                ):
+                    count = len(self.entries.get(provider) or [])
+                    options.append(
+                        discord.SelectOption(
+                            label=label,
+                            value=provider,
+                            description=f"{count} connected account(s)",
+                        )
+                    )
+                provider_select = discord.ui.Select(
+                    placeholder="Choose OpenAI or Claude...",
+                    options=options,
+                    custom_id="account_provider_select",
+                )
+                provider_select.callback = self._on_provider
+                self.add_item(provider_select)
+
+                refresh = discord.ui.Button(
+                    label="Refresh",
+                    emoji="🔄",
+                    style=discord.ButtonStyle.grey,
+                    custom_id="account_refresh",
+                )
+                refresh.callback = self._on_refresh
+                self.add_item(refresh)
+
+                close = discord.ui.Button(
+                    label="Close",
+                    style=discord.ButtonStyle.red,
+                    custom_id="account_close",
+                )
+                close.callback = self._on_close
+                self.add_item(close)
+
+            def _build_account_controls(self, provider: str):
+                self.clear_items()
+                entries = self.entries.get(provider) or []
+                if entries:
+                    options = []
+                    for index, entry in enumerate(entries[:25]):
+                        options.append(
+                            discord.SelectOption(
+                                label=f"Account {index + 1} · {entry_status(entry)}",
+                                value=str(entry.id),
+                                description=(
+                                    "current priority"
+                                    if int(getattr(entry, "priority", index) or 0) == 0
+                                    else str(entry.id)
+                                )[:100],
+                            )
+                        )
+                    account_select = discord.ui.Select(
+                        placeholder="Choose an account...",
+                        options=options,
+                        custom_id=f"account_select:{provider}",
+                    )
+
+                    async def select_callback(component_interaction):
+                        if not self._authorized(component_interaction):
+                            await self._reject(component_interaction)
+                            return
+                        credential_id = component_interaction.data["values"][0]
+                        from hermes_cli.auth import prefer_eligible_credential
+
+                        result = await asyncio.to_thread(
+                            prefer_eligible_credential, provider, credential_id
+                        )
+                        if result == "saved":
+                            self.entries = snapshot()
+                            self._build_provider_controls()
+                            text = (
+                                f"Preferred `{credential_id}` for "
+                                f"{'OpenAI' if provider == 'openai-codex' else 'Claude'}."
+                            )
+                            color = discord.Color.green()
+                        elif result == "unavailable":
+                            text = "That account is exhausted or unavailable."
+                            color = discord.Color.red()
+                        else:
+                            text = "Account not found. Refresh the panel."
+                            color = discord.Color.red()
+                        await component_interaction.response.edit_message(
+                            embed=discord.Embed(
+                                title="🔐 Provider Accounts",
+                                description=text,
+                                color=color,
+                            ),
+                            view=self,
+                        )
+
+                    account_select.callback = select_callback
+                    self.add_item(account_select)
+
+                back = discord.ui.Button(
+                    label="Back",
+                    emoji="◀️",
+                    style=discord.ButtonStyle.grey,
+                    custom_id="account_back",
+                )
+                back.callback = self._on_back
+                self.add_item(back)
+
+            async def _on_provider(self, component_interaction):
+                if not self._authorized(component_interaction):
+                    await self._reject(component_interaction)
+                    return
+                provider = component_interaction.data["values"][0]
+                self._build_account_controls(provider)
+                label = "OpenAI / ChatGPT" if provider == "openai-codex" else "Claude / Anthropic"
+                entries = self.entries.get(provider) or []
+                description = (
+                    "Select the account to prefer. Automatic quota rotation remains enabled."
+                    if entries
+                    else "No connected account in this pool yet."
+                )
+                await component_interaction.response.edit_message(
+                    embed=discord.Embed(
+                        title=f"🔐 {label}",
+                        description=description,
+                        color=discord.Color.blue(),
+                    ),
+                    view=self,
+                )
+
+            async def _on_refresh(self, component_interaction):
+                if not self._authorized(component_interaction):
+                    await self._reject(component_interaction)
+                    return
+                self.entries = snapshot()
+                self._build_provider_controls()
+                await component_interaction.response.edit_message(
+                    embed=panel_embed(self.entries), view=self
+                )
+
+            async def _on_back(self, component_interaction):
+                await self._on_refresh(component_interaction)
+
+            async def _on_close(self, component_interaction):
+                if not self._authorized(component_interaction):
+                    await self._reject(component_interaction)
+                    return
+                self.clear_items()
+                await component_interaction.response.edit_message(
+                    embed=discord.Embed(
+                        title="🔐 Provider Accounts",
+                        description="Panel closed.",
+                        color=discord.Color.greyple(),
+                    ),
+                    view=self,
+                )
+                self.stop()
+
+        view = AccountPanelView()
+        await interaction.response.send_message(
+            embed=panel_embed(view.entries),
+            view=view,
+            ephemeral=True,
+        )
 
     async def send_model_picker(
         self,

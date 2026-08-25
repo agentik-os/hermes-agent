@@ -122,6 +122,7 @@ def adapter():
 @pytest.mark.asyncio
 async def test_registers_interactive_account_command(adapter):
     adapter._run_simple_slash = AsyncMock()
+    adapter._send_account_picker_interaction = AsyncMock()
     adapter._register_slash_commands()
 
     command = adapter._client.tree.commands["account"]
@@ -132,6 +133,48 @@ async def test_registers_interactive_account_command(adapter):
     adapter._run_simple_slash.assert_awaited_once_with(
         interaction, "/account use openai oa-2"
     )
+    adapter._send_account_picker_interaction.assert_not_awaited()
+
+    adapter._run_simple_slash.reset_mock()
+    await command(interaction, provider="", account="")
+    adapter._send_account_picker_interaction.assert_awaited_once_with(interaction)
+    adapter._run_simple_slash.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_account_panel_is_ephemeral_and_lists_redacted_accounts(adapter, monkeypatch):
+    class Entry:
+        def __init__(self, credential_id, priority=0, status=None):
+            self.id = credential_id
+            self.priority = priority
+            self.last_status = status
+
+    class Pool:
+        def __init__(self, entries):
+            self._entries = entries
+
+        def entries(self):
+            return list(self._entries)
+
+    pools = {
+        "openai-codex": Pool([Entry("oa-1")]),
+        "anthropic": Pool([Entry("cl-1", status="exhausted")]),
+    }
+    monkeypatch.setattr(
+        "agent.credential_pool.load_pool", lambda provider: pools[provider]
+    )
+    interaction = SimpleNamespace(
+        response=SimpleNamespace(send_message=AsyncMock()),
+    )
+
+    await adapter._send_account_picker_interaction(interaction)
+
+    kwargs = interaction.response.send_message.await_args.kwargs
+    assert kwargs["ephemeral"] is True
+    assert "oa-1" in kwargs["embed"].description
+    assert "cl-1" in kwargs["embed"].description
+    assert "exhausted" in kwargs["embed"].description
+    assert len(kwargs["view"].children) == 3
 
 
 # ------------------------------------------------------------------
