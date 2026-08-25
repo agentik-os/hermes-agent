@@ -2159,6 +2159,16 @@ def get_service_name() -> str:
     Profile ``~/.hermes/profiles/coder`` returns ``hermes-gateway-coder``.
     Any other HERMES_HOME appends a short hash for uniqueness.
     """
+    import re
+
+    explicit = os.environ.get("HERMES_GATEWAY_SERVICE_NAME", "").strip()
+    if explicit:
+        if not re.fullmatch(r"hermes-gateway(?:-[a-z0-9][a-z0-9-]{0,47})?", explicit):
+            raise ValueError(
+                "HERMES_GATEWAY_SERVICE_NAME must be hermes-gateway or an "
+                "allowlisted hermes-gateway-<name> identifier"
+            )
+        return explicit
     suffix = _profile_suffix()
     if not suffix:
         return _SERVICE_BASE

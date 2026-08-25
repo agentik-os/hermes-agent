@@ -1002,3 +1002,14 @@ class TestWindowsScheduledTaskSupervisorGuard:
             monkeypatch.setattr(gateway, "_windows_scheduled_task_state", lambda name, s=state: s)
             assert gateway._windows_scheduled_task_supervises("Hermes_Gateway") is expected, state
             assert gateway._windows_scheduled_task_running("Hermes_Gateway") is (state == "Running")
+
+
+def test_explicit_gateway_service_name_isolated(monkeypatch):
+    monkeypatch.setenv("HERMES_GATEWAY_SERVICE_NAME", "hermes-gateway-collective")
+    assert gateway.get_service_name() == "hermes-gateway-collective"
+
+
+def test_explicit_gateway_service_name_rejects_arbitrary_units(monkeypatch):
+    monkeypatch.setenv("HERMES_GATEWAY_SERVICE_NAME", "ssh")
+    with pytest.raises(ValueError, match="HERMES_GATEWAY_SERVICE_NAME"):
+        gateway.get_service_name()
