@@ -26,6 +26,30 @@ USERS = {
 TYPES = {"hermes", "claude", "codex", "shell", "agent", "workflow", "monitor"}
 STATES = {"running", "working", "idle", "waiting", "attention", "failed", "complete", "interrupted", "archived"}
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{2,79}$")
+VIEWS = ("sessions", "projects", "agents", "os", "mcp", "skills", "system", "settings", "help")
+TAB_DOUBLE_MS = 420
+
+
+def layout_mode(width: int, height: int) -> str:
+    if width < 72 or height < 18:
+        return "compact"
+    if width < 120 or height < 28:
+        return "standard"
+    return "wide"
+
+
+def pane_widths(width: int, mode: str, fullscreen: bool = False) -> tuple[int, int]:
+    if fullscreen:
+        return 0, max(0, width)
+    if mode != "wide":
+        return max(0, width), 0
+    left = max(38, min(54, width * 2 // 5))
+    return left, max(0, width - left - 1)
+
+
+def cycle_view(view: str, reverse: bool = False) -> str:
+    index = VIEWS.index(view) if view in VIEWS else 0
+    return VIEWS[(index + (-1 if reverse else 1)) % len(VIEWS)]
 
 
 def run(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
@@ -150,6 +174,18 @@ class RuntimeRegistry:
             "INSERT INTO runtime_events(runtime_id,event,payload,created_at) VALUES(?,?,?,?)",
             (row["id"], event, json.dumps(payload or {}, sort_keys=True), time.time()),
         )
+        self.db.commit()
+
+    def load_ui(self) -> dict[str, object]:
+        row = self.db.execute("SELECT * FROM ui_state WHERE environment=?", (self.env.name,)).fetchone()
+        return dict(row) if row else {"view": "sessions", "selected": None, "filter": ""}
+
+    def save_ui(self, view: str, selected: str | None, query: str) -> None:
+        self.db.execute("""
+          INSERT INTO ui_state(environment,view,selected,filter,updated_at)
+          VALUES(?,?,?,?,?) ON CONFLICT(environment) DO UPDATE SET
+          view=excluded.view,selected=excluded.selected,filter=excluded.filter,updated_at=excluded.updated_at
+        """, (self.env.name, view, selected, query, time.time()))
         self.db.commit()
 
     def rename(self, row: sqlite3.Row, name: str) -> sqlite3.Row:
@@ -301,6 +337,24 @@ def _create_from_tui(stdscr: "curses._CursesWindow", registry: RuntimeRegistry,
         _notice(stdscr, f"Error: {exc}")
 
 
+def _snapshot(row: sqlite3.Row, lines: int) -> list[str]:
+    result = run("rmux", "capture-pane", "-p", "-t", str(row["rmux_session"]),
+                 "-S", f"-{max(20, lines * 3)}", check=False)
+    if result.returncode:
+        return ["Runtime unavailable", "", "Press R to restart the frontend."]
+    return result.stdout.rstrip().splitlines() or ["(no terminal output yet)"]
+
+
+def _safe_add(stdscr: "curses._CursesWindow", y: int, x: int, value: object,
+              limit: int, attr: int = 0) -> None:
+    height, width = stdscr.getmaxyx()
+    if 0 <= y < height and 0 <= x < width and limit > 0:
+        try:
+            stdscr.addnstr(y, x, str(value), min(limit, width - x - 1), attr)
+        except curses.error:
+            pass
+
+
 def tui(stdscr: "curses._CursesWindow", registry: RuntimeRegistry) -> None:
     curses.curs_set(0)
     selected, query, view = 0, "", "sessions"
@@ -401,6 +455,103 @@ def tui(stdscr: "curses._CursesWindow", registry: RuntimeRegistry) -> None:
             _notice(stdscr, "CONTROL MODE. Enter attaches; Ctrl-b d detaches. q exits UI only. Uppercase K kills after confirmation.")
 
 
+def tui_v2(stdscr: "curses._CursesWindow", registry: RuntimeRegistry) -> None:
+    """AGK V2 control surface, informed by (but not copied from) Omega UX."""
+    curses.curs_set(0); curses.mousemask(curses.ALL_MOUSE_EVENTS); stdscr.keypad(True)
+    saved = registry.load_ui()
+    view, query = str(saved.get("view") or "sessions"), str(saved.get("filter") or "")
+    selected, wanted = 0, saved.get("selected")
+    focus, fullscreen, scroll, follow, last_tab = "list", False, 0, True, 0.0
+    hotkeys = {ord("1"): "sessions", ord("2"): "projects", ord("3"): "agents", ord("4"): "os",
+               ord("5"): "mcp", ord("6"): "skills", ord("s"): "system", ord(","): "settings", ord("?"): "help"}
+    while True:
+        registry.reconcile(); sessions = filtered(registry.rows(), query)
+        if view == "projects": rows: list[dict[str, object] | sqlite3.Row] = canonical_projects(registry.env)
+        elif view == "agents": rows = [r for r in sessions if r["type"] in {"hermes", "claude", "codex", "agent", "workflow"}]
+        elif view == "sessions": rows = sessions
+        else: rows = []
+        if wanted and rows:
+            selected = next((i for i, r in enumerate(rows) if str(r.get("id") if isinstance(r, dict) else r["id"]) == wanted), selected); wanted = None
+        selected = min(max(0, selected), max(0, len(rows) - 1)); current = rows[selected] if rows else None
+        current_id = str(current.get("id") if isinstance(current, dict) else current["id"]) if current else None
+        registry.save_ui(view, current_id, query)
+        stdscr.erase(); height, width = stdscr.getmaxyx(); mode = layout_mode(width, height)
+        left, right = pane_widths(width, mode, fullscreen and focus == "detail")
+        if fullscreen and focus == "list": left, right = width, 0
+        _safe_add(stdscr, 0, 0, f" AGK · {registry.env.name.upper()} · CONTROL", width - 1, curses.A_BOLD)
+        _safe_add(stdscr, 0, max(30, width - 11), "● ONLINE", 10, curses.A_BOLD)
+        nav = " 1 Session  2 Projects  3 Agents │ 4 OS  5 MCP  6 Skills │ s System  , Settings  ? Help"
+        _safe_add(stdscr, 1, 0, nav if mode != "compact" else " 1 Session  2 Projects  3 Agents  ···", width - 1)
+        crumb = registry.env.name.upper()
+        if current is not None and not isinstance(current, dict): crumb += f" › {current['client'] or '—'} › {current['project'] or '—'} › {current['name']}"
+        _safe_add(stdscr, 2, 0, crumb, width - 1, curses.A_DIM); _safe_add(stdscr, 4, 0, view.upper() + (f"  / {query}" if query else ""), max(1, left - 1), curses.A_BOLD)
+        list_limit, visible = (max(1, left - 2) if right else width - 1), max(1, height - 9)
+        start = max(0, selected - visible + 1)
+        if view in {"sessions", "agents"}:
+            for screen_i, row in enumerate(rows[start:start + visible]):
+                idx = start + screen_i; icon = {"running": "●", "working": "◉", "idle": "○", "waiting": "◌", "failed": "×", "complete": "✓"}.get(str(row["status"]), "!")
+                marker = "▶" if idx == selected else " "; context = row["project"] or row["client"] or registry.env.name
+                label = f"{marker} {icon} {row['name']} · {str(row['type']).upper()}" if mode == "compact" else f"{marker} {icon} {str(row['name']):<28} {str(row['type']).upper():<8} {str(context):<12} {str(row['status']).upper()}"
+                _safe_add(stdscr, 5 + screen_i, 0, label, list_limit, curses.A_REVERSE if idx == selected and focus == "list" else 0)
+        elif view == "projects":
+            for screen_i, row in enumerate(rows[:visible]):
+                linked = sum(1 for item in registry.rows() if item["project"] in {row["id"], row["slug"]})
+                _safe_add(stdscr, 5 + screen_i, 0, f"{'▶' if screen_i == selected else ' '} {row['name']} · {linked} sessions · {row['status']}", list_limit, curses.A_REVERSE if screen_i == selected and focus == "list" else 0)
+        else:
+            messages = {"os": "Zero Operative Systems installed · registry ready · no package is invented", "mcp": "MCP inventory is scoped to this Hermes environment", "skills": "Skills are capabilities; OS remain separate methodologies", "system": f"AGK Core · {registry.env.name.upper()} · {run('rmux','-V').stdout.strip()}", "settings": "Persistent Control Mode · RMUX runtime · secrets never displayed", "help": "Tab focus · Tab Tab expand · Enter attach · Ctrl-b d detach · q leaves Control only"}
+            _safe_add(stdscr, 5, 0, messages.get(view, ""), width - 1)
+        max_scroll = 0
+        if right and current is not None and not isinstance(current, dict) and view in {"sessions", "agents"}:
+            x = left + 1; _safe_add(stdscr, 4, x, f"{str(current['name']).upper()} · LIVE OUTPUT", right - 1, curses.A_BOLD)
+            content = _snapshot(current, visible); max_scroll = max(0, len(content) - visible)
+            if follow: scroll = max_scroll
+            scroll = min(max(0, scroll), max_scroll)
+            for n, line in enumerate(content[scroll:scroll + visible]): _safe_add(stdscr, 5 + n, x, line, right - 1)
+            _safe_add(stdscr, height - 3, x, "LIVE ↓" if follow else f"↑ SCROLLBACK · {max_scroll-scroll} lines from live", right - 1, curses.A_BOLD)
+        footer = "↑↓ Navigate  Enter Open  Tab Focus  Tab·Tab Expand  n New  / Search  Ctrl-p Palette  q Quit"
+        _safe_add(stdscr, height - 2, 0, footer if mode != "compact" else "↑↓ Enter  n New  / Search  ? Help  q Quit", width - 1); stdscr.refresh(); key = stdscr.getch()
+        if key == ord("q"): return
+        if key == 27: view, query, selected, focus, fullscreen = "sessions", "", 0, "list", False
+        elif key in hotkeys: view, selected, focus, fullscreen = hotkeys[key], 0, "list", False
+        elif key in (9, curses.KEY_BTAB):
+            now = time.monotonic()
+            if key == 9 and (now - last_tab) * 1000 < TAB_DOUBLE_MS: fullscreen, last_tab = not fullscreen, 0.0
+            elif mode == "wide" and view in {"sessions", "agents", "projects", "os", "settings"}: focus, last_tab = ("detail" if focus == "list" else "list"), now
+            else: view, selected, focus, fullscreen, last_tab = cycle_view(view, key == curses.KEY_BTAB), 0, "list", False, now
+        elif key in (curses.KEY_DOWN, ord("j")) and rows:
+            if focus == "detail" and right: scroll, follow = min(max_scroll, scroll + 1), scroll + 1 >= max_scroll
+            else: selected = min(len(rows) - 1, selected + 1)
+        elif key in (curses.KEY_UP, ord("k")) and rows:
+            if focus == "detail" and right: scroll, follow = max(0, scroll - 1), False
+            else: selected = max(0, selected - 1)
+        elif key == curses.KEY_PPAGE and right: scroll, follow = max(0, scroll - visible), False
+        elif key == curses.KEY_NPAGE and right: scroll, follow = min(max_scroll, scroll + visible), scroll + visible >= max_scroll
+        elif key == ord("g") and focus == "detail": scroll, follow = 0, False
+        elif key == ord("G") and focus == "detail": scroll, follow = max_scroll, True
+        elif key in (10, 13) and current is not None and view in {"sessions", "agents"}:
+            curses.endwin(); subprocess.run(["rmux", "attach-session", "-t", str(current["rmux_session"])]); stdscr.refresh()
+        elif key == ord("/"): query, selected = _prompt(stdscr, "Search/filter: "), 0
+        elif key == 16:
+            palette = _prompt(stdscr, "> ")
+            if palette.startswith("open "): query, view, selected = palette[5:].strip(), "sessions", 0
+            elif palette.startswith("new ") and palette[4:].strip() in {"hermes", "claude", "codex", "shell"}: _create_from_tui(stdscr, registry, palette[4:].strip())
+            else: query, view, selected = palette, "sessions", 0
+        elif key in (ord("h"), ord("c"), ord("x"), ord("t")) and view in {"sessions", "projects"}:
+            kind = {ord("h"): "hermes", ord("c"): "claude", ord("x"): "codex", ord("t"): "shell"}[key]; project = current if view == "projects" and isinstance(current, dict) else None
+            _create_from_tui(stdscr, registry, kind, Path(str(project["path"])) if project and project["path"] else None, str(project["id"]) if project else None)
+        elif key == ord("n"):
+            choice = _prompt(stdscr, "New [h]ermes [c]laude code[x] [t]erminal: ").lower()[:1]; kind = {"h": "hermes", "c": "claude", "x": "codex", "t": "shell"}.get(choice)
+            if kind: _create_from_tui(stdscr, registry, kind)
+        elif view in {"sessions", "agents"} and current is not None and key == ord("R"): registry.restart_frontend(current)
+        elif view == "sessions" and current is not None and key == ord("f"):
+            name = _prompt(stdscr, "Fork name: ")
+            if name:
+                try: registry.fork(current, name)
+                except Exception as exc: _notice(stdscr, f"Error: {exc}")
+        elif view in {"sessions", "agents"} and current is not None and key == ord("A"): registry.archive(current)
+        elif view in {"sessions", "agents"} and current is not None and key == ord("K") and _prompt(stdscr, f"Kill {current['name']}? type YES: ") == "YES": registry.terminate(current)
+
+
 def doctor(env: Environment, registry: RuntimeRegistry) -> int:
     checks = []
     for label, command in (("RMUX", ["rmux", "-V"]), ("RMUX health", ["rmux", "diagnose", "--human"]),
@@ -462,7 +613,7 @@ def main() -> int:
     if args.command is None:
         if not sys.stdin.isatty() or not sys.stdout.isatty():
             print("agk Control Shell requires a TTY; use `agk status` for non-interactive use.", file=sys.stderr); return 2
-        curses.wrapper(tui, registry); return 0
+        curses.wrapper(tui_v2, registry); return 0
     if args.command in {"status", "sessions"}:
         print(f"AGENTIK OS · {env.name.upper()}\nRMUX {run('rmux','-V').stdout.strip()}")
         for row in registry.rows(): print(f"{row['status']:<12} {row['type']:<9} {row['name']}  {row['project'] or '—'}")

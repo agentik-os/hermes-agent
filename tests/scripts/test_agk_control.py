@@ -78,3 +78,14 @@ def test_default_resume_commands_use_documented_cli():
     assert agk.default_command("hermes", "S-1") == ["hermes", "--resume", "S-1"]
     assert agk.default_command("claude", "C-1") == ["claude", "--resume", "C-1"]
     assert agk.default_command("codex", "X-1") == ["codex", "resume", "X-1"]
+
+
+def test_responsive_layout_and_navigation_model():
+    assert agk.layout_mode(60, 30) == "compact"
+    assert agk.layout_mode(90, 24) == "standard"
+    assert agk.layout_mode(140, 40) == "wide"
+    left, right = agk.pane_widths(140, "wide")
+    assert left >= 38 and right > left
+    assert agk.pane_widths(80, "standard") == (80, 0)
+    assert agk.cycle_view("sessions") == "projects"
+    assert agk.cycle_view("sessions", reverse=True) == "help"
