@@ -5,7 +5,7 @@ vi.mock('./runtime-loader', () => ({ watchRuntimePlugins: vi.fn() }))
 
 const REQUIRED = ['agk', 'account-resource-footer']
 
-async function bootBundledDesktop() {
+async function bootBundledDesktop(expectedTheme: string) {
   vi.resetModules()
   const store = await import('./plugins-store')
   const decisions = JSON.parse(localStorage.getItem('hermes.desktop.pluginDecisions.v2') ?? '{}')
@@ -28,7 +28,7 @@ async function bootBundledDesktop() {
   )
 
   act(() => discoverBundledPlugins())
-  await waitFor(() => expect(themeName).toBe('agk'))
+  await waitFor(() => expect(themeName).toBe(expectedTheme))
 
   const records = store.$pluginRecords.get()
 
@@ -52,21 +52,27 @@ describe('real bundled AGK startup', () => {
     vi.restoreAllMocks()
   })
 
-  it('heals stale theme/plugin state on first boot and remains AGK on the next boot', async () => {
-    localStorage.setItem('hermes-desktop-theme-v2', 'nous')
+  it('registers required product plugins without creating a theme preference on first boot', async () => {
     localStorage.setItem('hermes.plugin.agk.enabled-v1', 'false')
     localStorage.setItem(
       'hermes.desktop.pluginDecisions.v2',
       JSON.stringify(Object.fromEntries(REQUIRED.map(id => [id, false])))
     )
 
-    await bootBundledDesktop()
+    await bootBundledDesktop('nous')
 
-    expect(localStorage.getItem('hermes-desktop-theme-v2')).toBe('agk')
+    expect(localStorage.getItem('hermes-desktop-theme-v2')).toBeNull()
     expect(localStorage.getItem('hermes.plugin.agk.enabled-v1')).toBe('true')
     expect(localStorage.getItem('hermes.desktop.pluginDecisions.v2')).toBe('{}')
+  })
 
-    await bootBundledDesktop()
-    expect(localStorage.getItem('hermes-desktop-theme-v2')).toBe('agk')
+  it('preserves an existing persisted theme across boots', async () => {
+    localStorage.setItem('hermes-desktop-theme-v2', 'mono')
+
+    await bootBundledDesktop('mono')
+    expect(localStorage.getItem('hermes-desktop-theme-v2')).toBe('mono')
+
+    await bootBundledDesktop('mono')
+    expect(localStorage.getItem('hermes-desktop-theme-v2')).toBe('mono')
   })
 })

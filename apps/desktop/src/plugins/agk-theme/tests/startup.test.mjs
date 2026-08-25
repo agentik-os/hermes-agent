@@ -51,19 +51,19 @@ async function loadPlugin({ enabled }) {
   return { calls, storageWrites }
 }
 
-test('AGK reclaims the active theme on every boot while its intent is enabled', async () => {
+test('AGK registration never claims the active theme when intent already exists', async () => {
   const { calls } = await loadPlugin({ enabled: true })
-  assert.deepEqual(calls, ['agk'])
+  assert.deepEqual(calls, [])
 })
 
-test('AGK claims and persists theme intent on a fresh installation', async () => {
+test('AGK registration leaves a fresh installation unclaimed for the default-theme resolver', async () => {
   const { calls, storageWrites } = await loadPlugin({ enabled: undefined })
-  assert.deepEqual(calls, ['agk'])
+  assert.deepEqual(calls, [])
   assert.deepEqual(storageWrites, [['enabled-v1', true]])
 })
 
-test('a stale restore-default flag is healed because AGK is the canonical product theme', async () => {
+test('a stale plugin flag is healed without overwriting the selected theme', async () => {
   const { calls, storageWrites } = await loadPlugin({ enabled: false })
-  assert.deepEqual(calls, ['agk'])
+  assert.deepEqual(calls, [])
   assert.deepEqual(storageWrites, [['enabled-v1', true]])
 })

@@ -508,8 +508,29 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const pendingSkin = useStore($pendingSkinApply)
 
   useEffect(() => {
-    if (pendingSkin) {
+    if (!pendingSkin || $pendingSkinApply.get() !== pendingSkin) {
+      return
+    }
+
+    if (typeof pendingSkin === 'string') {
       setTheme(pendingSkin)
+    } else {
+      const live = normalizeProfileKey($activeGatewayProfile.get())
+
+      // A default is an offer, never an override. Re-check at drain time so
+      // a manual choice made after the request was queued still wins. The
+      // captured profile also prevents a late plugin from writing into a
+      // workspace the user switched to while the effect was pending.
+      if (live === pendingSkin.profile && skinPref.raw(live) === null && resolveTheme(pendingSkin.name)) {
+        setTheme(pendingSkin.name)
+      }
+    }
+
+    // Layout effects can enqueue a newer request after this render captured
+    // `pendingSkin` but before this passive effect runs. Only the effect that
+    // still owns the atom value may drain it; a stale effect must not apply or
+    // clear newer intent.
+    if ($pendingSkinApply.get() === pendingSkin) {
       $pendingSkinApply.set(null)
     }
   }, [pendingSkin, setTheme])
