@@ -3309,7 +3309,7 @@ class DiscordAdapter(BasePlatformAdapter):
             core_names = {
                 "help", "status", "new", "stop", "resume", "sessions", "model",
                 "sethome", "clear", "undo", "approve", "deny", "queue",
-                "background", "context", "skills", "mcp", "restart", "version",
+                "background", "context", "skills", "mcp", "restart", "version", "account",
             }
             desired_payloads.sort(key=lambda item: (
                 0 if str(item.get("name", "")).lower() in core_names else

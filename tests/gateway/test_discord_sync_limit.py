@@ -195,6 +195,27 @@ async def test_safe_sync_reuses_existing_ids_when_creation_budget_is_exhausted(a
 
 
 @pytest.mark.asyncio
+async def test_budget_convergence_prioritizes_account_switcher(adapter):
+    """The owner account switcher must survive a constrained Discord command budget."""
+    existing = [SimpleNamespace(id=f"old-{i}", name=f"old-{i}", type=1) for i in range(2)]
+    desired = [_FakeTreeCommand(name) for name in ("help", "other", "account")]
+    adapter._client.tree.fetch_commands = AsyncMock(return_value=existing)
+    adapter._client.tree.get_commands = MagicMock(return_value=desired)
+
+    with (
+        patch("hermes_cli.commands._iter_plugin_command_entries", return_value=[]),
+        patch("hermes_cli.plugins.get_plugin_commands", return_value={}),
+    ):
+        await adapter._safe_sync_slash_commands()
+
+    installed = {
+        call.args[-1]["name"]
+        for call in adapter._client.http.edit_global_command.await_args_list
+    }
+    assert installed == {"help", "account"}
+
+
+@pytest.mark.asyncio
 async def test_budget_convergence_keeps_all_agentik_commands_before_other_plugins(adapter):
     existing = [SimpleNamespace(id=f"old-{i}", name=f"old-{i}", type=1) for i in range(6)]
     desired_names = ("help", "status", "client", "project", "mission", "task", "other-a", "other-b")
