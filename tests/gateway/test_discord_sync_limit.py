@@ -115,6 +115,7 @@ async def test_safe_sync_deletes_before_creating():
     adapter._client.http.delete_global_command = mock_delete
     adapter._client.http.upsert_global_command = mock_upsert
     adapter._client.http.edit_global_command = AsyncMock()
+    adapter._client.http.bulk_upsert_global_commands = None
 
     # Call sync
     await adapter._safe_sync_slash_commands()
@@ -170,3 +171,21 @@ async def test_safe_sync_creates_before_deleting_when_below_cap():
     await adapter._safe_sync_slash_commands()
 
     assert mutations == ["create", "delete"]
+
+
+@pytest.mark.asyncio
+async def test_safe_sync_uses_atomic_bulk_route_for_large_diff(adapter):
+    existing = [SimpleNamespace(id=f"old-{i}", name=f"old-{i}", type=1) for i in range(8)]
+    desired = [_FakeTreeCommand(f"new-{i}") for i in range(8)]
+    adapter._client.tree.fetch_commands = AsyncMock(return_value=existing)
+    adapter._client.tree.get_commands = MagicMock(return_value=desired)
+
+    result = await adapter._safe_sync_slash_commands()
+
+    adapter._client.http.bulk_upsert_global_commands.assert_awaited_once()
+    payload = adapter._client.http.bulk_upsert_global_commands.await_args.args[1]
+    assert [item["name"] for item in payload] == [f"new-{i}" for i in range(8)]
+    adapter._client.http.upsert_global_command.assert_not_awaited()
+    adapter._client.http.delete_global_command.assert_not_awaited()
+    assert result["created"] == 8
+    assert result["deleted"] == 8

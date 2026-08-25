@@ -3300,6 +3300,34 @@ class DiscordAdapter(BasePlatformAdapter):
             for command in existing_commands
         }
 
+        # Large diffs are both faster and safer through Discord's atomic bulk
+        # overwrite route. The per-command POST route has a very restrictive
+        # application-command creation bucket; trying to add environment
+        # commands one by one can otherwise take hours and leaves Discord out
+        # of parity with CLI/Web. Bulk overwrite is atomic server-side and the
+        # desired tree has already been bounded below the 100-command cap.
+        differing_keys: set[tuple[int, str]] = set(existing_by_key) ^ set(desired_by_key)
+        for key in set(existing_by_key) & set(desired_by_key):
+            current_payload = self._canonicalize_app_command_payload(
+                self._existing_command_to_payload(existing_by_key[key])
+            )
+            desired_payload = self._canonicalize_app_command_payload(desired_by_key[key])
+            if current_payload != desired_payload:
+                differing_keys.add(key)
+        bulk_upsert = getattr(self._client.http, "bulk_upsert_global_commands", None)
+        if len(differing_keys) > 4 and callable(bulk_upsert):
+            await bulk_upsert(app_id, desired_payloads)
+            existing_keys = set(existing_by_key)
+            desired_keys = set(desired_by_key)
+            return {
+                "total": len(desired_payloads),
+                "unchanged": len((existing_keys & desired_keys) - differing_keys),
+                "updated": len(existing_keys & desired_keys & differing_keys),
+                "recreated": 0,
+                "created": len(desired_keys - existing_keys),
+                "deleted": len(existing_keys - desired_keys),
+            }
+
         unchanged = 0
         updated = 0
         recreated = 0
