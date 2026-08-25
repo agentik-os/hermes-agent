@@ -42,6 +42,10 @@ async fn refresh(rmux: &Rmux, app: &mut App) -> Result<()> {
         .list_sessions()
         .await?
         .into_iter()
+        // `<environment>-control` hosts AGK itself. Previewing it produces a
+        // recursive alternate-screen snapshot, not useful work. Control is a
+        // navigation runtime and must never appear as a work session.
+        .filter(|name| !name.as_ref().ends_with("-control"))
         .map(|name| RuntimeItem::from_rmux(name.as_ref()))
         .collect();
     app.set_sessions(sessions);

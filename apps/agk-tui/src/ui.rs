@@ -236,9 +236,9 @@ fn draw_preview(frame: &mut Frame, app: &App, pane: Option<&PaneState>, area: Re
 
 fn draw_footer(frame: &mut Frame, app: &App, area: Rect, mode: Density) {
     let keys = if mode == Density::Compact {
-        "↑↓ move  Enter open  n new  / find  q detach"
+        "↑↓ move  Enter open  n new  / find  q quit"
     } else {
-        "↑↓ move  Enter open  Tab focus  Tab·Tab expand  n new  / search  Ctrl-p palette  q detach"
+        "↑↓ move  Enter open  Tab focus  Tab·Tab expand  n new  / search  Ctrl-p palette  q quit"
     };
     let context = app
         .current()
