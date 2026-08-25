@@ -1013,3 +1013,12 @@ def test_explicit_gateway_service_name_rejects_arbitrary_units(monkeypatch):
     monkeypatch.setenv("HERMES_GATEWAY_SERVICE_NAME", "ssh")
     with pytest.raises(ValueError, match="HERMES_GATEWAY_SERVICE_NAME"):
         gateway.get_service_name()
+
+
+def test_generated_unit_persists_explicit_gateway_service_name(tmp_path, monkeypatch):
+    hermes_home = tmp_path / ".hermes-collective"
+    hermes_home.mkdir()
+    monkeypatch.setenv("HERMES_HOME", str(hermes_home))
+    monkeypatch.setenv("HERMES_GATEWAY_SERVICE_NAME", "hermes-gateway-collective")
+    unit = gateway.generate_systemd_unit(system=False)
+    assert 'Environment="HERMES_GATEWAY_SERVICE_NAME=hermes-gateway-collective"' in unit

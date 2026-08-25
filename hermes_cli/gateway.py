@@ -3311,6 +3311,14 @@ def _append_node_dir_for_service(
 
 
 def generate_systemd_unit(system: bool = False, run_as_user: str | None = None) -> str:
+    explicit_service_name = os.environ.get("HERMES_GATEWAY_SERVICE_NAME", "").strip()
+    if explicit_service_name:
+        # Validate through the same chokepoint used to choose the unit path.
+        explicit_service_name = get_service_name()
+    service_name_environment = (
+        f'Environment="HERMES_GATEWAY_SERVICE_NAME={explicit_service_name}"\n'
+        if explicit_service_name else ""
+    )
     python_path = get_python_path()
     working_dir = _stable_service_working_dir()
     detected_venv = _detect_venv_dir()
@@ -3388,7 +3396,7 @@ Environment="LOGNAME={username}"
 Environment="PATH={sane_path}"
 Environment="VIRTUAL_ENV={venv_dir}"
 Environment="HERMES_HOME={hermes_home}"
-Restart=always
+{service_name_environment}Restart=always
 RestartSec=5
 RestartForceExitStatus={GATEWAY_SERVICE_RESTART_EXIT_CODE}
 RestartPreventExitStatus={GATEWAY_FATAL_CONFIG_EXIT_CODE}
@@ -3426,7 +3434,7 @@ WorkingDirectory={working_dir}
 Environment="PATH={sane_path}"
 Environment="VIRTUAL_ENV={venv_dir}"
 Environment="HERMES_HOME={hermes_home}"
-Restart=always
+{service_name_environment}Restart=always
 RestartSec=5
 RestartForceExitStatus={GATEWAY_SERVICE_RESTART_EXIT_CODE}
 RestartPreventExitStatus={GATEWAY_FATAL_CONFIG_EXIT_CODE}
