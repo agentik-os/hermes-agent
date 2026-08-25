@@ -46,7 +46,7 @@ fn draw_terminal(frame: &mut Frame, pane: Option<&PaneState>, area: Rect, colors
         frame.render_widget(PaneWidget::new(pane), area);
     } else {
         frame.render_widget(
-            Paragraph::new("Live RMUX pane unavailable\n\nCtrl-g  Return to AGK")
+            Paragraph::new("Live RMUX pane unavailable\n\nTab/Ctrl-g  Return · Ctrl-r  Reload")
                 .alignment(Alignment::Center)
                 .style(Style::default().fg(colors.text_muted).bg(colors.background)),
             area,
@@ -462,7 +462,15 @@ fn draw_os(frame: &mut Frame, app: &App, area: Rect, size: Density, colors: Pale
     }
     if detail_area.width > 0 {
         let text = app.current_os().map_or_else(
-            || Text::from("No Agentik OS packages are installed."),
+            || Text::from(vec![
+                Line::raw("No Operative System package is installed yet."),
+                Line::raw(""),
+                Line::styled(
+                    "Master OS Builder is available under Agents to build the first validated OS.",
+                    Style::default().fg(colors.info),
+                ),
+                Line::raw("OS packages remain versioned objects; the builder itself is an agent."),
+            ]),
             |package| {
                 Text::from(vec![
                     field("OS", &package.name, colors),
@@ -824,13 +832,18 @@ fn draw_help(frame: &mut Frame, app: &App, area: Rect, colors: Palette) {
         Line::raw(""),
         heading("SESSIONS", colors),
         help_key("Enter", "Open selected RMUX pane fullscreen", colors),
-        help_key("Ctrl-g", "Return from terminal to Mission Control", colors),
+        help_key(
+            "Tab / Ctrl-g",
+            "Return from terminal to Mission Control",
+            colors,
+        ),
+        help_key("Ctrl-r", "Reload AGK and RMUX state", colors),
         help_key("f / F11", "Expand or restore live preview", colors),
         help_key("v", "Toggle persistent split preview", colors),
         help_key("n", "Create via the existing AGK client", colors),
         help_key(
-            "h / c / x / t",
-            "New Hermes / Claude / Codex / terminal session",
+            "h/c/x/o/k/t",
+            "New Hermes / Claude / Codex / OpenRouter / OpenCode / terminal",
             colors,
         ),
         Line::raw(""),
@@ -859,7 +872,7 @@ fn draw_help(frame: &mut Frame, app: &App, area: Rect, colors: Palette) {
 fn draw_footer(frame: &mut Frame, app: &App, area: Rect, size: Density, colors: Palette) {
     let rows = Layout::vertical([Constraint::Length(1), Constraint::Length(2)]).split(area);
     let hint = app.status.as_deref().unwrap_or(match app.view {
-        View::Sessions => "↑↓ move · Enter open · Tab focus · h Hermes · c Claude · x Codex · t terminal · n menu · / search · q detach",
+        View::Sessions => "↑↓ move · Enter open · Tab focus · h Hermes · c Claude · x Codex · o OpenRouter · k OpenCode · t terminal",
         View::Settings => "↑↓ select/preview · Tab focus · ←→ change · Enter save · Esc revert · ? help",
         View::Help => "↑↓ or PgUp/PgDn scroll · 1–6 switch · q detach",
         _ => "↑↓ move · Enter detail · Tab focus · / search · r refresh · Ctrl-p palette · ? help · q detach",

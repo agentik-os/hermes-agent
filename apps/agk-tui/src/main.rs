@@ -26,7 +26,7 @@ use input::Action;
 use model::{App, Focus, Mode, View};
 use ratatui::{Terminal, backend::CrosstermBackend};
 use ratatui_rmux::PaneState;
-use rmux_sdk::{Rmux, SessionName, TerminalSizeSpec};
+use rmux_sdk::{Pane, Rmux, TerminalSizeSpec};
 use system_info::SystemInfoService;
 use theme::Preferences;
 
@@ -158,13 +158,20 @@ async fn run(
         if app.mode == Mode::Terminal {
             if let Event::Key(key) = &event
                 && accepts_key(key)
-                && key.code == KeyCode::Char('g')
-                && key.modifiers.contains(KeyModifiers::CONTROL)
+                && (key.code == KeyCode::Tab
+                    || (key.code == KeyCode::Char('g')
+                        && key.modifiers.contains(KeyModifiers::CONTROL))
+                    || (key.code == KeyCode::Char('r')
+                        && key.modifiers.contains(KeyModifiers::CONTROL)))
             {
                 app.mode = Mode::Control;
                 app.view = View::Sessions;
                 app.focus = Focus::Detail;
                 last_resize = None;
+                if key.code == KeyCode::Char('r') {
+                    refresh_requested = true;
+                    app.status = Some("Reloading AGK and RMUX state".into());
+                }
                 continue;
             }
             send_terminal_event(rmux, app, event).await;
@@ -223,9 +230,7 @@ async fn preview(
         return None;
     }
     let session_name = runtime.rmux_session.clone();
-    let name = SessionName::new(&session_name).ok()?;
-    let session = rmux.session(name).await.ok()?;
-    let pane = session.pane(0, 0);
+    let pane = primary_pane(rmux, &session_name).await?;
     let width = app.preview_width;
     let height = app.preview_height;
     if width > 1 && height > 1 {
@@ -265,13 +270,9 @@ async fn send_terminal_event(rmux: &Rmux, app: &App, event: Event) {
     let Some(runtime) = app.current_session() else {
         return;
     };
-    let Ok(name) = SessionName::new(&runtime.rmux_session) else {
+    let Some(pane) = primary_pane(rmux, &runtime.rmux_session).await else {
         return;
     };
-    let Ok(session) = rmux.session(name).await else {
-        return;
-    };
-    let pane = session.pane(0, 0);
     match event {
         Event::Paste(text) => {
             let _ = pane.send_text(text).await;
@@ -289,6 +290,17 @@ async fn send_terminal_event(rmux: &Rmux, app: &App, event: Event) {
         }
         _ => {}
     }
+}
+
+async fn primary_pane(rmux: &Rmux, session_name: &str) -> Option<Pane> {
+    rmux.find_panes()
+        .session(session_name)
+        .all()
+        .await
+        .ok()?
+        .into_iter()
+        .next()
+        .map(|discovered| discovered.pane)
 }
 
 fn rmux_key_token(key: KeyEvent) -> Option<String> {

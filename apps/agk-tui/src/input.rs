@@ -125,6 +125,10 @@ pub fn handle_key(app: &mut App, key: KeyEvent, detail_available: bool) -> Actio
         };
         return Action::None;
     }
+    if key.modifiers == KeyModifiers::CONTROL && key.code == KeyCode::Char('r') {
+        app.status = Some("Reloading AGK and RMUX state".into());
+        return Action::Refresh;
+    }
 
     let plain = !key.modifiers.intersects(
         KeyModifiers::CONTROL
@@ -167,6 +171,12 @@ pub fn handle_key(app: &mut App, key: KeyEvent, detail_available: bool) -> Actio
         }
         KeyCode::Char('x') if app.view == View::Sessions && app.focus == Focus::List => {
             new_session_name(app, SessionKind::Codex)
+        }
+        KeyCode::Char('o') if app.view == View::Sessions && app.focus == Focus::List => {
+            new_session_name(app, SessionKind::OpenRouter)
+        }
+        KeyCode::Char('k') if app.view == View::Sessions && app.focus == Focus::List => {
+            new_session_name(app, SessionKind::OpenCode)
         }
         KeyCode::Char('t') if app.view == View::Sessions && app.focus == Focus::List => {
             new_session_name(app, SessionKind::Shell)
@@ -593,6 +603,24 @@ mod tests {
     }
 
     #[test]
+    fn control_r_requests_a_full_registry_reload() {
+        let mut app = app();
+        assert_eq!(
+            handle_key(
+                &mut app,
+                KeyEvent::new(KeyCode::Char('r'), KeyModifiers::CONTROL),
+                true,
+            ),
+            Action::Refresh
+        );
+        assert!(
+            app.status
+                .as_deref()
+                .is_some_and(|value| value.contains("Reloading"))
+        );
+    }
+
+    #[test]
     fn overlay_captures_q_and_search_escape_restores_original_filter() {
         let mut app = app();
         app.query = "old".into();
@@ -683,6 +711,8 @@ mod tests {
             (KeyCode::Char('h'), SessionKind::Hermes),
             (KeyCode::Char('c'), SessionKind::Claude),
             (KeyCode::Char('x'), SessionKind::Codex),
+            (KeyCode::Char('o'), SessionKind::OpenRouter),
+            (KeyCode::Char('k'), SessionKind::OpenCode),
             (KeyCode::Char('t'), SessionKind::Shell),
         ] {
             let mut app = app();

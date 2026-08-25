@@ -65,6 +65,16 @@ install_rmux() {
   rm -rf -- "$tmp_dir"
 }
 
+install_opencode() {
+  local target
+  echo "Installing OpenCode from the official opencode.ai installer..."
+  curl -fsSL https://opencode.ai/install | bash -s -- --no-modify-path
+  target="$HOME/.local/bin/opencode"
+  [ "$mode" = fleet ] && target=/usr/local/bin/opencode
+  install -d -m 755 "$(dirname "$target")"
+  install -m 755 "$HOME/.opencode/bin/opencode" "$target"
+}
+
 if ! command -v rmux >/dev/null; then
   echo "Installing checksum-verified RMUX v${rmux_version}..."
   install_rmux
@@ -72,6 +82,10 @@ fi
 rmux -V
 rmux list-commands >/dev/null
 rmux diagnose --human >/dev/null
+
+if ! command -v opencode >/dev/null; then
+  install_opencode
+fi
 
 native_tui=
 if command -v cargo >/dev/null; then
@@ -91,10 +105,16 @@ install_one() {
   config_dir="$home_dir/.config/agk"
   state_dir="$home_dir/.local/share/agk"
   registry_dir="$state_dir/os-registry"
-  install -d -m 700 -o "$user" -g "$user" "$config_dir" "$state_dir" "$registry_dir/state" "$home_dir/.agentik"
+  install -d -m 700 -o "$user" -g "$user" \
+    "$config_dir" "$state_dir" "$state_dir/agents" "$home_dir/.agentik" \
+    "$registry_dir/state" "$registry_dir/incoming" "$registry_dir/quarantine"
   install -d -m 755 -o "$user" -g "$user" "$bin_dir"
   install -m 755 -o "$user" -g "$user" "$source_root/scripts/agk" "$bin_dir/agk"
   install -m 755 -o "$user" -g "$user" "$source_root/scripts/agk_control.py" "$state_dir/agk_control.py"
+  if [ -d "$source_root/agents" ]; then
+    cp -a "$source_root/agents/." "$state_dir/agents/"
+    chown -R "$user:$user" "$state_dir/agents"
+  fi
   if [ -n "$native_tui" ] && [ -x "$native_tui" ]; then
     install -m 755 -o "$user" -g "$user" "$native_tui" "$state_dir/agk-tui"
   fi
@@ -116,6 +136,11 @@ if [ "$mode" = fleet ]; then
   done
 else
   install_one "$target_user" "$environment"
+  if ! command -v hermes >/dev/null; then
+    echo "Installing the bundled Hermes runtime and bundled skills..."
+    "$source_root/scripts/install.sh" --skip-setup --non-interactive \
+      --dir "$HOME/.local/share/agk/hermes-runtime" --hermes-home "$HOME/.hermes"
+  fi
 fi
 
 cat <<'EOF'

@@ -25,7 +25,7 @@ CANONICAL_USERS = {
     "mission": ("mission", Path("/home/mission"), Path("/home/mission/workspace/clients")),
     "private": ("private", Path("/home/private"), Path("/home/private/workspace/projects")),
 }
-TYPES = {"hermes", "claude", "codex", "shell", "agent", "workflow", "monitor"}
+TYPES = {"hermes", "claude", "codex", "openrouter", "opencode", "shell", "agent", "workflow", "monitor"}
 STATES = {"running", "working", "idle", "waiting", "attention", "failed", "complete", "interrupted", "archived"}
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{2,79}$")
 VIEWS = ("sessions", "projects", "agents", "os", "mcp", "skills", "system", "settings", "help")
@@ -406,6 +406,8 @@ def default_command(kind: str, native_session: str | None = None) -> list[str]:
         "hermes": ["hermes", "--resume", native_session] if native_session else ["hermes"],
         "claude": ["claude", "--resume", native_session] if native_session else ["claude"],
         "codex": ["codex", "resume", native_session] if native_session else ["codex"],
+        "openrouter": ["hermes", "--provider", "openrouter"],
+        "opencode": ["opencode"],
         "shell": [os.environ.get("SHELL", "/bin/bash"), "-l"],
     }
     if kind not in commands:

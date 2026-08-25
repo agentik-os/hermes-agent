@@ -120,17 +120,28 @@ pub enum SessionKind {
     Hermes,
     Claude,
     Codex,
+    OpenRouter,
+    OpenCode,
     Shell,
 }
 
 impl SessionKind {
-    pub const ALL: [Self; 4] = [Self::Hermes, Self::Claude, Self::Codex, Self::Shell];
+    pub const ALL: [Self; 6] = [
+        Self::Hermes,
+        Self::Claude,
+        Self::Codex,
+        Self::OpenRouter,
+        Self::OpenCode,
+        Self::Shell,
+    ];
 
     pub const fn slug(self) -> &'static str {
         match self {
             Self::Hermes => "hermes",
             Self::Claude => "claude",
             Self::Codex => "codex",
+            Self::OpenRouter => "openrouter",
+            Self::OpenCode => "opencode",
             Self::Shell => "shell",
         }
     }
@@ -140,6 +151,8 @@ impl SessionKind {
             Self::Hermes => "Hermes",
             Self::Claude => "Claude",
             Self::Codex => "Codex",
+            Self::OpenRouter => "OpenRouter",
+            Self::OpenCode => "OpenCode",
             Self::Shell => "Terminal",
         }
     }

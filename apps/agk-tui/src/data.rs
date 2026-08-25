@@ -911,11 +911,19 @@ struct OsAssignment {
 }
 
 fn discover_bundled_catalog() -> PathBuf {
-    let installed = PathBuf::from("/opt/agentik/current/agents");
+    let installed = PathBuf::from("/opt/agentik/hermes/current/agents");
     if installed.is_dir() {
         installed
     } else {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../agents")
+        let user_catalog = std::env::var_os("AGK_INSTALL_ROOT")
+            .map(PathBuf::from)
+            .or_else(|| {
+                std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".local/share/agk"))
+            })
+            .map(|root| root.join("agents"));
+        user_catalog
+            .filter(|path| path.is_dir())
+            .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../agents"))
     }
 }
 
