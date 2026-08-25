@@ -528,6 +528,21 @@ def tui_v2(stdscr: "curses._CursesWindow", registry: RuntimeRegistry) -> None:
         elif key == curses.KEY_NPAGE and right: scroll, follow = min(max_scroll, scroll + visible), scroll + visible >= max_scroll
         elif key == ord("g") and focus == "detail": scroll, follow = 0, False
         elif key == ord("G") and focus == "detail": scroll, follow = max_scroll, True
+        elif key == curses.KEY_MOUSE:
+            try:
+                _, mouse_x, mouse_y, _, mouse_state = curses.getmouse()
+                if mouse_state & curses.BUTTON4_PRESSED:
+                    if right and mouse_x > left: focus, scroll, follow = "detail", max(0, scroll - 3), False
+                    elif rows: focus, selected = "list", max(0, selected - 1)
+                elif mouse_state & curses.BUTTON5_PRESSED:
+                    if right and mouse_x > left: focus, scroll, follow = "detail", min(max_scroll, scroll + 3), scroll + 3 >= max_scroll
+                    elif rows: focus, selected = "list", min(len(rows) - 1, selected + 1)
+                elif mouse_state & curses.BUTTON1_CLICKED and 5 <= mouse_y < 5 + visible:
+                    if right and mouse_x > left: focus = "detail"
+                    elif rows:
+                        focus = "list"; selected = min(len(rows) - 1, start + mouse_y - 5)
+            except curses.error:
+                pass
         elif key in (10, 13) and current is not None and view in {"sessions", "agents"}:
             curses.endwin(); subprocess.run(["rmux", "attach-session", "-t", str(current["rmux_session"])]); stdscr.refresh()
         elif key == ord("/"): query, selected = _prompt(stdscr, "Search/filter: "), 0

@@ -18,6 +18,8 @@ Terminal Mode; `Ctrl-b d` detaches without stopping work; `q` exits only AGK.
 - `Shift-Tab`: reverse navigation when a split focus is unavailable.
 - `1..6`, `s`, `,`, `?`: direct navigation without traversing menus.
 - `PageUp/PageDown`, `g/G`: scroll history and return to live follow.
+- Mouse wheel/trackpad: move the list or the panel under the pointer; clicking
+  establishes focus. Native selection/copy remains owned by RMUX in Terminal Mode.
 - `/`: structured filtering; `Ctrl-p`: quick switcher and command palette.
 
 The focus chord is reset by view changes and Escape. Destructive actions remain
