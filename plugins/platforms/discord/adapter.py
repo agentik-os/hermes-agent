@@ -3311,11 +3311,13 @@ class DiscordAdapter(BasePlatformAdapter):
                 "panel": 1,
                 "account": 2,
                 "model": 3,
+                "usage": 4,
             }
             core_names = {
                 "help", "status", "new", "stop", "resume", "sessions", "model",
                 "sethome", "clear", "undo", "approve", "deny", "queue",
                 "background", "context", "skills", "mcp", "restart", "version", "account", "panel",
+                "usage",
             }
             desired_payloads.sort(key=lambda item: (
                 core_priority.get(str(item.get("name", "")).lower(), 10)
@@ -6515,9 +6517,19 @@ class DiscordAdapter(BasePlatformAdapter):
         async def slash_resume(interaction: discord.Interaction, name: str = ""):
             await self._run_simple_slash(interaction, f"/resume {name}".strip())
 
-        @tree.command(name="usage", description="Show token usage for this session")
-        async def slash_usage(interaction: discord.Interaction):
-            await self._run_simple_slash(interaction, "/usage")
+        @tree.command(name="usage", description="Show session tokens and account limits")
+        @discord.app_commands.describe(
+            args="Optional legacy action, such as reset or reset --force",
+        )
+        async def slash_usage(interaction: discord.Interaction, args: str = ""):
+            normalized_args = str(args or "").strip()
+            if not normalized_args:
+                await self._send_usage_panel_interaction(interaction)
+                return
+            await self._run_simple_slash(
+                interaction,
+                f"/usage {normalized_args}",
+            )
 
         @tree.command(name="help", description="Show available commands")
         async def slash_help(interaction: discord.Interaction):
@@ -8379,6 +8391,14 @@ class DiscordAdapter(BasePlatformAdapter):
             return SendResult(success=True, message_id=str(msg.id))
         except Exception as e:
             return SendResult(success=False, error=str(e))
+
+    async def _send_usage_panel_interaction(
+        self,
+        interaction: "discord.Interaction",
+    ) -> None:
+        from .usage_panel import send_usage_panel_interaction
+
+        await send_usage_panel_interaction(self, interaction)
 
     async def _send_account_picker_interaction(
         self,

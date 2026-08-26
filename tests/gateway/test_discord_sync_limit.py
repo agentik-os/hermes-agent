@@ -216,6 +216,27 @@ async def test_budget_convergence_prioritizes_account_switcher(adapter):
 
 
 @pytest.mark.asyncio
+async def test_budget_convergence_prioritizes_usage_panel(adapter):
+    """The native usage panel survives a constrained Discord command budget."""
+    existing = [SimpleNamespace(id=f"old-{i}", name=f"old-{i}", type=1) for i in range(2)]
+    desired = [_FakeTreeCommand(name) for name in ("help", "other", "usage")]
+    adapter._client.tree.fetch_commands = AsyncMock(return_value=existing)
+    adapter._client.tree.get_commands = MagicMock(return_value=desired)
+
+    with (
+        patch("hermes_cli.commands._iter_plugin_command_entries", return_value=[]),
+        patch("hermes_cli.plugins.get_plugin_commands", return_value={}),
+    ):
+        await adapter._safe_sync_slash_commands()
+
+    installed = {
+        call.args[-1]["name"]
+        for call in adapter._client.http.edit_global_command.await_args_list
+    }
+    assert installed == {"help", "usage"}
+
+
+@pytest.mark.asyncio
 async def test_budget_convergence_prioritizes_control_center_commands(adapter):
     existing = [SimpleNamespace(id=f"old-{i}", name=f"old-{i}", type=1) for i in range(4)]
     desired = [_FakeTreeCommand(name) for name in (

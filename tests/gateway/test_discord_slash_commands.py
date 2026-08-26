@@ -177,6 +177,27 @@ async def test_account_panel_is_ephemeral_and_lists_redacted_accounts(adapter, m
     assert len(kwargs["view"].children) == 3
 
 
+@pytest.mark.asyncio
+async def test_usage_registration_routes_empty_to_panel_and_args_to_legacy(adapter):
+    adapter._run_simple_slash = AsyncMock()
+    adapter._send_usage_panel_interaction = AsyncMock()
+    adapter._register_slash_commands()
+
+    command = adapter._client.tree.commands["usage"]
+    interaction = SimpleNamespace()
+
+    await command(interaction, args="")
+    adapter._send_usage_panel_interaction.assert_awaited_once_with(interaction)
+    adapter._run_simple_slash.assert_not_awaited()
+
+    adapter._send_usage_panel_interaction.reset_mock()
+    await command(interaction, args="reset --force")
+    adapter._run_simple_slash.assert_awaited_once_with(
+        interaction, "/usage reset --force"
+    )
+    adapter._send_usage_panel_interaction.assert_not_awaited()
+
+
 # ------------------------------------------------------------------
 # /thread slash command registration
 # ------------------------------------------------------------------
