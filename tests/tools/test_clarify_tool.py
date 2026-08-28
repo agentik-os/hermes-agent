@@ -670,3 +670,26 @@ class TestRegistryBatchPassThrough:
         ))
         assert seen["questions"][0]["question"] == "Go?"
         assert result["responses"][0]["user_response"] == "yes"
+
+
+class TestClarifyQuestionContract:
+    """The model-facing contract must produce one autonomous question surface."""
+
+    def test_schema_requires_self_contained_context_without_prose_duplicate(self):
+        question_contracts = [
+            CLARIFY_SCHEMA["parameters"]["properties"]["question"]["description"],
+            CLARIFY_SCHEMA["parameters"]["properties"]["questions"]["items"]
+            ["properties"]["question"]["description"],
+        ]
+        contract = CLARIFY_SCHEMA["description"].lower()
+
+        assert "sole visible question" in contract
+        assert "do not repeat" in contract
+        for question_contract in question_contracts:
+            normalized = question_contract.lower()
+            assert "self-contained" in normalized
+            assert "context" in normalized
+            assert "decision" in normalized
+            assert "target" in normalized
+            assert "consequence" in normalized
+            assert "do not repeat" in normalized

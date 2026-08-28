@@ -224,14 +224,67 @@ class TestDiscordSendClarify:
 
         assert result.success is True
         assert result.message_id == "123456"
-        # Verify channel.send was called with embed + view kwargs
+        # One plain-content question surface with the interactive view.
         channel.send.assert_called_once()
         kwargs = channel.send.call_args.kwargs
-        assert "embed" in kwargs
+        assert "embed" not in kwargs
+        assert kwargs["content"].count("Pick a color") == 1
         assert "view" in kwargs
         assert isinstance(kwargs["view"], ClarifyChoiceView)
         # 3 choice buttons + 1 Other
         assert len(kwargs["view"].children) == 4
+
+    @pytest.mark.asyncio
+    async def test_question_is_rendered_once_in_plain_content(self):
+        """The interactive message must not mirror the prompt in an embed."""
+        adapter = _make_adapter(allowed_users={"42"})
+        channel = MagicMock()
+        sent_msg = MagicMock()
+        sent_msg.id = 654321
+        channel.send = AsyncMock(return_value=sent_msg)
+        adapter._client.get_channel = MagicMock(return_value=channel)
+        question = (
+            "Context: GitHub Stars publishes repositories to Collective.\n"
+            "Decision: choose the polling interval.\n"
+            "Which interval should be used?"
+        )
+
+        await adapter.send_clarify(
+            chat_id="9001",
+            question=question,
+            choices=["5 minutes", "15 minutes"],
+            clarify_id="cid-single-surface",
+            session_key="sk-single-surface",
+        )
+
+        kwargs = channel.send.call_args.kwargs
+        assert "embed" not in kwargs
+        assert kwargs["content"].count(question) == 1
+        assert isinstance(kwargs["view"], ClarifyChoiceView)
+
+    @pytest.mark.asyncio
+    async def test_long_question_keeps_action_tail_within_discord_limit(self):
+        adapter = _make_adapter(allowed_users={"42"})
+        channel = MagicMock()
+        sent_msg = MagicMock()
+        sent_msg.id = 777777
+        channel.send = AsyncMock(return_value=sent_msg)
+        adapter._client.get_channel = MagicMock(return_value=channel)
+
+        await adapter.send_clarify(
+            chat_id="9001",
+            question="😀" * 3000,
+            choices=["Proceed", "Stop"],
+            clarify_id="cid-bounded",
+            session_key="sk-bounded",
+        )
+
+        content = channel.send.call_args.kwargs["content"]
+        assert utf16_len(content) <= adapter.MAX_MESSAGE_LENGTH
+        assert "... [truncated]" in content
+        assert content.endswith(
+            "Pick one below, or click ✏️ Other to type a custom answer."
+        )
 
     @pytest.mark.asyncio
     async def test_open_ended_omits_view(self):
@@ -253,8 +306,8 @@ class TestDiscordSendClarify:
         assert result.success is True
         channel.send.assert_called_once()
         kwargs = channel.send.call_args.kwargs
-        # Open-ended path renders embed but no view (text-capture handles reply)
-        assert "embed" in kwargs
+        # Open-ended path stays one plain-text surface; text capture handles reply.
+        assert "embed" not in kwargs
         assert "view" not in kwargs
 
 
