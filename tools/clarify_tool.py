@@ -438,7 +438,11 @@ CLARIFY_SCHEMA = {
     "name": "clarify",
     "description": (
         "Ask the user a question when you need clarification, feedback, or a "
-        "decision before proceeding. Supports three modes:\n\n"
+        "decision before proceeding. The interactive form is the sole visible question. "
+        "Make it self-contained: include the necessary context, what decision is needed, "
+        "the exact target or scope, and the material consequences or trade-offs. Do not "
+        "repeat the question in assistant prose immediately before calling this tool; put "
+        "that context in the question instead. Supports three modes:\n\n"
         "1. **Single-select multiple choice** — provide up to 4 choices. The user picks one "
         "or types their own answer via a 5th 'Other' option. List the choice you recommend "
         "FIRST: the UI labels it '(Recommended)' and highlights it by default.\n"
@@ -472,9 +476,11 @@ CLARIFY_SCHEMA = {
             "question": {
                 "type": "string",
                 "description": (
-                    "The question itself, and ONLY the question (e.g. 'Which "
-                    "deployment target?'). Do NOT embed the answer options here "
-                    "— pass them as separate elements in `choices`."
+                    "The sole visible, self-contained question. Include enough context to "
+                    "identify the decision, exact target or scope, and material consequence "
+                    "without requiring the preceding transcript. Do not repeat it in a "
+                    "separate assistant message. Do NOT embed the answer options here — pass "
+                    "them as separate elements in `choices`."
                 ),
             },
             "choices": {
@@ -529,7 +535,15 @@ CLARIFY_SCHEMA = {
                                 "matching response (e.g. 'approach')."
                             ),
                         },
-                        "question": {"type": "string"},
+                        "question": {
+                            "type": "string",
+                            "description": (
+                                "The sole visible, self-contained question. Include enough "
+                                "context to identify the decision, exact target or scope, and "
+                                "material consequence without requiring the preceding transcript. "
+                                "Do not repeat it in a separate assistant message."
+                            ),
+                        },
                         "choices": {
                             "type": "array",
                             "items": {"type": "string"},
