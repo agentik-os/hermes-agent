@@ -618,8 +618,13 @@ async def test_session_hygiene_timeout_continues_to_agent_and_sets_cooldown(monk
     _cd_args = fake_db.record_compression_failure_cooldown.call_args[0]
     assert _cd_args[0] == "sess-timeout"
     assert _cd_args[1] > time.time()
-    timeout_warnings = [s for s in adapter.sent if "Context compression timed out" in s["content"]]
+    timeout_warnings = [
+        s for s in adapter.sent
+        if "Context compression is temporarily unavailable" in s["content"]
+    ]
     assert len(timeout_warnings) == 1
+    assert "continuing the task" in timeout_warnings[0]["content"]
+    assert "repeated notices for this incident are suppressed" in timeout_warnings[0]["content"]
     fake_db.archive_and_compact.assert_not_called()
     SlowCompressAgent.last_instance.close.assert_not_called()
 

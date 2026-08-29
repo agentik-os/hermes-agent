@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import pytest
 
+import gateway.run as gateway_run
 from gateway.run import (
     _HYGIENE_COOLDOWN_LADDER_MULTIPLIERS,
     _hygiene_cooldown_for_failure,
@@ -69,6 +70,63 @@ def test_streak_survives_turn_and_conversation_resets():
     state.turn = type(state.turn)()
     state.conversation = type(state.conversation)()
     assert state.persistent.hygiene_failure_streak == 1
+
+
+def test_timeout_notice_uses_atomic_persisted_streak_when_hot_state_is_unreadable():
+    """A persisted repeat must stay silent even when the hot session state fails."""
+    class _DB:
+        def __init__(self):
+            self.calls = 0
+
+        def increment_hygiene_failure_streak(self, session_key):
+            self.calls += 1
+            return 2
+
+    class _NoHotState:
+        _session_db = _DB()
+
+        def _session_state(self, session_key):
+            raise RuntimeError("hot state unavailable")
+
+    decision = gateway_run._hygiene_failure_decision(_NoHotState(), KEY, BASE)
+    assert decision.streak == 2
+    assert decision.cooldown_seconds == BASE * 3
+    assert decision.notify_user is False
+    assert _NoHotState._session_db.calls == 1
+
+
+def test_timeout_notice_sequence_is_first_silent_repeat_then_new_incident():
+    """The atomic decision notifies once, suppresses repeat, then resets."""
+    class _DB:
+        def __init__(self):
+            self.streak = 0
+
+        def increment_hygiene_failure_streak(self, session_key):
+            self.streak += 1
+            return self.streak
+
+        def reset_hygiene_failure_streak(self, session_key):
+            self.streak = 0
+
+    class _NoHotState:
+        def __init__(self):
+            self._session_db = _DB()
+
+        def _session_state(self, session_key):
+            raise RuntimeError("hot state unavailable")
+
+        def _peek_session_state(self, session_key):
+            return None
+
+    runner = _NoHotState()
+    first = gateway_run._hygiene_failure_decision(runner, KEY, BASE)
+    repeat = gateway_run._hygiene_failure_decision(runner, KEY, BASE)
+    _reset_hygiene_failure_streak(runner, KEY)
+    recovered = gateway_run._hygiene_failure_decision(runner, KEY, BASE)
+
+    assert (first.streak, first.notify_user) == (1, True)
+    assert (repeat.streak, repeat.notify_user) == (2, False)
+    assert (recovered.streak, recovered.notify_user) == (1, True)
 
 
 # ---------------------------------------------------------------------------

@@ -160,12 +160,19 @@ _HYGIENE_COOLDOWN_LADDER_MULTIPLIERS = (1, 3, 9)
 _HYGIENE_COOLDOWN_MAX_SECONDS = 3600.0
 
 
-def _hygiene_cooldown_for_failure(
+@dataclasses.dataclass(frozen=True)
+class _HygieneFailureDecision:
+    cooldown_seconds: float
+    streak: int
+    notify_user: bool
+
+
+def _hygiene_failure_decision(
     gateway,
     session_key: str,
     base_cooldown_seconds: float,
-) -> float:
-    """Bump the hygiene failure streak and return the escalated cooldown.
+) -> _HygieneFailureDecision:
+    """Atomically bump the failure streak and derive cooldown + notification.
 
     This is a MULTIPLIER ladder (x1, x3, x9) over the operator's configured
     ``hygiene_failure_cooldown_seconds``, clamped to
@@ -208,7 +215,28 @@ def _hygiene_cooldown_for_failure(
     multiplier = _HYGIENE_COOLDOWN_LADDER_MULTIPLIERS[
         min(streak, len(_HYGIENE_COOLDOWN_LADDER_MULTIPLIERS)) - 1
     ]
-    return min(base_cooldown_seconds * multiplier, _HYGIENE_COOLDOWN_MAX_SECONDS)
+    cooldown_seconds = min(
+        base_cooldown_seconds * multiplier,
+        _HYGIENE_COOLDOWN_MAX_SECONDS,
+    )
+    return _HygieneFailureDecision(
+        cooldown_seconds=cooldown_seconds,
+        streak=streak,
+        notify_user=streak == 1,
+    )
+
+
+def _hygiene_cooldown_for_failure(
+    gateway,
+    session_key: str,
+    base_cooldown_seconds: float,
+) -> float:
+    """Compatibility wrapper returning only the escalated cooldown."""
+    return _hygiene_failure_decision(
+        gateway,
+        session_key,
+        base_cooldown_seconds,
+    ).cooldown_seconds
 
 
 def _reset_hygiene_failure_streak(gateway, session_key: str) -> None:
@@ -19495,6 +19523,7 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
                                                     continue
                                                 raise
                                     except asyncio.TimeoutError:
+                                        _notify_hygiene_timeout = True
                                         _cancelled = None
                                         while _cancelled is None:
                                             # #76354 F1: a hung commit retains the
@@ -19536,11 +19565,15 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
                                             )
                                             _hyg_cleanup_deferred = True
                                             if _hyg_failure_cooldown_seconds >= 0:
-                                                _hyg_cooldown = await asyncio.to_thread(
-                                                    _hygiene_cooldown_for_failure,
+                                                _hyg_failure = await asyncio.to_thread(
+                                                    _hygiene_failure_decision,
                                                     self,
                                                     session_key,
                                                     _hyg_failure_cooldown_seconds,
+                                                )
+                                                _hyg_cooldown = _hyg_failure.cooldown_seconds
+                                                _notify_hygiene_timeout = (
+                                                    _hyg_failure.notify_user
                                                 )
                                                 _record_hygiene_cooldown(
                                                     self, session_entry.session_id,
@@ -19570,28 +19603,28 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
                                                 _hyg_total_ceiling_seconds,
                                             )
                                             _timeout_msg = (
-                                                "⚠️ Context compression timed out "
-                                                f"after {_hyg_timeout_seconds:.1f}s "
-                                                "with no output from the summary model. "
-                                                "No messages were dropped — continuing without "
-                                                "compression. Run /compress to retry, /reset for "
-                                                "a clean session, or check your "
-                                                "auxiliary.compression model configuration."
+                                                "⚠️ Context compression is temporarily unavailable "
+                                                f"for this session (no summary output after "
+                                                f"{_hyg_timeout_seconds:.1f}s). No messages were "
+                                                "dropped. I’m continuing the task and will retry "
+                                                "automatically after cooldown; repeated notices for "
+                                                "this incident are suppressed."
                                             )
-                                            try:
-                                                _adapter = self._adapter_for_source(source)
-                                                if _adapter and source.chat_id:
-                                                    await _adapter.send(
-                                                        source.chat_id,
-                                                        _timeout_msg,
-                                                        metadata=_hyg_meta,
+                                            if _notify_hygiene_timeout:
+                                                try:
+                                                    _adapter = self._adapter_for_source(source)
+                                                    if _adapter and source.chat_id:
+                                                        await _adapter.send(
+                                                            source.chat_id,
+                                                            _timeout_msg,
+                                                            metadata=_hyg_meta,
+                                                        )
+                                                except Exception as _werr:
+                                                    logger.warning(
+                                                        "Failed to deliver compression-timeout "
+                                                        "warning to user: %s",
+                                                        _werr,
                                                     )
-                                            except Exception as _werr:
-                                                logger.warning(
-                                                    "Failed to deliver compression-timeout "
-                                                    "warning to user: %s",
-                                                    _werr,
-                                                )
                                             raise
                                     except BaseException:
                                         # #76354 F2: non-timeout unwind while the
