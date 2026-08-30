@@ -27,7 +27,15 @@ import type { DesktopTheme } from './types'
 export const $backendThemes = atom<Record<string, DesktopTheme>>({})
 
 /** One-shot skin name the ThemeProvider should switch to (it clears this). */
-export const $pendingSkinApply = atom<string | null>(null)
+export interface PendingDefaultSkinApply {
+  kind: 'default'
+  name: string
+  profile: string
+}
+
+export type PendingSkinApply = PendingDefaultSkinApply | string | null
+
+export const $pendingSkinApply = atom<PendingSkinApply>(null)
 
 // Last skin name synced from the backend + whether it was ever APPLIED (vs
 // merely seeded at connect). Once applied, only a name change applies again —

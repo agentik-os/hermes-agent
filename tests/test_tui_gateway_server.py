@@ -1561,6 +1561,1134 @@ def test_system_battery_fails_open(monkeypatch):
     assert resp["result"]["percent"] is None
 
 
+def test_system_resources_runs_off_socket_reader_thread():
+    assert "system.resources" in server._LONG_HANDLERS
+
+
+def test_system_resources_returns_host_snapshot(monkeypatch):
+    monkeypatch.setitem(sys.modules, "socket", types.SimpleNamespace(gethostname=lambda: "station"))
+    monkeypatch.setattr(server.time, "time", lambda: 1_000.0)
+    monkeypatch.setitem(
+        sys.modules,
+        "psutil",
+        types.SimpleNamespace(
+            boot_time=lambda: 100.0,
+            cpu_percent=lambda interval=None: 12.5,
+            disk_usage=lambda _path: types.SimpleNamespace(total=1_000, used=400, percent=40.0),
+            virtual_memory=lambda: types.SimpleNamespace(total=2_000, available=1_500, percent=25.0),
+        ),
+    )
+
+    resp = _dispatch_sync({"id": "r1", "method": "system.resources", "params": {}})
+
+    assert resp is not None
+    assert resp["result"] == {
+        "available": True,
+        "hostname": "station",
+        "platform": server.sys.platform,
+        "cpu_percent": 12.5,
+        "memory": {"total": 2_000, "used": 500, "percent": 25.0},
+        "disk": {"total": 1_000, "used": 400, "percent": 40.0},
+        "uptime_seconds": 900,
+    }
+
+
+def test_system_resources_fails_open(monkeypatch):
+    monkeypatch.setitem(sys.modules, "psutil", None)
+
+    resp = _dispatch_sync({"id": "r2", "method": "system.resources", "params": {}})
+
+    assert resp is not None
+    assert resp["result"]["available"] is False
+    assert resp["result"]["cpu_percent"] is None
+    assert resp["result"]["memory"] is None
+    assert resp["result"]["disk"] is None
+
+
+def test_account_usage_runs_off_socket_reader_thread():
+    assert "account.usage" in server._LONG_HANDLERS
+
+
+def test_auth_accounts_runs_off_socket_reader_thread():
+    assert "auth.accounts" in server._LONG_HANDLERS
+
+
+def test_auth_accounts_list_uses_requested_profile_scope(monkeypatch, tmp_path):
+    profile_home = tmp_path / "profiles" / "work"
+    profile_home.mkdir(parents=True)
+    seen_homes = []
+
+    class Pool:
+        def entries(self):
+            return []
+
+    def load_pool(_provider):
+        from hermes_constants import get_hermes_home
+
+        seen_homes.append(get_hermes_home())
+        return Pool()
+
+    monkeypatch.setattr(
+        server,
+        "_profile_home",
+        lambda profile: profile_home if profile == "work" else None,
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "agent.credential_pool",
+        types.SimpleNamespace(load_pool=load_pool),
+    )
+
+    response = _dispatch_sync(
+        {
+            "id": "profile-accounts",
+            "method": "auth.accounts",
+            "params": {
+                "action": "list",
+                "provider": "openai-codex",
+                "profile": "work",
+            },
+        }
+    )
+
+    assert response is not None
+    assert response["result"]["accounts"] == []
+    assert seen_homes == [profile_home]
+
+
+def test_auth_accounts_quota_workers_inherit_requested_profile_context(
+    monkeypatch, tmp_path
+):
+    profile_home = tmp_path / "profiles" / "work"
+    profile_home.mkdir(parents=True)
+    entries = [
+        types.SimpleNamespace(
+            id=f"account-{index}",
+            label=f"Account {index}",
+            auth_type="api_key",
+            priority=index,
+            source="manual:api_key",
+            last_status="ok",
+            last_error_reason=None,
+            runtime_api_key=f"openrouter-secret-{index}",
+            runtime_base_url=f"https://example.test/{index}",
+        )
+        for index in range(2)
+    ]
+    barrier = threading.Barrier(len(entries))
+    seen = []
+    seen_lock = threading.Lock()
+
+    class Pool:
+        def entries(self):
+            return list(entries)
+
+    def fetch_account_usage(provider, base_url=None, api_key=None):
+        barrier.wait(timeout=2)
+        from hermes_constants import get_hermes_home
+
+        with seen_lock:
+            seen.append((get_hermes_home(), threading.get_ident(), api_key))
+        return types.SimpleNamespace(provider=provider, base_url=base_url)
+
+    monkeypatch.setattr(
+        server,
+        "_profile_home",
+        lambda profile: profile_home if profile == "work" else None,
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "agent.credential_pool",
+        types.SimpleNamespace(load_pool=lambda _provider: Pool()),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "agent.account_usage",
+        types.SimpleNamespace(
+            fetch_account_usage=fetch_account_usage,
+            account_usage_to_dict=lambda snapshot: {
+                "available": True,
+                "provider": snapshot.provider,
+                "windows": [],
+                "details": [],
+            },
+        ),
+    )
+
+    response = _dispatch_sync(
+        {
+            "id": "profile-quota-workers",
+            "method": "auth.accounts",
+            "params": {
+                "action": "list",
+                "provider": "openrouter",
+                "profile": "work",
+            },
+        }
+    )
+
+    assert response is not None
+    assert len(seen) == len(entries)
+    assert {home for home, _thread_id, _api_key in seen} == {profile_home}
+    assert len({thread_id for _home, thread_id, _api_key in seen}) == len(entries)
+    assert all(
+        account["usage"]["available"]
+        for account in response["result"]["accounts"]
+    )
+    assert "openrouter-secret" not in str(response["result"])
+
+
+@pytest.mark.parametrize(
+    "profile",
+    ("../..", "missing-profile-for-scope-test-7f3a"),
+)
+def test_auth_accounts_profile_scope_fails_closed(profile, monkeypatch):
+    load_pool = Mock()
+    monkeypatch.setitem(
+        sys.modules,
+        "agent.credential_pool",
+        types.SimpleNamespace(load_pool=load_pool),
+    )
+
+    response = _dispatch_sync(
+        {
+            "id": "invalid-profile-accounts",
+            "method": "auth.accounts",
+            "params": {
+                "action": "list",
+                "provider": "openai-codex",
+                "profile": profile,
+            },
+        }
+    )
+
+    assert response is not None
+    assert response["error"] == {
+        "code": 4064,
+        "message": "profile not found or invalid",
+    }
+    load_pool.assert_not_called()
+    assert server._profile_home(profile) is None
+
+
+def test_account_usage_returns_redacted_runtime_snapshot(monkeypatch):
+    calls = {}
+    monkeypatch.setitem(
+        sys.modules,
+        "hermes_cli.runtime_provider",
+        types.SimpleNamespace(
+            resolve_runtime_provider=lambda requested=None: {
+                "provider": requested or "openai-codex",
+                "base_url": "https://example.test",
+                "api_key": "secret-never-returned",
+            }
+        ),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "agent.account_usage",
+        types.SimpleNamespace(
+            fetch_account_usage=lambda provider, base_url=None, api_key=None: calls.update(
+                provider=provider, base_url=base_url, api_key=api_key
+            )
+            or object(),
+            account_usage_to_dict=lambda _snapshot: {
+                "available": True,
+                "provider": "openai-codex",
+                "source": "credential_pool",
+                "windows": [{"label": "Session", "remaining_percent": 82.0}],
+            },
+        ),
+    )
+
+    resp = _dispatch_sync(
+        {"id": "u1", "method": "account.usage", "params": {"provider": "openai-codex"}}
+    )
+
+    assert resp is not None
+    assert resp["result"]["windows"][0]["remaining_percent"] == 82.0
+    assert "api_key" not in resp["result"]
+    assert calls == {
+        "provider": "openai-codex",
+        "base_url": "https://example.test",
+        "api_key": "secret-never-returned",
+    }
+
+
+def test_account_usage_fails_open(monkeypatch):
+    monkeypatch.setitem(
+        sys.modules,
+        "hermes_cli.runtime_provider",
+        types.SimpleNamespace(resolve_runtime_provider=lambda requested=None: (_ for _ in ()).throw(RuntimeError("offline"))),
+    )
+
+    resp = _dispatch_sync({"id": "u2", "method": "account.usage", "params": {}})
+
+    assert resp is not None
+    assert resp["result"] == {
+        "available": False,
+        "provider": None,
+        "windows": [],
+        "details": [],
+        "unavailable_reason": "usage_unavailable",
+    }
+
+
+def test_auth_accounts_lists_redacted_entries_and_persists_eligible_preference(monkeypatch):
+    usage_calls = []
+    entries = [
+        types.SimpleNamespace(
+            id="work",
+            label="Work",
+            auth_type="oauth",
+            priority=0,
+            source="manual:device_code",
+            last_status="ok",
+            last_error_reason=None,
+            runtime_api_key="secret-work-token",
+            runtime_base_url="https://example.test/work",
+        ),
+        types.SimpleNamespace(
+            id="personal",
+            label="Personal",
+            auth_type="oauth",
+            priority=1,
+            source="manual:device_code",
+            last_status="ok",
+            last_error_reason=None,
+            runtime_api_key="secret-personal-token",
+            runtime_base_url="https://example.test/personal",
+        ),
+        types.SimpleNamespace(
+            id="empty",
+            label="Empty",
+            auth_type="oauth",
+            priority=2,
+            source="manual:device_code",
+            last_status="ok",
+            last_error_reason=None,
+            runtime_api_key="",
+            runtime_base_url=None,
+        ),
+    ]
+
+    def prefer_eligible(_provider, credential_id):
+        if credential_id == "missing":
+            return "missing"
+        if credential_id != "personal":
+            return "unavailable"
+        selected = next((entry for entry in entries if entry.id == credential_id), None)
+        if selected is None:
+            return "missing"
+        entries.remove(selected)
+        entries.insert(0, selected)
+        for index, entry in enumerate(entries):
+            entry.priority = index
+        return "saved"
+
+    monkeypatch.setattr(
+        "hermes_cli.auth.prefer_eligible_credential",
+        prefer_eligible,
+    )
+
+    class Pool:
+        def entries(self):
+            return list(entries)
+
+        def eligible_by_id(self, credential_id):
+            return next(
+                (entry for entry in entries if entry.id == credential_id),
+                None,
+            )
+
+    monkeypatch.setitem(
+        sys.modules,
+        "agent.credential_pool",
+        types.SimpleNamespace(load_pool=lambda provider: Pool()),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "agent.account_usage",
+        types.SimpleNamespace(
+            fetch_account_usage=lambda provider, base_url=None, api_key=None: usage_calls.append(
+                {"provider": provider, "base_url": base_url, "api_key": api_key}
+            )
+            or types.SimpleNamespace(token=api_key),
+            account_usage_to_dict=lambda snapshot: {
+                "available": True,
+                "provider": "openai-codex",
+                "plan": "Pro",
+                "windows": [
+                    {
+                        "label": "Weekly",
+                        "used_percent": 25.0 if snapshot.token == "secret-work-token" else 100.0,
+                        "remaining_percent": 75.0 if snapshot.token == "secret-work-token" else 0.0,
+                        "reset_at": None,
+                    }
+                ],
+                "details": [],
+            },
+        ),
+    )
+
+    listed = _dispatch_sync(
+        {"id": "a1", "method": "auth.accounts", "params": {"action": "list", "provider": "openai-codex"}}
+    )
+    switched = _dispatch_sync(
+        {
+            "id": "a2",
+            "method": "auth.accounts",
+            "params": {"action": "use", "provider": "openai-codex", "credential_id": "personal"},
+        }
+    )
+
+    assert listed is not None and switched is not None
+    assert listed["result"]["accounts"][0] == {
+        "id": "work",
+        "label": "Work",
+        "auth_type": "oauth",
+        "priority": 0,
+        "source": "manual:device_code",
+        "status": "ok",
+        "error_reason": None,
+        "preferred": True,
+        "active": False,
+        "usage": {
+            "available": True,
+            "provider": "openai-codex",
+            "plan": "Pro",
+            "windows": [
+                {
+                    "label": "Weekly",
+                    "used_percent": 25.0,
+                    "remaining_percent": 75.0,
+                    "reset_at": None,
+                }
+            ],
+            "details": [],
+        },
+    }
+    assert "access_token" not in str(listed["result"])
+    assert "secret-work-token" not in str(listed["result"])
+    assert "secret-personal-token" not in str(listed["result"])
+    assert sorted(call["base_url"] for call in usage_calls) == [
+        "https://example.test/personal",
+        "https://example.test/work",
+    ]
+    assert listed["result"]["accounts"][2]["usage"] == {
+        "available": False,
+        "provider": "openai-codex",
+        "windows": [],
+        "details": [],
+        "unavailable_reason": "credential_unavailable",
+    }
+    assert switched["result"]["accounts"][0]["id"] == "personal"
+    assert switched["result"]["accounts"][0]["preferred"] is True
+
+
+def test_auth_accounts_distinguishes_preferred_from_focused_session_active(
+    monkeypatch,
+):
+    preferred = types.SimpleNamespace(
+        id="preferred-exhausted",
+        label="Preferred exhausted",
+        auth_type="oauth",
+        priority=0,
+        source="manual:device_code",
+        last_status="exhausted",
+        last_error_reason="usage_limit_reached",
+        runtime_api_key="",
+        runtime_base_url=None,
+    )
+    active = types.SimpleNamespace(
+        id="active-fallback",
+        label="Active fallback",
+        auth_type="oauth",
+        priority=1,
+        source="manual:device_code",
+        last_status="ok",
+        last_error_reason=None,
+        runtime_api_key="",
+        runtime_base_url=None,
+    )
+
+    class Pool:
+        def entries(self):
+            return [preferred, active]
+
+        def entry_id_for_api_key(self, api_key):
+            return active.id if api_key == "active-runtime-token" else None
+
+        def current(self):
+            return preferred
+
+    pool = Pool()
+    session = {
+        "agent": types.SimpleNamespace(
+            provider="openai-codex",
+            api_key="active-runtime-token",
+            _credential_pool=pool,
+        )
+    }
+    monkeypatch.setattr(server, "_sess", lambda _params, _rid: (session, None))
+    import agent.credential_pool as credential_pool_mod
+
+    monkeypatch.setattr(credential_pool_mod, "load_pool", lambda _provider: pool)
+
+    response = _dispatch_sync(
+        {
+            "id": "a-active",
+            "method": "auth.accounts",
+            "params": {
+                "action": "list",
+                "provider": "openai-codex",
+                "session_id": "focused-session",
+            },
+        }
+    )
+
+    assert response is not None
+    accounts = {row["id"]: row for row in response["result"]["accounts"]}
+    assert accounts[preferred.id]["preferred"] is True
+    assert accounts[preferred.id]["active"] is False
+    assert accounts[active.id]["preferred"] is False
+    assert accounts[active.id]["active"] is True
+
+
+def test_auth_accounts_list_uses_focused_session_profile_for_same_id_collision(
+    monkeypatch, tmp_path
+):
+    session_entry = types.SimpleNamespace(
+        id="same",
+        label="Session A account",
+        auth_type="oauth",
+        priority=0,
+        source="manual:device_code",
+        last_status="ok",
+        last_error_reason=None,
+        runtime_api_key="",
+        runtime_base_url=None,
+    )
+    request_entry = types.SimpleNamespace(
+        **{**vars(session_entry), "label": "Request B account"}
+    )
+
+    class Pool:
+        def __init__(self, entry):
+            self.entry = entry
+
+        def entries(self):
+            return [self.entry]
+
+        def current(self):
+            return self.entry
+
+        def entry_id_for_api_key(self, _api_key):
+            return self.entry.id
+
+    session_pool = Pool(session_entry)
+    request_pool = Pool(request_entry)
+    profile_home = tmp_path / "profiles" / "session-a"
+    profile_home.mkdir(parents=True)
+    session = {
+        "agent": types.SimpleNamespace(
+            provider="openai-codex",
+            api_key=None,
+            _credential_pool=session_pool,
+        ),
+        "profile_home": str(profile_home),
+    }
+    monkeypatch.setattr(server, "_sess", lambda _params, _rid: (session, None))
+    observed_homes = []
+    import agent.credential_pool as credential_pool_mod
+
+    def load_scoped_pool(_provider):
+        from hermes_constants import get_hermes_home
+
+        home = get_hermes_home()
+        observed_homes.append(home)
+        return session_pool if home == profile_home else request_pool
+
+    monkeypatch.setattr(credential_pool_mod, "load_pool", load_scoped_pool)
+
+    response = _dispatch_sync(
+        {
+            "id": "a-profile-active",
+            "method": "auth.accounts",
+            "params": {
+                "action": "list",
+                "provider": "openai-codex",
+                "session_id": "focused-session",
+            },
+        }
+    )
+
+    assert response is not None
+    assert response["result"]["accounts"][0]["label"] == "Session A account"
+    assert response["result"]["accounts"][0]["active"] is True
+    assert observed_homes == [profile_home]
+
+
+def test_auth_accounts_refuses_unavailable_credential_without_queueing(monkeypatch):
+    entry = types.SimpleNamespace(
+        id="exhausted",
+        label="Exhausted",
+        auth_type="oauth",
+        priority=0,
+        source="manual:device_code",
+        last_status="exhausted",
+        last_error_reason="rate_limit",
+    )
+
+    class Pool:
+        def entries(self):
+            return [entry]
+
+        def eligible_by_id(self, _credential_id):
+            return None
+
+    session = {
+        "agent": types.SimpleNamespace(provider="openai-codex"),
+        "history_lock": threading.RLock(),
+    }
+    monkeypatch.setattr(server, "_sess", lambda _params, _rid: (session, None))
+    monkeypatch.setattr(
+        "hermes_cli.auth.prefer_eligible_credential",
+        lambda _provider, _credential_id: "unavailable",
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "agent.credential_pool",
+        types.SimpleNamespace(load_pool=lambda _provider: Pool()),
+    )
+
+    response = _dispatch_sync(
+        {
+            "id": "a-unavailable",
+            "method": "auth.accounts",
+            "params": {
+                "action": "use",
+                "provider": "openai-codex",
+                "credential_id": "exhausted",
+                "session_id": "runtime-session",
+            },
+        }
+    )
+
+    assert response is not None
+    assert response["error"] == {
+        "code": 4094,
+        "message": "credential is currently unavailable",
+    }
+    assert "_pending_credential_selection" not in session
+
+
+def test_auth_accounts_rejects_empty_runtime_credential_before_persist(monkeypatch):
+    from agent.credential_pool import CredentialPool, PooledCredential
+
+    entry = PooledCredential(
+        provider="openai-codex",
+        id="empty",
+        label="Empty",
+        auth_type="oauth",
+        priority=0,
+        source="manual:device_code",
+        access_token="",
+        last_status="ok",
+    )
+    pool = CredentialPool("openai-codex", [entry])
+
+    persist = Mock(return_value="saved")
+    monkeypatch.setattr(
+        "hermes_cli.auth.prefer_eligible_credential",
+        persist,
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "agent.credential_pool",
+        types.SimpleNamespace(load_pool=lambda _provider: pool),
+    )
+
+    response = _dispatch_sync(
+        {
+            "id": "a-empty",
+            "method": "auth.accounts",
+            "params": {
+                "action": "use",
+                "provider": "openai-codex",
+                "credential_id": "empty",
+            },
+        }
+    )
+
+    assert response is not None
+    assert response["error"]["code"] == 4094
+    persist.assert_not_called()
+
+
+def test_auth_accounts_queues_matching_live_session_for_next_turn(
+    monkeypatch, tmp_path
+):
+    entry = types.SimpleNamespace(
+        id="chosen",
+        label="Chosen",
+        auth_type="oauth",
+        priority=0,
+        source="manual:device_code",
+        last_status="ok",
+        last_error_reason=None,
+    )
+
+    class Pool:
+        def entries(self):
+            return [entry]
+
+        def eligible_by_id(self, credential_id):
+            return entry if credential_id == entry.id else None
+
+    profile_home = tmp_path / "profiles" / "focused"
+    profile_home.mkdir(parents=True)
+    session = {
+        "agent": types.SimpleNamespace(provider="openai-codex"),
+        "history_lock": threading.RLock(),
+        "profile_home": str(profile_home),
+    }
+    selection_homes = []
+    monkeypatch.setattr(server, "_sess", lambda _params, _rid: (session, None))
+
+    def prefer_eligible(_provider, credential_id):
+        from hermes_constants import get_hermes_home
+
+        selection_homes.append(get_hermes_home())
+        return "saved" if credential_id == "chosen" else "missing"
+
+    monkeypatch.setattr(
+        "hermes_cli.auth.prefer_eligible_credential",
+        prefer_eligible,
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "agent.credential_pool",
+        types.SimpleNamespace(load_pool=lambda _provider: Pool()),
+    )
+
+    response = _dispatch_sync(
+        {
+            "id": "a-live",
+            "method": "auth.accounts",
+            "params": {
+                "action": "use",
+                "provider": "openai-codex",
+                "credential_id": "chosen",
+                "session_id": "runtime-session",
+            },
+        }
+    )
+
+    assert response is not None
+    assert response["result"]["pending_session_id"] == "runtime-session"
+    assert session["_pending_credential_selection"] == {
+        "provider": "openai-codex",
+        "credential_id": "chosen",
+    }
+    assert selection_homes == [profile_home]
+
+
+def test_auth_accounts_latest_overlapping_selection_wins(monkeypatch):
+    entries = [
+        types.SimpleNamespace(
+            id="a",
+            label="A",
+            auth_type="oauth",
+            priority=0,
+            source="manual",
+            last_status="ok",
+            last_error_reason=None,
+        ),
+        types.SimpleNamespace(
+            id="b",
+            label="B",
+            auth_type="oauth",
+            priority=1,
+            source="manual",
+            last_status="ok",
+            last_error_reason=None,
+        ),
+    ]
+    thread_state = threading.local()
+    a_reload_started = threading.Event()
+    release_a_reload = threading.Event()
+
+    class Pool:
+        def entries(self):
+            return list(entries)
+
+        def eligible_by_id(self, credential_id):
+            return next(
+                (entry for entry in entries if entry.id == credential_id),
+                None,
+            )
+
+    def load_pool(_provider):
+        if (
+            getattr(thread_state, "selected", None) == "a"
+            and not getattr(thread_state, "blocked", False)
+        ):
+            thread_state.blocked = True
+            a_reload_started.set()
+            assert release_a_reload.wait(timeout=2)
+        return Pool()
+
+    def prefer_eligible(_provider, credential_id):
+        thread_state.selected = credential_id
+        selected = next(entry for entry in entries if entry.id == credential_id)
+        entries.remove(selected)
+        entries.insert(0, selected)
+        for index, entry in enumerate(entries):
+            entry.priority = index
+        return "saved"
+
+    session = {
+        "agent": types.SimpleNamespace(provider="openai-codex"),
+        "history_lock": threading.RLock(),
+    }
+    monkeypatch.setattr(server, "_sess", lambda _params, _rid: (session, None))
+    monkeypatch.setattr(
+        "hermes_cli.auth.prefer_eligible_credential",
+        prefer_eligible,
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "agent.credential_pool",
+        types.SimpleNamespace(load_pool=load_pool),
+    )
+
+    responses = {}
+
+    def select(credential_id):
+        responses[credential_id] = _dispatch_sync(
+            {
+                "id": f"select-{credential_id}",
+                "method": "auth.accounts",
+                "params": {
+                    "action": "use",
+                    "provider": "openai-codex",
+                    "credential_id": credential_id,
+                    "session_id": "runtime-session",
+                },
+            }
+        )
+
+    first = threading.Thread(target=select, args=("a",))
+    second = threading.Thread(target=select, args=("b",))
+    first.start()
+    assert a_reload_started.wait(timeout=2)
+    second.start()
+    deadline = time.time() + 2
+    while (
+        session.get("_credential_selection_generation") != 2
+        and time.time() < deadline
+    ):
+        time.sleep(0.01)
+    assert session.get("_credential_selection_generation") == 2
+    release_a_reload.set()
+    first.join(timeout=2)
+    second.join(timeout=2)
+
+    assert not first.is_alive()
+    assert not second.is_alive()
+    assert responses["a"]["result"]["superseded"] is True
+    assert "pending_session_id" not in responses["a"]["result"]
+    assert responses["b"]["result"]["pending_session_id"] == "runtime-session"
+    assert session["_pending_credential_selection"]["credential_id"] == "b"
+    assert entries[0].id == "b"
+
+
+def test_auth_accounts_provider_mismatch_saves_global_without_queueing(monkeypatch):
+    entry = types.SimpleNamespace(
+        id="chosen",
+        label="Chosen",
+        auth_type="oauth",
+        priority=0,
+        source="manual:device_code",
+        last_status="ok",
+        last_error_reason=None,
+    )
+
+    class Pool:
+        def entries(self):
+            return [entry]
+
+        def eligible_by_id(self, credential_id):
+            return entry if credential_id == entry.id else None
+
+    session = {
+        "agent": types.SimpleNamespace(provider="anthropic"),
+        "history_lock": threading.RLock(),
+    }
+    saved = []
+    monkeypatch.setattr(server, "_sess", lambda _params, _rid: (session, None))
+    monkeypatch.setattr(
+        "hermes_cli.auth.prefer_eligible_credential",
+        lambda provider, credential_id: (
+            saved.append((provider, credential_id)) or "saved"
+        ),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "agent.credential_pool",
+        types.SimpleNamespace(load_pool=lambda _provider: Pool()),
+    )
+
+    response = _dispatch_sync(
+        {
+            "id": "a-mismatch",
+            "method": "auth.accounts",
+            "params": {
+                "action": "use",
+                "provider": "openai-codex",
+                "credential_id": "chosen",
+                "session_id": "anthropic-session",
+            },
+        }
+    )
+
+    assert response is not None
+    assert saved == [("openai-codex", "chosen")]
+    assert "pending_session_id" not in response["result"]
+    assert "_pending_credential_selection" not in session
+
+
+def test_turn_boundary_applies_exact_available_credential(monkeypatch):
+    entry = types.SimpleNamespace(
+        id="chosen",
+        provider="openai-codex",
+        runtime_api_key="chosen-token",
+    )
+
+    class Pool:
+        def select_by_id(self, credential_id):
+            assert credential_id == "chosen"
+            return entry
+
+    class Agent:
+        provider = "openai-codex"
+        api_key = "old-token"
+        base_url = "https://chatgpt.com/backend-api/codex"
+        _client_kwargs = {"api_key": "old-token", "base_url": base_url}
+        _credential_pool = None
+        _primary_runtime = {
+            "provider": "openai-codex",
+            "api_key": "old-token",
+            "base_url": base_url,
+            "client_kwargs": {"api_key": "old-token", "base_url": base_url},
+        }
+
+        def _swap_credential(self, selected):
+            self.api_key = selected.runtime_api_key
+            self._client_kwargs["api_key"] = selected.runtime_api_key
+
+    pool = Pool()
+    agent = Agent()
+    session = {
+        "agent": agent,
+        "history_lock": threading.RLock(),
+        "_pending_credential_selection": {
+            "provider": "openai-codex",
+            "credential_id": "chosen",
+        },
+    }
+    monkeypatch.setitem(
+        sys.modules,
+        "agent.credential_pool",
+        types.SimpleNamespace(load_pool=lambda _provider: pool),
+    )
+
+    assert server._apply_pending_credential_selection(session) is True
+    assert agent.api_key == "chosen-token"
+    assert agent._credential_pool is pool
+    assert agent._primary_runtime["api_key"] == "chosen-token"
+    assert "_pending_credential_selection" not in session
+
+
+def test_auth_accounts_rejects_unknown_actions():
+    resp = _dispatch_sync(
+        {"id": "a3", "method": "auth.accounts", "params": {"action": "delete", "provider": "anthropic"}}
+    )
+
+    assert resp is not None
+    assert resp["error"]["code"] == 4003
+
+
+def test_auth_oauth_start_and_poll_return_only_public_flow_fields(monkeypatch):
+    sessions = {
+        "flow-1": {
+            "provider": "openai-codex",
+            "status": "pending",
+            "expires_at": 999,
+            "profile": "work",
+            "device_code": "secret-device-code",
+            "access_token": "secret-token",
+        }
+    }
+
+    async def start_device(provider_id, profile=None):
+        assert provider_id == "openai-codex"
+        assert profile == "work"
+        return {
+            "session_id": "flow-1",
+            "flow": "device_code",
+            "user_code": "ABCD-EFGH",
+            "verification_url": "https://auth.example/device",
+            "expires_in": 900,
+            "poll_interval": 5,
+            "device_code": "secret-device-code",
+        }
+
+    fake = types.SimpleNamespace(
+        _OAUTH_PROVIDER_CATALOG=[{"id": "openai-codex", "flow": "device_code"}],
+        _oauth_sessions=sessions,
+        _oauth_sessions_lock=threading.Lock(),
+        _gc_oauth_sessions=lambda: None,
+        _validate_oauth_profile=lambda profile: None,
+        _start_device_code_flow=start_device,
+    )
+    monkeypatch.setitem(sys.modules, "hermes_cli.web_server", fake)
+
+    started = _dispatch_sync(
+        {
+            "id": "o1",
+            "method": "auth.oauth.start",
+            "params": {"provider": "openai-codex", "profile": "work"},
+        }
+    )
+    polled = _dispatch_sync(
+        {
+            "id": "o2",
+            "method": "auth.oauth.poll",
+            "params": {"provider": "openai-codex", "profile": "work", "session_id": "flow-1"},
+        }
+    )
+
+    assert started is not None and polled is not None
+    assert started["result"] == {
+        "session_id": "flow-1",
+        "flow": "device_code",
+        "user_code": "ABCD-EFGH",
+        "verification_url": "https://auth.example/device",
+        "expires_in": 900,
+        "poll_interval": 5,
+    }
+    assert polled["result"] == {
+        "session_id": "flow-1",
+        "status": "pending",
+        "expires_at": 999,
+        "error_code": None,
+    }
+    assert "secret" not in str(started["result"])
+    assert "secret" not in str(polled["result"])
+
+
+def test_auth_oauth_start_rejects_profile_directory_symlink(
+    monkeypatch, tmp_path
+):
+    from hermes_cli import profiles, web_server
+
+    profiles_root = tmp_path / "profiles"
+    profiles_root.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (profiles_root / "work").symlink_to(outside, target_is_directory=True)
+    monkeypatch.setattr(profiles, "_get_profiles_root", lambda: profiles_root)
+    start_device = Mock()
+    monkeypatch.setattr(web_server, "_start_device_code_flow", start_device)
+
+    response = _dispatch_sync(
+        {
+            "id": "o-symlink",
+            "method": "auth.oauth.start",
+            "params": {"provider": "openai-codex", "profile": "work"},
+        }
+    )
+
+    assert response is not None
+    assert response["error"]["code"] == 5024
+    start_device.assert_not_called()
+    assert list(outside.iterdir()) == []
+
+
+def test_auth_oauth_submit_and_cancel_delegate_securely(monkeypatch):
+    submitted = []
+    sessions = {"flow-2": {"provider": "anthropic", "flow": "pkce", "profile": "work", "status": "pending"}}
+
+    def submit(session_id, code, profile):
+        submitted.append((session_id, code, profile))
+        return {"ok": True, "status": "approved", "access_token": "secret-token"}
+
+    fake = types.SimpleNamespace(
+        _OAUTH_PROVIDER_CATALOG=[{"id": "anthropic", "flow": "pkce"}],
+        _oauth_sessions=sessions,
+        _oauth_sessions_lock=threading.Lock(),
+        _gc_oauth_sessions=lambda: None,
+        _validate_oauth_profile=lambda profile: None,
+        _submit_anthropic_pkce=submit,
+    )
+    monkeypatch.setitem(sys.modules, "hermes_cli.web_server", fake)
+
+    approved = _dispatch_sync(
+        {
+            "id": "o3",
+            "method": "auth.oauth.submit",
+            "params": {
+                "provider": "anthropic",
+                "profile": "work",
+                "session_id": "flow-2",
+                "code": "user-pasted-code",
+            },
+        }
+    )
+    cancelled = _dispatch_sync(
+        {
+            "id": "o4",
+            "method": "auth.oauth.cancel",
+            "params": {"provider": "anthropic", "profile": "work", "session_id": "flow-2"},
+        }
+    )
+
+    assert approved is not None and cancelled is not None
+    assert approved["result"] == {"session_id": "flow-2", "status": "approved"}
+    assert submitted == [("flow-2", "user-pasted-code", "work")]
+    assert cancelled["result"] == {"session_id": "flow-2", "status": "cancelled"}
+    assert "flow-2" not in sessions
+    assert "secret" not in str(approved["result"])
+
+
+def test_auth_oauth_rejects_unknown_provider_and_mismatched_session(monkeypatch):
+    fake = types.SimpleNamespace(
+        _OAUTH_PROVIDER_CATALOG=[{"id": "anthropic", "flow": "pkce"}],
+        _oauth_sessions={"flow-3": {"provider": "anthropic", "flow": "pkce", "profile": "work", "status": "pending"}},
+        _oauth_sessions_lock=threading.Lock(),
+        _gc_oauth_sessions=lambda: None,
+        _validate_oauth_profile=lambda profile: None,
+    )
+    monkeypatch.setitem(sys.modules, "hermes_cli.web_server", fake)
+
+    unknown = _dispatch_sync(
+        {"id": "o5", "method": "auth.oauth.start", "params": {"provider": "evil"}}
+    )
+    mismatch = _dispatch_sync(
+        {
+            "id": "o6",
+            "method": "auth.oauth.poll",
+            "params": {"provider": "anthropic", "profile": "other", "session_id": "flow-3"},
+        }
+    )
+
+    assert unknown is not None and mismatch is not None
+    assert unknown["error"]["code"] == 4003
+    assert mismatch["error"]["code"] == 4003
+
+
 def test_config_set_battery_toggles_and_persists(monkeypatch):
     writes: dict[str, object] = {}
     monkeypatch.setattr(server, "_load_cfg", lambda: {"display": {"battery": False}})
@@ -7059,6 +8187,45 @@ def test_session_create_drops_pending_title_on_valueerror(monkeypatch):
         assert session["pending_title"] is None
     finally:
         server._sessions.pop("sid", None)
+
+
+def test_session_info_reports_each_yolo_authority(monkeypatch):
+    import types
+
+    import tools.approval as approval
+
+    approval.enable_session_yolo("authority-session")
+    monkeypatch.setattr(approval, "_YOLO_MODE_FROZEN", True)
+    monkeypatch.setattr(server, "_load_approval_mode", lambda: "off")
+    try:
+        info = server._session_info(
+            types.SimpleNamespace(model="", provider="", tools=[]),
+            {"session_key": "authority-session"},
+        )
+    finally:
+        approval.clear_session("authority-session")
+
+    assert info["session_yolo"] is True
+    assert info["process_yolo"] is True
+    assert info["approval_mode"] == "off"
+    assert info["yolo"] is True
+
+
+def test_config_get_yolo_authorities_reports_process_and_global(monkeypatch):
+    import tools.approval as approval
+
+    monkeypatch.setattr(approval, "_YOLO_MODE_FROZEN", True)
+    monkeypatch.setattr(server, "_load_approval_mode", lambda: "smart")
+
+    response = server.handle_request(
+        {"id": "authority", "method": "config.get", "params": {"key": "yolo.authorities"}}
+    )
+
+    assert response["result"] == {
+        "approval_mode": "smart",
+        "process_yolo": True,
+        "yolo": True,
+    }
 
 
 def test_config_set_yolo_toggles_session_scope():

@@ -41,6 +41,7 @@ describe('SidebarLoadMoreRow', () => {
     render(<SidebarLoadMoreRow onClick={vi.fn()} step={0} />)
 
     const button = screen.getByRole('button', { name: 'Load more' })
+    expect(button.getAttribute('data-sidebar-compact-action')).toBe('')
     expect(button.closest('[data-slot="tooltip-trigger"]')).toBeTruthy()
   })
 

@@ -1,13 +1,33 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ChatBarState } from '@/app/chat/composer/types'
 import { I18nProvider } from '@/i18n'
+import { $approvalModes } from '@/store/approval-mode'
+import { $gateway } from '@/store/gateway'
 import { $hudMode } from '@/store/hud'
+import { $activeGatewayProfile } from '@/store/profile'
+import {
+  setProcessYoloActive,
+  setSessionYoloActive,
+  setYoloActive,
+  setYoloAuthorityKnown,
+  setYoloAuthorityReady
+} from '@/store/session'
 import { applyWakeStartResult, applyWakeStatus, resetWakeWordState } from '@/store/wake-word'
 
 import { ComposerControls } from './controls'
 
+const confirmMock = vi.hoisted(() => vi.fn(async () => true))
+
+const yoloMocks = vi.hoisted(() => ({
+  setGlobalYoloForTarget: vi.fn(async () => true),
+  setYoloEnabled: vi.fn(async () => true)
+}))
+
+vi.mock('@/store/confirm', () => ({ confirm: confirmMock }))
+
+vi.mock('@/lib/yolo-session', () => yoloMocks)
 vi.mock('./model-pill', () => ({ ModelPill: () => null }))
 
 const state: ChatBarState = {
@@ -47,6 +67,16 @@ function renderControls(overrides: Partial<React.ComponentProps<typeof ComposerC
   )
 }
 
+function setGatewayApprovalMode(mode: 'manual' | 'off' | 'smart') {
+  $gateway.set({
+    request: vi.fn(async (_method: string, params?: Record<string, unknown>) =>
+      params?.key === 'yolo.authorities'
+        ? { process_yolo: false, yolo: mode === 'off' }
+        : { value: mode }
+    )
+  } as never)
+}
+
 async function expectShortcutTooltip(label: string, shortcut: string) {
   fireEvent.pointerMove(screen.getByLabelText(label), { pointerType: 'mouse' })
 
@@ -59,6 +89,18 @@ async function expectShortcutTooltip(label: string, shortcut: string) {
 afterEach(() => {
   cleanup()
   $hudMode.set(false)
+  $approvalModes.set({})
+  $gateway.set(null)
+  $activeGatewayProfile.set('default')
+  setProcessYoloActive(false)
+  setSessionYoloActive(false)
+  setYoloActive(false)
+  setYoloAuthorityKnown(false)
+  setYoloAuthorityReady(false)
+  confirmMock.mockReset()
+  confirmMock.mockResolvedValue(true)
+  yoloMocks.setGlobalYoloForTarget.mockClear()
+  yoloMocks.setYoloEnabled.mockClear()
 })
 
 // The HUD is a Spotlight bar a few hundred pixels wide: the four voice
@@ -129,6 +171,54 @@ describe('narrow tiles', () => {
   })
 })
 
+// The primary slot is FIXED: Send (or Stop) is the only control that ever
+// occupies it, in every state. An empty composer renders Send disabled rather
+// than swapping in the voice button, so nothing reflows when the first
+// character lands.
+describe('fixed primary slot', () => {
+  it('keeps Send mounted and disabled while the composer is empty', () => {
+    renderControls({ canSubmit: false, hasComposerPayload: false })
+
+    const send = screen.getByLabelText('Send') as HTMLButtonElement
+
+    expect(send.type).toBe('submit')
+    expect(send.disabled).toBe(true)
+    // The voice conversation never takes the primary slot any more.
+    expect(screen.queryByLabelText('Start voice conversation')?.getAttribute('type')).toBe('button')
+  })
+
+  it('enables the same Send button once there is a payload', () => {
+    renderControls({ canSubmit: true, hasComposerPayload: true })
+
+    expect((screen.getByLabelText('Send') as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('offers the voice conversation from the voice cluster, not the primary slot', () => {
+    renderControls({ canSubmit: false, hasComposerPayload: false })
+
+    const start = screen.getByLabelText('Start voice conversation') as HTMLButtonElement
+
+    expect(start.disabled).toBe(false)
+    expect(start.type).toBe('button')
+  })
+
+  it('folds the voice conversation away with the rest of the voice cluster', () => {
+    renderControls({ foldVoice: true })
+
+    expect(screen.queryByLabelText('Start voice conversation')).toBeNull()
+    expect(screen.getByLabelText('Voice')).toBeTruthy()
+    // Send still stands, whatever the width.
+    expect(screen.getByLabelText('Send')).toBeTruthy()
+  })
+
+  it('disables starting a conversation mid-turn but keeps Stop in the slot', () => {
+    renderControls({ busy: true, busyAction: 'stop', hasComposerPayload: false })
+
+    expect((screen.getByLabelText('Start voice conversation') as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.getByLabelText('Stop')).toBeTruthy()
+  })
+})
+
 describe('ComposerControls shortcut tooltips', () => {
   it('shows Enter for Send', async () => {
     renderControls()
@@ -152,6 +242,156 @@ describe('ComposerControls shortcut tooltips', () => {
     renderControls({ busy: true, busyAction: 'queue' })
 
     await expectShortcutTooltip('Queue message', 'Ctrl+↵')
+  })
+})
+
+describe('autonomous full access control', () => {
+  beforeEach(() => setYoloAuthorityReady(true))
+
+  it('toggles YOLO for only the current chat on a normal click', () => {
+    renderControls()
+
+    fireEvent.click(screen.getByRole('button', { name: /enable autonomous full access for this chat/i }))
+
+    expect(yoloMocks.setYoloEnabled).toHaveBeenCalledWith(true)
+    expect(yoloMocks.setGlobalYoloForTarget).not.toHaveBeenCalled()
+  })
+
+  it('toggles persistent global YOLO on shift-click after explicit confirmation', async () => {
+    setGatewayApprovalMode('smart')
+    renderControls()
+
+    fireEvent.click(await screen.findByRole('button', { name: /enable autonomous full access for this chat/i }), {
+      shiftKey: true
+    })
+
+    await waitFor(() => expect(yoloMocks.setGlobalYoloForTarget).toHaveBeenCalledWith(expect.any(Function), 'default', true))
+    expect(confirmMock).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Enable global autonomous full access?' })
+    )
+    expect(yoloMocks.setYoloEnabled).not.toHaveBeenCalled()
+  })
+
+  it('does not enable persistent global YOLO when confirmation is cancelled', async () => {
+    confirmMock.mockResolvedValue(false)
+    setGatewayApprovalMode('smart')
+    renderControls()
+
+    fireEvent.click(await screen.findByRole('button', { name: /enable autonomous full access for this chat/i }), {
+      shiftKey: true
+    })
+
+    await waitFor(() => expect(confirmMock).toHaveBeenCalled())
+    expect(yoloMocks.setGlobalYoloForTarget).not.toHaveBeenCalled()
+  })
+
+  it('aborts if gateway changes while global-enable confirmation is open', async () => {
+    let resolveConfirm: ((value: boolean) => void) | undefined
+    confirmMock.mockImplementation(
+      () =>
+        new Promise<boolean>(resolve => {
+          resolveConfirm = resolve
+        })
+    )
+    setGatewayApprovalMode('smart')
+    renderControls()
+
+    fireEvent.click(await screen.findByRole('button', { name: /enable autonomous full access for this chat/i }), {
+      shiftKey: true
+    })
+    await waitFor(() => expect(confirmMock).toHaveBeenCalled())
+    $gateway.set({ request: vi.fn(async () => ({ value: 'smart' })) } as never)
+    resolveConfirm?.(true)
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /enable autonomous full access/i })).toBeTruthy())
+    expect(yoloMocks.setGlobalYoloForTarget).not.toHaveBeenCalled()
+  })
+
+  it('keeps the control disabled until fresh-draft authority resolves', async () => {
+    let resolveAuthorities: ((value: { process_yolo: boolean; yolo: boolean }) => void) | undefined
+
+    const request = vi.fn(async (_method: string, params?: Record<string, unknown>) => {
+      if (params?.key === 'yolo.authorities') {
+        return new Promise<{ process_yolo: boolean; yolo: boolean }>(resolve => {
+          resolveAuthorities = resolve
+        })
+      }
+
+      return { value: 'off' }
+    })
+
+    $gateway.set({ request } as never)
+    renderControls()
+
+    const loading = await screen.findByRole('button', { name: /loading full-access authority/i })
+    expect(loading.hasAttribute('disabled')).toBe(true)
+    resolveAuthorities?.({ process_yolo: false, yolo: true })
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /global autonomous full access on/i })).toBeTruthy())
+    expect(request).toHaveBeenCalledWith('config.get', { key: 'approvals.mode' })
+  })
+
+  it('enables global YOLO even when only the current session is already armed', async () => {
+    setSessionYoloActive(true)
+    $approvalModes.set({ default: 'smart' })
+    setGatewayApprovalMode('smart')
+    renderControls()
+
+    fireEvent.click(await screen.findByRole('button', { name: /autonomous full access on/i }), { shiftKey: true })
+
+    await waitFor(() => expect(yoloMocks.setGlobalYoloForTarget).toHaveBeenCalledWith(expect.any(Function), 'default', true))
+  })
+
+  it('does not claim chat-level disable while persistent global YOLO is active', () => {
+    $approvalModes.set({ default: 'off' })
+    renderControls()
+
+    fireEvent.click(screen.getByRole('button', { name: /global autonomous full access on/i }))
+
+    expect(yoloMocks.setYoloEnabled).not.toHaveBeenCalled()
+    expect(yoloMocks.setGlobalYoloForTarget).not.toHaveBeenCalled()
+  })
+
+  it('shift-click disables the global authority independently of session state', async () => {
+    $approvalModes.set({ default: 'off' })
+    setGatewayApprovalMode('off')
+    setSessionYoloActive(true)
+    renderControls()
+
+    fireEvent.click(await screen.findByRole('button', { name: /global autonomous full access on/i }), { shiftKey: true })
+
+    await waitFor(() => expect(yoloMocks.setGlobalYoloForTarget).toHaveBeenCalledWith(expect.any(Function), 'default', false))
+    expect(confirmMock).not.toHaveBeenCalled()
+  })
+
+  it('shows legacy effective YOLO as active but non-disableable', () => {
+    setYoloActive(true)
+    setYoloAuthorityKnown(false)
+    renderControls()
+
+    const button = screen.getByRole('button', { name: /legacy gateway; scope cannot be changed safely/i })
+    expect(button.getAttribute('aria-pressed')).toBe('true')
+    fireEvent.click(button)
+    expect(yoloMocks.setYoloEnabled).not.toHaveBeenCalled()
+    expect(yoloMocks.setGlobalYoloForTarget).not.toHaveBeenCalled()
+  })
+
+  it('shows frozen process YOLO as inherited and non-disableable', () => {
+    setProcessYoloActive(true)
+    renderControls()
+
+    const button = screen.getByRole('button', { name: /process-wide full access is forced/i })
+    expect(button.getAttribute('aria-pressed')).toBe('true')
+    fireEvent.click(button)
+    expect(yoloMocks.setYoloEnabled).not.toHaveBeenCalled()
+    expect(yoloMocks.setGlobalYoloForTarget).not.toHaveBeenCalled()
+  })
+
+  it('renders an active pressed state from the authoritative session store', () => {
+    setSessionYoloActive(true)
+    renderControls()
+
+    expect(screen.getByRole('button', { name: /autonomous full access on/i }).getAttribute('aria-pressed')).toBe('true')
   })
 })
 

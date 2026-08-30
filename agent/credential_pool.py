@@ -169,6 +169,7 @@ _EXTRA_KEYS = frozenset({
     "token_type", "scope", "client_id", "portal_base_url", "obtained_at",
     "expires_in", "agent_key_id", "agent_key_expires_in", "agent_key_reused",
     "agent_key_obtained_at", "tls", "secret_source", "secret_fingerprint",
+    "preferred",
     # Classified failure semantics for the last exhaustion, as decided by
     # agent/error_classifier.py. The raw HTTP status is not enough to size a
     # cooldown: providers return 403 for both an edge throttle (transient,
@@ -730,6 +731,33 @@ class CredentialPool:
         with self._lock:
             return list(self._entries)
 
+    def prioritize(self, credential_id: str) -> bool:
+        """Persist one credential as the provider's first selection candidate.
+
+        This changes ordering only. Exhausted/dead credentials remain ineligible
+        until their normal recovery or an explicit reset/re-auth, so a UI switch
+        cannot accidentally revive a revoked token.
+        """
+        wanted = str(credential_id or "").strip()
+        if not wanted:
+            return False
+        with self._lock:
+            selected = next((entry for entry in self._entries if entry.id == wanted), None)
+            if selected is None:
+                return False
+            ordered = [selected, *(entry for entry in self._entries if entry.id != wanted)]
+            self._entries = [
+                replace(
+                    entry,
+                    priority=index,
+                    extra={**entry.extra, "preferred": entry.id == wanted},
+                )
+                for index, entry in enumerate(ordered)
+            ]
+            self._current_id = wanted
+            self._persist()
+            return True
+
     def _current_unlocked(self) -> Optional[PooledCredential]:
         if not self._current_id:
             return None
@@ -774,7 +802,12 @@ class CredentialPool:
                     self._entries[idx] = new
                     return
 
-    def _persist(self, *, removed_ids: Optional[List[str]] = None) -> None:
+    def _persist(
+        self,
+        *,
+        removed_ids: Optional[List[str]] = None,
+        status_reset_snapshots: Optional[Dict[str, Tuple[Any, ...]]] = None,
+    ) -> None:
         # Self-locking (RLock): snapshotting self._entries must not race a
         # concurrent rotation when called from the deferred refresh path.
         with self._lock:
@@ -782,6 +815,7 @@ class CredentialPool:
                 self.provider,
                 [entry.to_dict() for entry in self._entries],
                 removed_ids=removed_ids,
+                status_reset_snapshots=status_reset_snapshots,
             )
 
     def _is_terminal_auth_failure(
@@ -1803,6 +1837,68 @@ class CredentialPool:
         with self._lock:
             return self._select_unlocked()
 
+    def select_by_id(self, credential_id: str) -> Optional[PooledCredential]:
+        """Select an exact credential only when it is currently eligible.
+
+        This is session-local and does not rewrite the durable provider
+        preference. It lets a queued UI selection survive another session
+        changing the global preference before the next safe turn boundary.
+        """
+        wanted = str(credential_id or "").strip()
+        if not wanted:
+            return None
+        entry, pending_refresh = self._select_id_under_lock(wanted)
+        if pending_refresh:
+            self._refresh_pending_entries(pending_refresh)
+        if entry is None and pending_refresh:
+            entry, _ = self._select_id_under_lock(wanted)
+        if entry is not None:
+            self._unmatched_rotation_streak = 0
+        return entry
+
+    def eligible_by_id(self, credential_id: str) -> Optional[PooledCredential]:
+        """Resolve an exact currently usable credential without leasing it."""
+        wanted = str(credential_id or "").strip()
+        if not wanted:
+            return None
+        entry, pending_refresh = self._select_id_under_lock(
+            wanted,
+            count_request=False,
+        )
+        if pending_refresh:
+            self._refresh_pending_entries(pending_refresh)
+        if entry is None and pending_refresh:
+            entry, _ = self._select_id_under_lock(
+                wanted,
+                count_request=False,
+            )
+        return entry
+
+    def _select_id_under_lock(
+        self,
+        credential_id: str,
+        *,
+        count_request: bool = True,
+    ) -> Tuple[Optional[PooledCredential], List[tuple]]:
+        with self._lock:
+            available, pending_refresh = self._available_entries(
+                clear_expired=True,
+                refresh=True,
+            )
+            entry = next(
+                (candidate for candidate in available if candidate.id == credential_id),
+                None,
+            )
+            if entry is None:
+                return None, pending_refresh
+            self._last_no_entries_log_at = None
+            if count_request and self._strategy == STRATEGY_LEAST_USED:
+                updated = replace(entry, request_count=entry.request_count + 1)
+                self._replace_entry(entry, updated)
+                entry = updated
+            self._current_id = entry.id
+            return entry, pending_refresh
+
     def _refresh_pending_entries(self, pending: List[tuple]) -> None:
         """Refresh deferred single-use-token entries outside the lock.
 
@@ -1849,10 +1945,11 @@ class CredentialPool:
             1 for e in self._entries if e.last_status != STATUS_DEAD
         ) <= 1
         for entry in self._entries:
-            # Borrowed credentials persist as metadata-only references and are
-            # hydrated from their live source on load.  A stale duplicate row
-            # can remain unhydrated; never lease or select it as an empty key.
-            if entry.auth_type == AUTH_TYPE_API_KEY and not entry.runtime_api_key:
+            # Credentials may persist as metadata-only references until their
+            # live token is hydrated. Never lease or select any entry whose
+            # provider-specific runtime credential is still empty, regardless
+            # of whether the stored auth type is API key or OAuth.
+            if not entry.runtime_api_key:
                 continue
             # For anthropic claude_code entries, sync from the credentials file
             # before any status/refresh checks. This picks up tokens refreshed
@@ -2008,6 +2105,28 @@ class CredentialPool:
         # so a later re-exhaustion logs immediately rather than being silenced
         # by a window opened during the previous empty stretch.
         self._last_no_entries_log_at = None
+
+        # A user-selected account is a durable pin while it remains healthy.
+        # Only entries already accepted by the availability filter can win,
+        # so exhaustion or invalid auth still falls through to normal rotation.
+        preferred = next(
+            (
+                candidate
+                for candidate in available
+                if candidate.extra.get("preferred") is True
+            ),
+            None,
+        )
+        if preferred is not None:
+            if self._strategy == STRATEGY_LEAST_USED:
+                updated = replace(
+                    preferred,
+                    request_count=preferred.request_count + 1,
+                )
+                self._replace_entry(preferred, updated)
+                preferred = updated
+            self._current_id = preferred.id
+            return preferred, pending_refresh
 
         if self._strategy == STRATEGY_RANDOM:
             entry = random.choice(available)
@@ -2332,8 +2451,12 @@ class CredentialPool:
         with self._lock:
             count = 0
             new_entries = []
+            status_reset_snapshots: Dict[str, Tuple[Any, ...]] = {}
             for entry in self._entries:
                 if entry.last_status or entry.last_status_at or entry.last_error_code:
+                    status_reset_snapshots[entry.id] = auth_mod._pool_status_snapshot(
+                        entry.to_dict()
+                    )
                     new_entries.append(
                         replace(
                             entry,
@@ -2350,7 +2473,7 @@ class CredentialPool:
                     new_entries.append(entry)
             if count:
                 self._entries = new_entries
-                self._persist()
+                self._persist(status_reset_snapshots=status_reset_snapshots)
             return count
 
     def remove_index(self, index: int) -> Optional[PooledCredential]:
@@ -2475,12 +2598,33 @@ def _normalize_pool_priorities(provider: str, entries: List[PooledCredential]) -
         "claude_code": 3,
         "env:ANTHROPIC_API_KEY": 4,
     }
+    all_preferred = sorted(
+        (entry for entry in entries if entry.extra.get("preferred") is True),
+        key=lambda entry: (entry.priority, entry.id),
+    )
+    preferred_entry = all_preferred[0] if all_preferred else None
+    changed = False
+    if len(all_preferred) > 1:
+        for index, entry in enumerate(entries):
+            if entry.extra.get("preferred") is True and entry is not preferred_entry:
+                entries[index] = replace(entry, extra={**entry.extra, "preferred": False})
+                changed = True
+    preferred_entries = [preferred_entry] if preferred_entry is not None else []
+    preferred_ids = {entry.id for entry in preferred_entries}
     manual_entries = sorted(
-        (entry for entry in entries if _is_manual_source(entry.source)),
+        (
+            entry
+            for entry in entries
+            if entry.id not in preferred_ids and _is_manual_source(entry.source)
+        ),
         key=lambda entry: entry.priority,
     )
     seeded_entries = sorted(
-        (entry for entry in entries if not _is_manual_source(entry.source)),
+        (
+            entry
+            for entry in entries
+            if entry.id not in preferred_ids and not _is_manual_source(entry.source)
+        ),
         key=lambda entry: (
             source_rank.get(entry.source, len(source_rank)),
             entry.priority,
@@ -2488,9 +2632,8 @@ def _normalize_pool_priorities(provider: str, entries: List[PooledCredential]) -
         ),
     )
 
-    ordered = [*manual_entries, *seeded_entries]
+    ordered = [*preferred_entries, *manual_entries, *seeded_entries]
     id_to_idx = {entry.id: idx for idx, entry in enumerate(entries)}
-    changed = False
     for new_priority, entry in enumerate(ordered):
         if entry.priority != new_priority:
             entries[id_to_idx[entry.id]] = replace(entry, priority=new_priority)

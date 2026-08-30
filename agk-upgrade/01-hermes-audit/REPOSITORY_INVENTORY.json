@@ -1,0 +1,930 @@
+{
+  "schema_version": "1.1.0",
+  "baseline_commit": "8794e5a21c980a0f26532cb4883284b786cb3f25",
+  "tracked_file_count": 9938,
+  "top_level_file_counts": {
+    ".coderabbit.yaml": 1,
+    ".dockerignore": 1,
+    ".env.example": 1,
+    ".envrc": 1,
+    ".gitattributes": 1,
+    ".github": 39,
+    ".gitignore": 1,
+    ".hadolint.yaml": 1,
+    ".mailmap": 1,
+    ".npmrc": 1,
+    ".nvmrc": 1,
+    ".prettierignore": 1,
+    ".prettierrc": 1,
+    ".python-version": 1,
+    "AGENTS.md": 1,
+    "CONTRIBUTING.es.md": 1,
+    "CONTRIBUTING.md": 1,
+    "Dockerfile": 1,
+    "LICENSE": 1,
+    "README.es.md": 1,
+    "README.md": 1,
+    "README.ur-pk.md": 1,
+    "README.zh-CN.md": 1,
+    "SECURITY.es.md": 1,
+    "SECURITY.md": 1,
+    "acp_adapter": 11,
+    "agent": 196,
+    "apps": 2044,
+    "assets": 1,
+    "batch_runner.py": 1,
+    "cli-config.yaml.example": 1,
+    "cli.py": 1,
+    "constraints-termux.txt": 1,
+    "contributors": 696,
+    "cron": 13,
+    "datagen-config-examples": 4,
+    "default.tar.gz": 1,
+    "docker": 18,
+    "docker-compose.windows.yml": 1,
+    "docker-compose.yml": 1,
+    "docs": 20,
+    "eslint.config.shared.mjs": 1,
+    "evals": 30,
+    "flake.lock": 1,
+    "flake.nix": 1,
+    "gateway": 94,
+    "hermes": 1,
+    "hermes_bootstrap.py": 1,
+    "hermes_cli": 291,
+    "hermes_constants.py": 1,
+    "hermes_logging.py": 1,
+    "hermes_state.py": 1,
+    "hermes_state_common.py": 1,
+    "hermes_state_portability.py": 1,
+    "hermes_state_schema.py": 1,
+    "hermes_state_search.py": 1,
+    "hermes_time.py": 1,
+    "locales": 17,
+    "log.txt": 1,
+    "mcp-research-data": 5,
+    "mcp_serve.py": 1,
+    "mini_swe_runner.py": 1,
+    "model_tools.py": 1,
+    "native": 5,
+    "nix": 18,
+    "optional-mcps": 20,
+    "optional-skills": 555,
+    "package-lock.json": 1,
+    "package.json": 1,
+    "plugins": 343,
+    "providers": 3,
+    "pyproject.toml": 1,
+    "registration_lifecycle.py": 1,
+    "run_agent.py": 1,
+    "scripts": 80,
+    "setup-hermes.sh": 1,
+    "setup.py": 1,
+    "skills": 485,
+    "sqlite_leak_fix.png": 1,
+    "tests": 3255,
+    "tests-js": 10,
+    "tools": 153,
+    "toolset_distributions.py": 1,
+    "toolsets.py": 1,
+    "trajectory_compressor.py": 1,
+    "tui_gateway": 27,
+    "ui-tui": 474,
+    "utils.py": 1,
+    "uv.lock": 1,
+    "web": 184,
+    "website": 786
+  },
+  "extension_counts": {
+    ".py": 4461,
+    ".ts": 1729,
+    ".md": 1546,
+    ".tsx": 735,
+    ".com": 533,
+    ".mjs": 156,
+    ".yaml": 147,
+    ".json": 105,
+    "(none)": 54,
+    ".png": 54,
+    ".yml": 40,
+    ".sh": 37,
+    ".local": 34,
+    ".nix": 18,
+    ".js": 16,
+    ".css": 13,
+    ".woff2": 13,
+    ".sty": 13,
+    ".html": 11,
+    ".net": 11,
+    ".tex": 11,
+    ".rs": 10,
+    ".txt": 10,
+    ".cn": 10,
+    ".ps1": 9,
+    ".ai": 8,
+    ".me": 8,
+    ".dev": 7,
+    ".org": 5,
+    ".pdf": 5,
+    ".bib": 5,
+    ".bst": 5,
+    ".mdx": 5,
+    ".jpg": 4,
+    ".ico": 4,
+    ".webp": 4,
+    ".au": 4,
+    ".edu": 4,
+    ".xyz": 3,
+    ".io": 3,
+    ".de": 3,
+    ".tmpl": 3,
+    ".svg": 3,
+    ".example": 2,
+    ".toml": 2,
+    ".icns": 2,
+    ".plist": 2,
+    ".jsonl": 2,
+    ".tr": 2,
+    ".se": 2,
+    ".br": 2,
+    ".co": 2,
+    ".fr": 2,
+    ".to": 2,
+    ".eu": 2,
+    ".uk": 2,
+    ".lan": 2,
+    ".inc": 2,
+    ".it": 2,
+    ".ca": 2,
+    ".lock": 2,
+    ".h": 2,
+    ".manifest": 1,
+    ".mts": 1,
+    ".Cloud": 1,
+    ".cloud": 1,
+    ".il": 1,
+    ".no": 1,
+    ".lol": 1,
+    ".tw": 1,
+    ".group": 1,
+    ".gg": 1,
+    ".mesh": 1,
+    ".jp": 1,
+    ".cc": 1,
+    ".tech": 1,
+    ".ae": 1,
+    ".in": 1,
+    ".computer": 1,
+    ".sg": 1,
+    ".pl": 1,
+    ".team": 1,
+    ".video": 1,
+    ".kr": 1,
+    ".pw": 1,
+    ".id": 1,
+    ".ad": 1,
+    ".kitchen": 1,
+    ".club": 1,
+    ".online": 1,
+    ".fi": 1,
+    ".localdomain": 1,
+    ".top": 1,
+    ".gz": 1,
+    ".c": 1,
+    ".service": 1,
+    ".cmd": 1,
+    ".cnf": 1,
+    ".ini": 1,
+    ".wav": 1,
+    ".onnx": 1,
+    ".tflite": 1,
+    ".mp4": 1
+  },
+  "selected_large_files": {
+    "gateway/run.py": 30999,
+    "cli.py": 21445,
+    "tests/test_tui_gateway_server.py": 19832,
+    "hermes_cli/web_server.py": 19222,
+    "optional-skills/mlops/training/unsloth/references/llms-full.md": 16799,
+    "tui_gateway/server.py": 15630,
+    "apps/desktop/electron/main.ts": 15217,
+    "hermes_cli/main.py": 13986,
+    "hermes_state.py": 13114,
+    "hermes_cli/kanban_db.py": 12139,
+    "optional-skills/mlops/training/unsloth/references/llms-txt.md": 12044,
+    "apps/desktop/src/plugins/hermes-bots/plugin.js": 11102,
+    "plugins/platforms/telegram/adapter.py": 10899,
+    "agent/auxiliary_client.py": 10742,
+    "plugins/platforms/discord/adapter.py": 10557,
+    "plugins/platforms/slack/adapter.py": 9612,
+    "hermes_cli/auth.py": 9372,
+    "run_agent.py": 9181,
+    "agent/conversation_loop.py": 8436,
+    "tools/mcp_tool.py": 8235,
+    "hermes_cli/gateway.py": 8090,
+    "agent/context_compressor.py": 8027,
+    "gateway/platforms/api_server.py": 7646,
+    "gateway/platforms/base.py": 7420,
+    "cron/scheduler.py": 7368,
+    "hermes_cli/update_cmd.py": 7352,
+    "tests/run_agent/test_run_agent.py": 6908,
+    "hermes_cli/models.py": 6687,
+    "hermes_cli/plugins.py": 6594,
+    "hermes_cli/config.py": 6052,
+    "gateway/slash_commands.py": 6026,
+    "hermes_cli/tools_config.py": 5973,
+    "plugins/platforms/feishu/adapter.py": 5896,
+    "optional-skills/mlops/training/axolotl/references/api.md": 5548,
+    "tools/approval.py": 5490,
+    "tools/browser_tool.py": 5477,
+    "plugins/platforms/matrix/adapter.py": 5462,
+    "apps/desktop/src/app/session/hooks/use-prompt-actions/index.test.tsx": 5379,
+    "agent/chat_completion_helpers.py": 5351,
+    "gateway/platforms/yuanbao.py": 5298,
+    "plugins/memory/openviking/__init__.py": 5268,
+    "tests/test_hermes_state.py": 5042,
+    "tests/hermes_cli/test_web_server.py": 4936,
+    "tools/delegate_tool.py": 4926,
+    "hermes_cli/config_defaults.py": 4833,
+    "plugins/kanban/dashboard/dist/index.js": 4787,
+    "tests/gateway/test_slack.py": 4689,
+    "tools/skills_hub.py": 4674,
+    "tests/agent/test_auxiliary_client.py": 4622,
+    "tools/tts_tool.py": 4552
+  },
+  "literal_builtin_tools": [
+    {
+      "name": "annotate_preview",
+      "toolset": "desktop_ui",
+      "file": "tools/annotate_preview_tool.py",
+      "line": 139
+    },
+    {
+      "name": "apply_layout",
+      "toolset": "desktop_ui",
+      "file": "tools/apply_layout_tool.py",
+      "line": 68
+    },
+    {
+      "name": "bfl_flux3_get_result",
+      "toolset": null,
+      "file": "tools/flux3_video_tool.py",
+      "line": 1229
+    },
+    {
+      "name": "bfl_flux3_image_to_video",
+      "toolset": null,
+      "file": "tools/flux3_video_tool.py",
+      "line": 1196
+    },
+    {
+      "name": "bfl_flux3_keyframes_to_video",
+      "toolset": null,
+      "file": "tools/flux3_video_tool.py",
+      "line": 1207
+    },
+    {
+      "name": "bfl_flux3_prompting_guide",
+      "toolset": null,
+      "file": "tools/flux3_video_tool.py",
+      "line": 1240
+    },
+    {
+      "name": "bfl_flux3_text_to_video",
+      "toolset": null,
+      "file": "tools/flux3_video_tool.py",
+      "line": 1185
+    },
+    {
+      "name": "bfl_flux3_video_continuation",
+      "toolset": null,
+      "file": "tools/flux3_video_tool.py",
+      "line": 1218
+    },
+    {
+      "name": "browser_back",
+      "toolset": "browser",
+      "file": "tools/browser_tool.py",
+      "line": 5437
+    },
+    {
+      "name": "browser_cdp",
+      "toolset": "browser-cdp",
+      "file": "tools/browser_cdp_tool.py",
+      "line": 670
+    },
+    {
+      "name": "browser_click",
+      "toolset": "browser",
+      "file": "tools/browser_tool.py",
+      "line": 5413
+    },
+    {
+      "name": "browser_console",
+      "toolset": "browser",
+      "file": "tools/browser_tool.py",
+      "line": 5470
+    },
+    {
+      "name": "browser_dialog",
+      "toolset": "browser-cdp",
+      "file": "tools/browser_dialog_tool.py",
+      "line": 136
+    },
+    {
+      "name": "browser_exec",
+      "toolset": "browser-use",
+      "file": "tools/browser_use_cli.py",
+      "line": 820
+    },
+    {
+      "name": "browser_get_images",
+      "toolset": "browser",
+      "file": "tools/browser_tool.py",
+      "line": 5454
+    },
+    {
+      "name": "browser_navigate",
+      "toolset": "browser",
+      "file": "tools/browser_tool.py",
+      "line": 5396
+    },
+    {
+      "name": "browser_press",
+      "toolset": "browser",
+      "file": "tools/browser_tool.py",
+      "line": 5445
+    },
+    {
+      "name": "browser_scroll",
+      "toolset": "browser",
+      "file": "tools/browser_tool.py",
+      "line": 5429
+    },
+    {
+      "name": "browser_snapshot",
+      "toolset": "browser",
+      "file": "tools/browser_tool.py",
+      "line": 5404
+    },
+    {
+      "name": "browser_type",
+      "toolset": "browser",
+      "file": "tools/browser_tool.py",
+      "line": 5421
+    },
+    {
+      "name": "browser_vision",
+      "toolset": "browser",
+      "file": "tools/browser_tool.py",
+      "line": 5462
+    },
+    {
+      "name": "clarify",
+      "toolset": "clarify",
+      "file": "tools/clarify_tool.py",
+      "line": 552
+    },
+    {
+      "name": "close_preview",
+      "toolset": "desktop_ui",
+      "file": "tools/close_preview_tool.py",
+      "line": 58
+    },
+    {
+      "name": "close_terminal",
+      "toolset": "desktop_ui",
+      "file": "tools/close_terminal_tool.py",
+      "line": 56
+    },
+    {
+      "name": "computer_use",
+      "toolset": "computer_use",
+      "file": "tools/computer_use_tool.py",
+      "line": 20
+    },
+    {
+      "name": "cronjob",
+      "toolset": "cronjob",
+      "file": "tools/cronjob_tools.py",
+      "line": 1781
+    },
+    {
+      "name": "delegate_task",
+      "toolset": "delegation",
+      "file": "tools/delegate_tool.py",
+      "line": 4906
+    },
+    {
+      "name": "discord",
+      "toolset": "discord",
+      "file": "tools/discord_tool.py",
+      "line": 1100
+    },
+    {
+      "name": "discord_admin",
+      "toolset": "discord_admin",
+      "file": "tools/discord_tool.py",
+      "line": 1109
+    },
+    {
+      "name": "drive_preview",
+      "toolset": "desktop_ui",
+      "file": "tools/drive_preview_tool.py",
+      "line": 216
+    },
+    {
+      "name": "execute_code",
+      "toolset": "code_execution",
+      "file": "tools/code_execution_tool.py",
+      "line": 2206
+    },
+    {
+      "name": "feishu_doc_read",
+      "toolset": "feishu_doc",
+      "file": "tools/feishu_doc_tool.py",
+      "line": 128
+    },
+    {
+      "name": "feishu_drive_add_comment",
+      "toolset": "feishu_drive",
+      "file": "tools/feishu_drive_tool.py",
+      "line": 421
+    },
+    {
+      "name": "feishu_drive_list_comment_replies",
+      "toolset": "feishu_drive",
+      "file": "tools/feishu_drive_tool.py",
+      "line": 397
+    },
+    {
+      "name": "feishu_drive_list_comments",
+      "toolset": "feishu_drive",
+      "file": "tools/feishu_drive_tool.py",
+      "line": 385
+    },
+    {
+      "name": "feishu_drive_reply_comment",
+      "toolset": "feishu_drive",
+      "file": "tools/feishu_drive_tool.py",
+      "line": 409
+    },
+    {
+      "name": "focus_pane",
+      "toolset": "desktop_ui",
+      "file": "tools/focus_pane_tool.py",
+      "line": 60
+    },
+    {
+      "name": "ha_call_service",
+      "toolset": "homeassistant",
+      "file": "tools/homeassistant_tool.py",
+      "line": 507
+    },
+    {
+      "name": "ha_get_state",
+      "toolset": "homeassistant",
+      "file": "tools/homeassistant_tool.py",
+      "line": 489
+    },
+    {
+      "name": "ha_list_entities",
+      "toolset": "homeassistant",
+      "file": "tools/homeassistant_tool.py",
+      "line": 480
+    },
+    {
+      "name": "ha_list_services",
+      "toolset": "homeassistant",
+      "file": "tools/homeassistant_tool.py",
+      "line": 498
+    },
+    {
+      "name": "image_generate",
+      "toolset": "image_gen",
+      "file": "tools/image_generation_tool.py",
+      "line": 2126
+    },
+    {
+      "name": "kanban_attach",
+      "toolset": "kanban",
+      "file": "tools/kanban_tools.py",
+      "line": 2428
+    },
+    {
+      "name": "kanban_attach_url",
+      "toolset": "kanban",
+      "file": "tools/kanban_tools.py",
+      "line": 2437
+    },
+    {
+      "name": "kanban_attachments",
+      "toolset": "kanban",
+      "file": "tools/kanban_tools.py",
+      "line": 2446
+    },
+    {
+      "name": "kanban_block",
+      "toolset": "kanban",
+      "file": "tools/kanban_tools.py",
+      "line": 2383
+    },
+    {
+      "name": "kanban_comment",
+      "toolset": "kanban",
+      "file": "tools/kanban_tools.py",
+      "line": 2419
+    },
+    {
+      "name": "kanban_complete",
+      "toolset": "kanban",
+      "file": "tools/kanban_tools.py",
+      "line": 2374
+    },
+    {
+      "name": "kanban_create",
+      "toolset": "kanban",
+      "file": "tools/kanban_tools.py",
+      "line": 2455
+    },
+    {
+      "name": "kanban_heartbeat",
+      "toolset": "kanban",
+      "file": "tools/kanban_tools.py",
+      "line": 2410
+    },
+    {
+      "name": "kanban_link",
+      "toolset": "kanban",
+      "file": "tools/kanban_tools.py",
+      "line": 2473
+    },
+    {
+      "name": "kanban_list",
+      "toolset": "kanban",
+      "file": "tools/kanban_tools.py",
+      "line": 2365
+    },
+    {
+      "name": "kanban_request_changes",
+      "toolset": "kanban",
+      "file": "tools/kanban_tools.py",
+      "line": 2401
+    },
+    {
+      "name": "kanban_request_review",
+      "toolset": "kanban",
+      "file": "tools/kanban_tools.py",
+      "line": 2392
+    },
+    {
+      "name": "kanban_show",
+      "toolset": "kanban",
+      "file": "tools/kanban_tools.py",
+      "line": 2356
+    },
+    {
+      "name": "kanban_unblock",
+      "toolset": "kanban",
+      "file": "tools/kanban_tools.py",
+      "line": 2464
+    },
+    {
+      "name": "memory",
+      "toolset": "memory",
+      "file": "tools/memory_tool.py",
+      "line": 1274
+    },
+    {
+      "name": "open_preview",
+      "toolset": "desktop_ui",
+      "file": "tools/open_preview_tool.py",
+      "line": 87
+    },
+    {
+      "name": "patch",
+      "toolset": "file",
+      "file": "tools/file_tools.py",
+      "line": 2811
+    },
+    {
+      "name": "process",
+      "toolset": "terminal",
+      "file": "tools/process_registry.py",
+      "line": 3120
+    },
+    {
+      "name": "project_create",
+      "toolset": "project",
+      "file": "tools/project_tools.py",
+      "line": 153
+    },
+    {
+      "name": "project_list",
+      "toolset": "project",
+      "file": "tools/project_tools.py",
+      "line": 142
+    },
+    {
+      "name": "project_switch",
+      "toolset": "project",
+      "file": "tools/project_tools.py",
+      "line": 178
+    },
+    {
+      "name": "react_to_message",
+      "toolset": "desktop_ui",
+      "file": "tools/react_to_message_tool.py",
+      "line": 182
+    },
+    {
+      "name": "read_file",
+      "toolset": "file",
+      "file": "tools/file_tools.py",
+      "line": 2809
+    },
+    {
+      "name": "read_preview",
+      "toolset": "desktop_ui",
+      "file": "tools/read_preview_tool.py",
+      "line": 84
+    },
+    {
+      "name": "read_terminal",
+      "toolset": "desktop_ui",
+      "file": "tools/read_terminal_tool.py",
+      "line": 79
+    },
+    {
+      "name": "read_window_below",
+      "toolset": "desktop_ui",
+      "file": "tools/read_window_tool.py",
+      "line": 65
+    },
+    {
+      "name": "search_files",
+      "toolset": "file",
+      "file": "tools/file_tools.py",
+      "line": 2812
+    },
+    {
+      "name": "session_search",
+      "toolset": "session_search",
+      "file": "tools/session_search_tool.py",
+      "line": 1302
+    },
+    {
+      "name": "setup_mcp",
+      "toolset": "desktop_ui",
+      "file": "tools/setup_mcp_tool.py",
+      "line": 123
+    },
+    {
+      "name": "skill_manage",
+      "toolset": "skills",
+      "file": "tools/skill_manager_tool.py",
+      "line": 1832
+    },
+    {
+      "name": "skill_view",
+      "toolset": "skills",
+      "file": "tools/skills_tool.py",
+      "line": 2166
+    },
+    {
+      "name": "skills_list",
+      "toolset": "skills",
+      "file": "tools/skills_tool.py",
+      "line": 2003
+    },
+    {
+      "name": "terminal",
+      "toolset": "terminal",
+      "file": "tools/terminal_tool.py",
+      "line": 3934
+    },
+    {
+      "name": "text_to_speech",
+      "toolset": "tts",
+      "file": "tools/tts_tool.py",
+      "line": 4540
+    },
+    {
+      "name": "todo",
+      "toolset": "todo",
+      "file": "tools/todo_tool.py",
+      "line": 357
+    },
+    {
+      "name": "tour",
+      "toolset": "desktop_ui",
+      "file": "tools/tour_tool.py",
+      "line": 186
+    },
+    {
+      "name": "video_analyze",
+      "toolset": "video",
+      "file": "tools/vision_tools.py",
+      "line": 2214
+    },
+    {
+      "name": "video_generate",
+      "toolset": "video_gen",
+      "file": "tools/video_generation_tool.py",
+      "line": 595
+    },
+    {
+      "name": "vision_analyze",
+      "toolset": "vision",
+      "file": "tools/vision_tools.py",
+      "line": 1797
+    },
+    {
+      "name": "web_extract",
+      "toolset": "web",
+      "file": "tools/web_tools.py",
+      "line": 1586
+    },
+    {
+      "name": "web_search",
+      "toolset": "web",
+      "file": "tools/web_tools.py",
+      "line": 1576
+    },
+    {
+      "name": "write_file",
+      "toolset": "file",
+      "file": "tools/file_tools.py",
+      "line": 2810
+    },
+    {
+      "name": "x_search",
+      "toolset": "x_search",
+      "file": "tools/x_search_tool.py",
+      "line": 554
+    },
+    {
+      "name": "xai_video_edit",
+      "toolset": "video_gen",
+      "file": "tools/xai_video_tools.py",
+      "line": 189
+    },
+    {
+      "name": "xai_video_extend",
+      "toolset": "video_gen",
+      "file": "tools/xai_video_tools.py",
+      "line": 200
+    },
+    {
+      "name": "yb_query_group_info",
+      "toolset": null,
+      "file": "tools/yuanbao_tools.py",
+      "line": 502
+    },
+    {
+      "name": "yb_query_group_members",
+      "toolset": null,
+      "file": "tools/yuanbao_tools.py",
+      "line": 528
+    },
+    {
+      "name": "yb_search_sticker",
+      "toolset": null,
+      "file": "tools/yuanbao_tools.py",
+      "line": 654
+    },
+    {
+      "name": "yb_send_dm",
+      "toolset": null,
+      "file": "tools/yuanbao_tools.py",
+      "line": 580
+    },
+    {
+      "name": "yb_send_sticker",
+      "toolset": null,
+      "file": "tools/yuanbao_tools.py",
+      "line": 691
+    }
+  ],
+  "literal_builtin_tool_count": 92,
+  "concrete_environment_classes": [
+    {
+      "class": "DaytonaEnvironment",
+      "file": "tools/environments/daytona.py",
+      "line": 30
+    },
+    {
+      "class": "DockerEnvironment",
+      "file": "tools/environments/docker.py",
+      "line": 852
+    },
+    {
+      "class": "LocalEnvironment",
+      "file": "tools/environments/local.py",
+      "line": 1708
+    },
+    {
+      "class": "ManagedModalEnvironment",
+      "file": "tools/environments/managed_modal.py",
+      "line": 36
+    },
+    {
+      "class": "ModalEnvironment",
+      "file": "tools/environments/modal.py",
+      "line": 164
+    },
+    {
+      "class": "SingularityEnvironment",
+      "file": "tools/environments/singularity.py",
+      "line": 161
+    },
+    {
+      "class": "SSHEnvironment",
+      "file": "tools/environments/ssh.py",
+      "line": 46
+    },
+    {
+      "class": "VercelSandboxEnvironment",
+      "file": "tools/environments/vercel_sandbox.py",
+      "line": 243
+    }
+  ],
+  "concrete_environment_count": 8,
+  "model_provider_plugin_directories": [
+    "actual",
+    "ai-gateway",
+    "alibaba",
+    "alibaba-coding-plan",
+    "anthropic",
+    "arcee",
+    "azure-foundry",
+    "bedrock",
+    "commandcode",
+    "copilot",
+    "copilot-acp",
+    "custom",
+    "deepinfra",
+    "deepseek",
+    "fireworks",
+    "gemini",
+    "gmi",
+    "huggingface",
+    "kilocode",
+    "kimi-coding",
+    "meta-ai",
+    "minimax",
+    "nous",
+    "novita",
+    "nvidia",
+    "ollama-cloud",
+    "openai-codex",
+    "opencode-zen",
+    "openrouter",
+    "qwen-oauth",
+    "stepfun",
+    "upstage",
+    "vertex",
+    "xai",
+    "xiaomi",
+    "zai"
+  ],
+  "model_provider_plugin_directory_count": 36,
+  "memory_provider_directories": [
+    "byterover",
+    "hindsight",
+    "holographic",
+    "honcho",
+    "mem0",
+    "openviking",
+    "retaindb",
+    "supermemory"
+  ],
+  "memory_provider_directory_count": 8,
+  "platform_plugin_directories": [
+    "a2a",
+    "buzz",
+    "dingtalk",
+    "discord",
+    "email",
+    "feishu",
+    "google_chat",
+    "homeassistant",
+    "irc",
+    "line",
+    "matrix",
+    "mattermost",
+    "ntfy",
+    "photon",
+    "raft",
+    "simplex",
+    "slack",
+    "sms",
+    "teams",
+    "telegram",
+    "wecom",
+    "whatsapp"
+  ],
+  "platform_plugin_directory_count": 22,
+  "test_file_count": 3243,
+  "methodology": "Static tracked-tree and AST inventory. Directory counts include directories only; runtime discovery can add entry-point plugins."
+}

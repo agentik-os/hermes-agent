@@ -23,7 +23,6 @@ import {
   closeAllTerminals,
   closeOtherTerminals,
   closeTerminal,
-  createTerminal,
   selectTerminal,
   type TerminalEntry
 } from './terminals'
@@ -40,7 +39,6 @@ export function TerminalRail() {
   const activeId = useStore($activeTerminalId)
   const bindings = useStore($bindings)
   const toggleHint = bindings['view.showTerminal']?.[0]
-  const newHint = bindings['view.newTerminal']?.[0]
 
   return (
     <div
@@ -66,21 +64,6 @@ export function TerminalRail() {
             toggleHint={toggleHint}
           />
         ))}
-        <li className="flex w-full justify-center">
-          <Tip
-            label={<TipHintLabel hint={newHint && formatCombo(newHint)} text={t.rightSidebar.terminalNew} />}
-            side="left"
-          >
-            <button
-              aria-label={t.rightSidebar.terminalNew}
-              className={cn(RAIL_ACTION, 'size-7 text-(--ui-text-quaternary)')}
-              onClick={() => createTerminal()}
-              type="button"
-            >
-              <Codicon name="add" size="0.8125rem" />
-            </button>
-          </Tip>
-        </li>
       </ul>
 
       <div className="flex shrink-0 flex-col items-center pb-1.5">

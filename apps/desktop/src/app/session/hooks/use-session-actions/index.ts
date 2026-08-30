@@ -9,7 +9,7 @@ import { useI18n } from '@/i18n'
 import { type ChatMessage, preserveLocalAssistantErrors, toChatMessages } from '@/lib/chat-messages'
 import { isMissingRpcMethod } from '@/lib/gateway-rpc'
 import { recoverInFlightTurnJournal } from '@/lib/inflight-turn-journal'
-import { setSessionYolo } from '@/lib/yolo-session'
+import { setSessionYoloAndReconcile } from '@/lib/yolo-session'
 import { normalizeChoices, setClarifyRequest } from '@/store/clarify'
 import { migrateSessionDraft } from '@/store/composer'
 import { clearQueuedPrompts, migrateQueuedPrompts } from '@/store/composer-queue'
@@ -44,7 +44,7 @@ import {
   $messages,
   $newChatWorkspaceTarget,
   $sessions,
-  $yoloActive,
+  $sessionYoloActive,
   type NewChatWorkspaceTarget,
   resolveComposerSessionKey,
   sessionPinId,
@@ -66,6 +66,7 @@ import {
   setSelectedStoredSessionId,
   setSessions,
   setSessionStartedAt,
+  setSessionYoloActive,
   setTurnStartedAt,
   setWorkspaceCwdOwner,
   setYoloActive
@@ -414,6 +415,7 @@ export function useSessionActions({
       // refreshCurrentModel). Only $currentServiceTier (a live-session mirror)
       // is cleared.
       setCurrentServiceTier('')
+      setSessionYoloActive(false)
       setYoloActive(false)
       setNewChatWorkspaceTarget(hasWorkspaceTarget ? workspaceTarget : undefined)
 
@@ -511,7 +513,7 @@ export function useSessionActions({
         setActiveSessionId(created.session_id)
         setSelectedStoredSessionId(stored)
         setSessionStartedAt(Date.now())
-        const yoloArmed = $yoloActive.get()
+        const yoloArmed = $sessionYoloActive.get()
         const runtimeInfo = applyRuntimeInfo(created.info)
 
         if (runtimeInfo) {
@@ -521,7 +523,7 @@ export function useSessionActions({
         // User may have armed YOLO on the new-chat draft before the runtime
         // session existed — apply it to the freshly created session.
         if (yoloArmed) {
-          await setSessionYolo(requestGateway, created.session_id, true).catch(() => undefined)
+          await setSessionYoloAndReconcile(requestGateway, created.session_id, true).catch(() => undefined)
         }
 
         return created.session_id

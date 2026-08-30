@@ -285,7 +285,11 @@ export function parseOscCwd(code: 7 | 9, payload: string): string | null {
 
 // Bind the palette to the live skin surface so the terminal blends with the app
 // (and the contrast clamp has a real background to work against).
-function withSurface(theme: ReturnType<typeof terminalTheme>) {
+function withSurface(theme: ReturnType<typeof terminalTheme>, transparent = false) {
+  if (transparent) {
+    return { ...theme, background: '#00000000', cursorAccent: '#00000000' }
+  }
+
   const surface = resolveSurfaceColor(theme.background ?? '#ffffff')
 
   return { ...theme, background: surface, cursorAccent: surface }
@@ -400,6 +404,7 @@ export function useTerminalSession({
   const ansiPalette = renderedMode === 'dark' ? (theme.darkTerminal ?? theme.terminal) : theme.terminal
   const activeTheme = useMemo(() => terminalTheme(renderedMode, ansiPalette), [renderedMode, ansiPalette])
   const initialThemeRef = useRef(activeTheme)
+  const initialTransparentRef = useRef(themeName === 'agk')
   const hostRef = useRef<HTMLDivElement | null>(null)
   const termRef = useRef<Terminal | null>(null)
   const webglRef = useRef<WebglAddon | null>(null)
@@ -516,7 +521,10 @@ export function useTerminalSession({
       // glyphs as grayscale-alpha for compositing over a see-through canvas, which
       // reads soft on every platform; VS Code keeps it off and our surface
       // (--ui-bg-chrome) is opaque anyway, so withSurface paints it solid.
-      allowTransparency: false,
+      // Enable the alpha-capable renderer once. Opaque themes still supply an
+      // opaque background; AGK alone supplies alpha. This avoids recreating
+      // xterm or restarting the PTY when switching themes.
+      allowTransparency: true,
       convertEol: true,
       cursorBlink: true,
       fontFamily: latestFontFamilyRef.current,
@@ -543,7 +551,7 @@ export function useTerminalSession({
       // at render time, matching the muted ink-like look of their terminal.
       minimumContrastRatio: 4.5,
       scrollback: 1000,
-      theme: withSurface(initialThemeRef.current)
+      theme: withSurface(initialThemeRef.current, initialTransparentRef.current)
     })
 
     const fit = new FitAddon()
@@ -981,7 +989,7 @@ export function useTerminalSession({
     // CSS vars in a sibling effect that runs after this one, so reading now
     // would lag a mode behind. By the next frame the vars are current.
     const raf = requestAnimationFrame(() => {
-      term.options.theme = withSurface(activeTheme)
+      term.options.theme = withSurface(activeTheme, themeName === 'agk')
       // The WebGL renderer caches glyph colors in a texture atlas, so a
       // light/dark switch leaves already-drawn cells stale until the atlas is
       // cleared. No-op for the DOM fallback.

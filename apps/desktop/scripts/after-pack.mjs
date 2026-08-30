@@ -19,11 +19,61 @@
  *   - packager.appInfo.productFilename: the exe basename (e.g. 'Hermes')
  */
 
+import { spawnSync } from 'node:child_process'
 import path from 'node:path'
 
 import { stampExeIdentity } from './set-exe-identity.mjs'
 
+export function resolveMacBundleEnvironment(env = process.env) {
+  const root = String(env.HERMES_DESKTOP_HERMES_ROOT || '').trim()
+
+  if (!root) {
+    return null
+  }
+
+  const bundleEnv = {
+    HERMES_DESKTOP_HERMES_ROOT: path.resolve(root)
+  }
+  const home = String(env.HERMES_HOME || '').trim()
+  const disableGpu = String(env.HERMES_DESKTOP_DISABLE_GPU || '').trim()
+
+  if (home) {
+    bundleEnv.HERMES_HOME = path.resolve(home)
+  }
+  if (disableGpu === '0' || disableGpu === '1') {
+    bundleEnv.HERMES_DESKTOP_DISABLE_GPU = disableGpu
+  }
+
+  return bundleEnv
+}
+
+function stampMacBundleEnvironment(context) {
+  const bundleEnv = resolveMacBundleEnvironment()
+
+  if (!bundleEnv) {
+    return
+  }
+
+  const productName = context.packager?.appInfo?.productFilename || 'Hermes'
+  const plist = path.join(context.appOutDir, `${productName}.app`, 'Contents', 'Info.plist')
+  const result = spawnSync('/usr/bin/plutil', ['-replace', 'LSEnvironment', '-json', JSON.stringify(bundleEnv), plist], {
+    encoding: 'utf8'
+  })
+
+  if (result.error || result.status !== 0) {
+    throw new Error(result.error?.message || result.stderr?.trim() || `plutil exited ${result.status}`)
+  }
+
+  console.log(`[after-pack] pinned macOS Hermes runtime to ${bundleEnv.HERMES_DESKTOP_HERMES_ROOT}`)
+}
+
 export default async function afterPack(context) {
+  if (context.electronPlatformName === 'darwin') {
+    stampMacBundleEnvironment(context)
+
+    return
+  }
+
   if (context.electronPlatformName !== 'win32') {
     return
   }

@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { registry } from '@/contrib/registry'
 
 import type { GroupNode } from '../model'
+import { $newSessionTabAction } from '../store'
 
 import { TreeGroup } from './tree-group'
 
@@ -47,6 +48,7 @@ afterEach(() => {
 
   container?.remove()
   disposePane?.()
+  $newSessionTabAction.set(null)
   root = null
   container = null
   disposePane = null
@@ -54,6 +56,28 @@ afterEach(() => {
 })
 
 describe('TreeGroup', () => {
+  it('keeps the root workspace tab strip and new-session button visible despite persisted hiding', () => {
+    disposePane = registry.register({
+      area: 'panes',
+      data: { placement: 'main', uncloseable: true },
+      id: 'workspace',
+      render: () => <div>Workspace</div>,
+      title: 'Workspace'
+    })
+    $newSessionTabAction.set(vi.fn())
+    vi.stubGlobal('CSS', { escape: (value: string) => value })
+
+    render(
+      <TreeGroup
+        node={{ active: 'workspace', headerHidden: true, id: 'workspace-zone', panes: ['workspace'], type: 'group' }}
+        parentAxis="column"
+      />
+    )
+
+    expect(container!.querySelector('[data-zone-tabstrip]')).toBeTruthy()
+    expect(container!.querySelector('.codicon-add')).toBeTruthy()
+  })
+
   it('points the docked-zone chevron in the collapse or restore action direction', () => {
     disposePane = registry.register({
       area: 'panes',

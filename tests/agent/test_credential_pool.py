@@ -24,6 +24,147 @@ def _jwt_with_claims(claims: dict) -> str:
     return f"{_part({'alg': 'none', 'typ': 'JWT'})}.{_part(claims)}.sig"
 
 
+@pytest.mark.parametrize("strategy", ["fill_first", "random", "round_robin", "least_used"])
+def test_explicit_preference_overrides_pool_strategy_while_available(
+    strategy, monkeypatch
+):
+    from agent.credential_pool import CredentialPool, PooledCredential
+
+    entries = [
+        PooledCredential.from_dict(
+            "test",
+            {
+                "id": "first",
+                "priority": 0,
+                "source": "manual",
+                "access_token": "first-token",
+            },
+        ),
+        PooledCredential.from_dict(
+            "test",
+            {
+                "id": "preferred",
+                "priority": 1,
+                "source": "manual",
+                "access_token": "preferred-token",
+                "preferred": True,
+            },
+        ),
+    ]
+    pool = CredentialPool("test", entries)
+    pool._strategy = strategy
+    monkeypatch.setattr(pool, "_persist", lambda *args, **kwargs: None)
+
+    selected = pool.select()
+
+    assert selected is not None
+    assert selected.id == "preferred"
+    if strategy == "least_used":
+        assert selected.request_count == 1
+
+
+def test_exhausted_preference_falls_back_and_exact_selection_rejects_it(
+    monkeypatch,
+):
+    from agent.credential_pool import CredentialPool, PooledCredential
+
+    now = time.time()
+    entries = [
+        PooledCredential.from_dict(
+            "test",
+            {
+                "id": "preferred",
+                "priority": 0,
+                "source": "manual",
+                "access_token": "preferred-token",
+                "preferred": True,
+                "last_status": "exhausted",
+                "last_status_at": now,
+                "last_error_reset_at": now + 3600,
+            },
+        ),
+        PooledCredential.from_dict(
+            "test",
+            {
+                "id": "healthy",
+                "priority": 1,
+                "source": "manual",
+                "access_token": "healthy-token",
+            },
+        ),
+    ]
+    pool = CredentialPool("test", entries)
+    pool._strategy = "random"
+    monkeypatch.setattr(pool, "_persist", lambda *args, **kwargs: None)
+
+    assert pool.select_by_id("preferred") is None
+    selected = pool.select()
+    assert selected is not None
+    assert selected.id == "healthy"
+
+
+def test_exact_selection_is_not_redirected_by_another_global_preference():
+    from agent.credential_pool import CredentialPool, PooledCredential
+
+    entries = [
+        PooledCredential.from_dict(
+            "test",
+            {
+                "id": "session-a",
+                "priority": 0,
+                "source": "manual",
+                "access_token": "session-a-token",
+            },
+        ),
+        PooledCredential.from_dict(
+            "test",
+            {
+                "id": "global-b",
+                "priority": 1,
+                "source": "manual",
+                "access_token": "global-b-token",
+                "preferred": True,
+            },
+        ),
+    ]
+    pool = CredentialPool("test", entries)
+
+    selected = pool.select_by_id("session-a")
+
+    assert selected is not None
+    assert selected.id == "session-a"
+
+
+def test_empty_oauth_credential_is_never_eligible_or_selected():
+    from agent.credential_pool import CredentialPool, PooledCredential
+
+    empty = PooledCredential.from_dict(
+        "openai-codex",
+        {
+            "id": "empty-oauth",
+            "priority": 0,
+            "source": "device_code",
+            "auth_type": "oauth",
+            "access_token": "",
+        },
+    )
+    healthy = PooledCredential.from_dict(
+        "openai-codex",
+        {
+            "id": "healthy",
+            "priority": 1,
+            "source": "device_code",
+            "auth_type": "oauth",
+            "access_token": "healthy-token",
+        },
+    )
+    pool = CredentialPool("openai-codex", [empty, healthy])
+
+    assert pool.eligible_by_id("empty-oauth") is None
+    assert pool.select_by_id("empty-oauth") is None
+    selected = pool.select()
+    assert selected is not None
+    assert selected.id == "healthy"
 
 
 
@@ -36,6 +177,327 @@ def _jwt_with_claims(claims: dict) -> str:
 
 
 
+
+
+
+
+
+def test_prioritize_moves_selected_credential_first_and_persists(tmp_path, monkeypatch):
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path / "hermes"))
+    monkeypatch.setattr("agent.anthropic_adapter.read_claude_code_credentials", lambda: None)
+    _write_auth_store(
+        tmp_path,
+        {
+            "version": 1,
+            "credential_pool": {
+                "anthropic": [
+                    {
+                        "id": "work",
+                        "label": "Work",
+                        "auth_type": "api_key",
+                        "priority": 0,
+                        "source": "manual",
+                        "access_token": "«redacted:key-work»",
+                    },
+                    {
+                        "id": "personal",
+                        "label": "Personal",
+                        "auth_type": "api_key",
+                        "priority": 1,
+                        "source": "manual",
+                        "access_token": "«redacted:key-personal»",
+                    },
+                ]
+            },
+        },
+    )
+
+    from agent.credential_pool import load_pool
+
+    pool = load_pool("anthropic")
+    assert pool.prioritize("personal") is True
+    assert [(entry.id, entry.priority) for entry in pool.entries()] == [
+        ("personal", 0),
+        ("work", 1),
+    ]
+    assert load_pool("anthropic").entries()[0].id == "personal"
+    assert pool.prioritize("missing") is False
+
+
+def test_prioritize_seeded_anthropic_credential_stays_preferred_but_unavailable_without_token(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path / "hermes"))
+    monkeypatch.setattr("agent.anthropic_adapter.read_claude_code_credentials", lambda: None)
+    _write_auth_store(
+        tmp_path,
+        {
+            "version": 1,
+            "credential_pool": {
+                "anthropic": [
+                    {
+                        "id": "pkce",
+                        "label": "Hermes OAuth",
+                        "auth_type": "oauth",
+                        "priority": 0,
+                        "source": "hermes_pkce",
+                        "access_token": "«redacted:pkce»",
+                    },
+                    {
+                        "id": "claude",
+                        "label": "Claude Code",
+                        "auth_type": "oauth",
+                        "priority": 1,
+                        "source": "claude_code",
+                        "access_token": "«redacted:claude»",
+                    },
+                ]
+            },
+        },
+    )
+
+    from agent.credential_pool import load_pool
+
+    monkeypatch.setattr(
+        "agent.credential_pool._seed_from_singletons",
+        lambda _provider, _entries: (False, {"hermes_pkce", "claude_code"}),
+    )
+    assert load_pool("anthropic").prioritize("claude") is True
+    reloaded = load_pool("anthropic")
+    assert reloaded.entries()[0].id == "claude"
+    assert reloaded.entries()[0].runtime_api_key == ""
+    selected = reloaded.select()
+    assert selected is not None
+    assert selected.id == "pkce"
+
+
+def test_anthropic_normalization_clears_duplicate_preferred_markers(tmp_path, monkeypatch):
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path / "hermes"))
+    _write_auth_store(
+        tmp_path,
+        {
+            "version": 1,
+            "credential_pool": {
+                "anthropic": [
+                    {
+                        "id": "pkce",
+                        "label": "Hermes OAuth",
+                        "auth_type": "oauth",
+                        "priority": 0,
+                        "source": "hermes_pkce",
+                        "access_token": "«redacted:pkce»",
+                        "preferred": True,
+                    },
+                    {
+                        "id": "claude",
+                        "label": "Claude Code",
+                        "auth_type": "oauth",
+                        "priority": 1,
+                        "source": "claude_code",
+                        "access_token": "«redacted:claude»",
+                        "preferred": True,
+                    },
+                ]
+            },
+        },
+    )
+
+    from agent.credential_pool import load_pool
+
+    monkeypatch.setattr(
+        "agent.credential_pool._seed_from_singletons",
+        lambda _provider, _entries: (False, {"hermes_pkce", "claude_code"}),
+    )
+    pool = load_pool("anthropic")
+    preferred = [entry for entry in pool.entries() if entry.extra.get("preferred") is True]
+    assert [entry.id for entry in preferred] == ["pkce"]
+
+    persisted = json.loads((tmp_path / "hermes" / "auth.json").read_text())
+    persisted_preferred = [
+        entry["id"]
+        for entry in persisted["credential_pool"]["anthropic"]
+        if entry.get("preferred") is True
+    ]
+    assert persisted_preferred == ["pkce"]
+
+
+
+def test_anthropic_normalization_clears_duplicate_ids_preferred_markers():
+    from agent.credential_pool import PooledCredential, _normalize_pool_priorities
+
+    entries = [
+        PooledCredential.from_dict(
+            "anthropic",
+            {
+                "id": "same",
+                "label": "First",
+                "source": "hermes_pkce",
+                "priority": 0,
+                "access_token": "«redacted:first»",
+                "preferred": True,
+            },
+        ),
+        PooledCredential.from_dict(
+            "anthropic",
+            {
+                "id": "same",
+                "label": "Second",
+                "source": "claude_code",
+                "priority": 1,
+                "access_token": "«redacted:second»",
+                "preferred": True,
+            },
+        ),
+    ]
+
+    assert _normalize_pool_priorities("anthropic", entries) is True
+    assert sum(entry.extra.get("preferred") is True for entry in entries) == 1
+
+
+
+def test_prefer_eligible_credential_persists_only_available_entry(tmp_path, monkeypatch):
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path / "hermes"))
+    _write_auth_store(
+        tmp_path,
+        {
+            "version": 1,
+            "credential_pool": {
+                "openai-codex": [
+                    {"id": "first", "priority": 0, "access_token": "one", "source": "manual"},
+                    {"id": "second", "priority": 1, "access_token": "two", "source": "manual"},
+                    {
+                        "id": "blocked",
+                        "priority": 2,
+                        "access_token": "three",
+                        "source": "manual",
+                        "last_status": "exhausted",
+                        "last_status_at": time.time(),
+                        "last_error_reset_at": time.time() + 3600,
+                    },
+                    {
+                        "id": "expired",
+                        "priority": 3,
+                        "access_token": "four",
+                        "source": "manual",
+                        "last_status": "exhausted",
+                        "last_status_at": time.time() - 7200,
+                        "last_error_reset_at": time.time() - 3600,
+                    },
+                    {
+                        "id": "empty-oauth",
+                        "priority": 4,
+                        "access_token": "",
+                        "auth_type": "oauth",
+                        "source": "manual:device_code",
+                    },
+                ]
+            },
+        },
+    )
+
+    from hermes_cli.auth import prefer_eligible_credential
+
+    assert prefer_eligible_credential("openai-codex", "empty-oauth") == "unavailable"
+    assert prefer_eligible_credential("openai-codex", "blocked") == "unavailable"
+    assert prefer_eligible_credential("openai-codex", "expired") == "saved"
+    recovered = json.loads((tmp_path / "hermes" / "auth.json").read_text())
+    assert recovered["credential_pool"]["openai-codex"][0]["id"] == "expired"
+    assert recovered["credential_pool"]["openai-codex"][0]["last_status"] == "ok"
+    assert prefer_eligible_credential("openai-codex", "second") == "saved"
+    persisted = json.loads((tmp_path / "hermes" / "auth.json").read_text())
+    entries = persisted["credential_pool"]["openai-codex"]
+    assert entries[0]["id"] == "second"
+    assert entries[0]["preferred"] is True
+    assert all(entry.get("preferred") is not True for entry in entries[1:])
+
+
+def test_prefer_eligible_credential_writes_inherited_pool_source(
+    tmp_path, monkeypatch
+):
+    root_home = tmp_path / "hermes-root"
+    profile_home = root_home / "profiles" / "work"
+    profile_home.mkdir(parents=True)
+    root_home.mkdir(parents=True, exist_ok=True)
+    (root_home / "auth.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "credential_pool": {
+                    "openai-codex": [
+                        {
+                            "id": "global-a",
+                            "priority": 0,
+                            "access_token": "one",
+                            "source": "manual",
+                        },
+                        {
+                            "id": "global-b",
+                            "priority": 1,
+                            "access_token": "two",
+                            "source": "manual",
+                        },
+                    ]
+                },
+            }
+        )
+    )
+    monkeypatch.setenv("HERMES_HOME", str(profile_home))
+
+    import hermes_cli.auth as auth
+
+    monkeypatch.setattr(auth, "_global_auth_store_cache", None)
+    assert [
+        entry["id"] for entry in auth.read_credential_pool("openai-codex")
+    ] == ["global-a", "global-b"]
+
+    assert auth.prefer_eligible_credential("openai-codex", "global-b") == "saved"
+
+    persisted = json.loads((root_home / "auth.json").read_text())
+    assert persisted["credential_pool"]["openai-codex"][0]["id"] == "global-b"
+    assert persisted["credential_pool"]["openai-codex"][0]["preferred"] is True
+    assert not (profile_home / "auth.json").exists()
+
+
+def test_prefer_eligible_credential_accepts_hydrated_borrowed_reference(
+    tmp_path, monkeypatch
+):
+    from types import SimpleNamespace
+
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path / "hermes"))
+    _write_auth_store(
+        tmp_path,
+        {
+            "version": 1,
+            "credential_pool": {
+                "anthropic": [
+                    {
+                        "id": "borrowed",
+                        "priority": 0,
+                        "source": "env:ANTHROPIC_API_KEY",
+                    }
+                ]
+            },
+        },
+    )
+    hydrated = SimpleNamespace(
+        id="borrowed",
+        source="env:ANTHROPIC_API_KEY",
+        runtime_api_key="hydrated-runtime-key",
+    )
+    monkeypatch.setattr(
+        "agent.credential_pool.load_pool",
+        lambda _provider: SimpleNamespace(
+            eligible_by_id=lambda _credential_id: hydrated
+        ),
+    )
+
+    from hermes_cli.auth import prefer_eligible_credential
+
+    assert prefer_eligible_credential("anthropic", "borrowed") == "saved"
+    persisted = json.loads((tmp_path / "hermes" / "auth.json").read_text())
+    selected = persisted["credential_pool"]["anthropic"][0]
+    assert selected["preferred"] is True
+    assert "access_token" not in selected
 
 
 
@@ -1772,6 +2234,203 @@ def _codex_auth_store(access_token: str, refresh_token: str) -> dict:
 
 
 
+
+
+def _cooldown_entry(entry_id: str, *, status_at: float, priority: int = 0) -> dict:
+    return {
+        "id": entry_id,
+        "label": entry_id,
+        "auth_type": "api_key",
+        "priority": priority,
+        "source": "manual",
+        "access_token": f"token-{entry_id}",
+        "last_status": "exhausted",
+        "last_status_at": status_at,
+        "last_error_code": 429,
+        "last_error_reason": "rate_limit",
+        "last_error_message": "quota exhausted",
+        "last_error_reset_at": status_at + 3600,
+    }
+
+
+def test_reset_statuses_clears_active_cooldown_on_disk(tmp_path, monkeypatch):
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path / "hermes"))
+    status_at = 1_700_000_000.0
+    entry = _cooldown_entry("reset-me", status_at=status_at)
+    _write_auth_store(
+        tmp_path,
+        {
+            "version": 1,
+            "credential_pool": {"test": [entry]},
+        },
+    )
+
+    from agent.credential_pool import CredentialPool, PooledCredential
+
+    pool = CredentialPool("test", [PooledCredential.from_dict("test", entry)])
+
+    import hermes_cli.auth as auth
+
+    monkeypatch.setattr(auth.time, "time", lambda: status_at)
+
+    assert pool.reset_statuses() == 1
+
+    persisted = json.loads((tmp_path / "hermes" / "auth.json").read_text())
+    reset = persisted["credential_pool"]["test"][0]
+    assert reset["id"] == "reset-me"
+    assert reset.get("last_status") is None
+    assert reset.get("last_status_at") is None
+    assert reset.get("last_error_code") is None
+    assert reset.get("last_error_reason") is None
+    assert reset.get("last_error_message") is None
+    assert reset.get("last_error_reset_at") is None
+
+
+def test_reset_statuses_clears_legacy_iso_timestamp_cooldown(tmp_path, monkeypatch):
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path / "hermes"))
+    status_at = 1_700_000_000.0
+    entry = _cooldown_entry("reset-legacy-iso", status_at=status_at)
+    entry["last_status_at"] = "2023-11-14T22:13:20+00:00"
+    _write_auth_store(
+        tmp_path,
+        {
+            "version": 1,
+            "credential_pool": {"test": [entry]},
+        },
+    )
+
+    from agent.credential_pool import CredentialPool, PooledCredential
+
+    credential = PooledCredential.from_dict("test", entry)
+    assert credential.last_status_at == status_at
+    pool = CredentialPool("test", [credential])
+
+    import hermes_cli.auth as auth
+
+    monkeypatch.setattr(auth.time, "time", lambda: status_at)
+
+    assert pool.reset_statuses() == 1
+
+    persisted = json.loads((tmp_path / "hermes" / "auth.json").read_text())
+    reset = persisted["credential_pool"]["test"][0]
+    assert reset["id"] == "reset-legacy-iso"
+    assert reset.get("last_status") is None
+    assert reset.get("last_status_at") is None
+    assert reset.get("last_error_code") is None
+    assert reset.get("last_error_reason") is None
+    assert reset.get("last_error_message") is None
+    assert reset.get("last_error_reset_at") is None
+
+
+def test_normal_stale_snapshot_cannot_erase_active_disk_cooldown(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path / "hermes"))
+    status_at = 1_700_000_000.0
+    cooled = _cooldown_entry("keep-me", status_at=status_at)
+    _write_auth_store(
+        tmp_path,
+        {
+            "version": 1,
+            "credential_pool": {"test": [cooled]},
+        },
+    )
+    stale = {
+        key: value
+        for key, value in cooled.items()
+        if not key.startswith("last_")
+    }
+
+    import hermes_cli.auth as auth
+
+    monkeypatch.setattr(auth.time, "time", lambda: status_at)
+    auth.write_credential_pool("test", [stale])
+
+    persisted = json.loads((tmp_path / "hermes" / "auth.json").read_text())
+    kept = persisted["credential_pool"]["test"][0]
+    assert kept["last_status"] == "exhausted"
+    assert kept["last_status_at"] == status_at
+    assert kept["last_error_code"] == 429
+    assert kept["last_error_reset_at"] == status_at + 3600
+
+
+def test_reset_statuses_bypasses_only_matching_intended_ids(tmp_path, monkeypatch):
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path / "hermes"))
+    status_at = 1_700_000_000.0
+    reset_entry = _cooldown_entry("reset-me", status_at=status_at)
+    changed_after_snapshot = _cooldown_entry(
+        "changed-after-snapshot",
+        status_at=status_at,
+        priority=1,
+    )
+    healthy_entry = {
+        "id": "concurrent",
+        "label": "concurrent",
+        "auth_type": "api_key",
+        "priority": 2,
+        "source": "manual",
+        "access_token": "token-concurrent",
+    }
+    _write_auth_store(
+        tmp_path,
+        {
+            "version": 1,
+            "credential_pool": {
+                "test": [reset_entry, changed_after_snapshot, healthy_entry]
+            },
+        },
+    )
+
+    from agent.credential_pool import CredentialPool, PooledCredential
+
+    pool = CredentialPool(
+        "test",
+        [
+            PooledCredential.from_dict("test", reset_entry),
+            PooledCredential.from_dict("test", changed_after_snapshot),
+            PooledCredential.from_dict("test", healthy_entry),
+        ],
+    )
+
+    concurrent_status_at = status_at + 10
+    newer_intended_entry = _cooldown_entry(
+        "changed-after-snapshot",
+        status_at=concurrent_status_at,
+        priority=1,
+    )
+    concurrent_entry = _cooldown_entry(
+        "concurrent",
+        status_at=concurrent_status_at + 10,
+        priority=2,
+    )
+    _write_auth_store(
+        tmp_path,
+        {
+            "version": 1,
+            "credential_pool": {
+                "test": [reset_entry, newer_intended_entry, concurrent_entry]
+            },
+        },
+    )
+
+    import hermes_cli.auth as auth
+
+    monkeypatch.setattr(auth.time, "time", lambda: status_at)
+    assert pool.reset_statuses() == 2
+
+    persisted = json.loads((tmp_path / "hermes" / "auth.json").read_text())
+    by_id = {
+        entry["id"]: entry for entry in persisted["credential_pool"]["test"]
+    }
+    assert by_id["reset-me"].get("last_status") is None
+    assert by_id["reset-me"].get("last_status_at") is None
+    assert by_id["changed-after-snapshot"]["last_status"] == "exhausted"
+    assert (
+        by_id["changed-after-snapshot"]["last_status_at"]
+        == concurrent_status_at
+    )
+    assert by_id["concurrent"]["last_status"] == "exhausted"
+    assert by_id["concurrent"]["last_status_at"] == concurrent_status_at + 10
 
 
 def test_persist_preserves_concurrent_disk_only_entry(tmp_path, monkeypatch):

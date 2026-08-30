@@ -15,7 +15,7 @@ import {
   resolveDesktopCommand
 } from '@/lib/desktop-slash-commands'
 import { isMissingRpcMethod } from '@/lib/gateway-rpc'
-import { setSessionYolo } from '@/lib/yolo-session'
+import { setSessionYoloAndReconcile } from '@/lib/yolo-session'
 import { openCommandPalettePage } from '@/store/command-palette'
 import { setComposerDraft } from '@/store/composer'
 import { enqueueQueuedPrompt } from '@/store/composer-queue'
@@ -27,13 +27,16 @@ import { $activeGatewayProfile, $newChatProfile, ensureGatewayProfile, normalize
 import {
   $connection,
   $sessions,
+  $sessionYoloActive,
   $yoloActive,
+  $yoloAuthorityReady,
   resolveComposerSessionKey,
   setActiveSessionId,
   setCurrentUsage,
   setModelPickerOpen,
   setSessionPickerOpen,
   setSessions,
+  setSessionYoloActive,
   setYoloActive
 } from '@/store/session'
 import { $sessionStates } from '@/store/session-states'
@@ -661,10 +664,23 @@ export function useSlashCommand(deps: SlashCommandDeps) {
         // bypass, same scope as the TUI's Shift+Tab. With no session yet we arm
         // it locally; the session-create path applies it on the first message.
         yolo: async ({ sessionHint }) => {
+          if (!$yoloAuthorityReady.get()) {
+            notify({ kind: 'warning', title: copy.yoloTitle, message: 'Full-access authority is still loading; no change was applied.' })
+
+            return
+          }
+
+          if ($yoloActive.get() && !$sessionYoloActive.get()) {
+            notify({ kind: 'warning', title: copy.yoloTitle, message: 'Full access is inherited from global, process, or legacy gateway authority; change that authority instead of creating a hidden chat override.' })
+
+            return
+          }
+
           const sid = sessionHint || activeSessionIdRef.current
-          const next = !$yoloActive.get()
+          const next = !$sessionYoloActive.get()
 
           if (!sid) {
+            setSessionYoloActive(next)
             setYoloActive(next)
             notify({ kind: 'success', message: next ? copy.yoloArmed : copy.yoloOff })
 
@@ -672,7 +688,7 @@ export function useSlashCommand(deps: SlashCommandDeps) {
           }
 
           try {
-            const active = await setSessionYolo(requestGateway, sid, next)
+            const active = await setSessionYoloAndReconcile(requestGateway, sid, next)
             appendSessionTextMessage(sid, 'system', copy.yoloSystem(active))
           } catch {
             notify({ kind: 'error', title: copy.yoloTitle, message: copy.yoloToggleFailed })

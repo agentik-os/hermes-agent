@@ -259,6 +259,13 @@ export function ComposerStatusStack({ queue, sessionId }: ComposerStatusStackPro
             'transition-opacity duration-200 ease-out',
             scrolledUp ? 'opacity-30 group-hover/composer:opacity-100' : 'opacity-100'
           )}
+          // A NAMED handle for this card. `rounded-b-none` is also worn by the
+          // coding/cwd/git-branch strip inside the composer surface, so a theme
+          // reaching for the stack by class substring is one utility rename away
+          // from restyling the git/diff row instead — which is exactly how that
+          // row lost its branch name and its +/- counts once already. Themes
+          // target this slot; the utility classes stay layout, not API.
+          data-slot="composer-status-card"
         >
           {sections.map(section => (
             <div key={section.key}>{section.node}</div>

@@ -1,0 +1,77 @@
+{
+  "schema_version": "1.0.0",
+  "operator_prompt": {
+    "source": "Hermes session message",
+    "session_id": "20260821_002826_693ec4",
+    "message_id": 8330,
+    "path": "agk-upgrade/00-input/OPERATOR_PROMPT.md",
+    "bytes": 133717,
+    "sha256": "6e003f053b03e0c912fac8a4a50cd57a899593f2f86cd54eb4b1e0936181e207",
+    "preservation": "verbatim capture; conflicts are reconciled against canonical AGK sources rather than silently edited"
+  },
+  "hermes_baseline": {
+    "repository": "https://github.com/NousResearch/hermes-agent.git",
+    "commit": "8794e5a21c980a0f26532cb4883284b786cb3f25",
+    "branch": "agk/upgrade-architecture",
+    "independent_audit_evidence_manifest": {
+      "path": "agk-upgrade/01-hermes-audit/evidence/MANIFEST.json",
+      "sha256": "8280dd2b60936e664ece2dacdffc9116d6388ea52055edd70b6e329db2447b56"
+    }
+  },
+  "agk_baseline": {
+    "repository": "https://github.com/agentik-os/AGK-OS.git",
+    "commit": "39f7d8e404e8f314ceba99ce438df75d75a05f60",
+    "canon_path": "doc/00-canon.md",
+    "decision_register_path": "doc/00-decisions.md",
+    "build_gate_snapshot": {
+      "path": "agk-upgrade/00-input/AGK_BUILD_GATE_BASELINE.json",
+      "sha256": "fbe9769acb2f4422ef789f6e5438e3458fc383506e4d82bad490aa76e5516a5a"
+    },
+    "prebuild_summary_snapshot": {
+      "path": "agk-upgrade/00-input/AGK_PREBUILD_SUMMARY_BASELINE.json",
+      "sha256": "483ee97ca387661627b877430108bef274c30822ac01e4d466ba011ea3e4bbef"
+    },
+    "canonical_sources": [
+      {
+        "path": "doc/00-canon.md",
+        "sha256": "86c69c180733095baec42aaf63128a113b7fee1c492cd4561bf210af99b9b658"
+      },
+      {
+        "path": "doc/00-decisions.md",
+        "sha256": "31d805cd57de9868146746c480c8db8a82bf3fce1e35c07e8ffc2f1bfcf9dcd3"
+      },
+      {
+        "path": "doc/03-os/02-os-anatomy-and-inheritance.md",
+        "sha256": "93602d5206c48f126e8ec3da7f15f4960574d8574034ff04a72f7d75f66c70bf"
+      },
+      {
+        "path": "doc/03-os/01-what-an-os-is.md",
+        "sha256": "cb1972cb35bdfa5bd003dff4fef56d55c79be7689256ad20d5ad3040902df357"
+      },
+      {
+        "path": "doc/07-orchestration/02-triggers-automations-hooks.md",
+        "sha256": "5ba12d380229862869a2e4eebc59a1951120f6ccd56466a43b7a7b32b1b03fb7"
+      },
+      {
+        "path": "doc/02-projects/01-project-as-organization.md",
+        "sha256": "c9276b7edf452ed121014f5c4bb5fb0c2b208b1078aa4f57d2ffe99abe6aa882"
+      },
+      {
+        "path": "doc/16-stack/06-client-scopes.md",
+        "sha256": "4252c852194c17fa902685516d1a788d90493a75485c0ac928dcccfa6b3ce751"
+      },
+      {
+        "path": "doc/01-foundations/02-brand-architecture-and-taxonomy.md",
+        "sha256": "5b0f4986dfaf7b94e9cd3521844d786b8cbb2a4f398c97940e4f7b35a2136b9c"
+      },
+      {
+        "path": "doc/Interface.md",
+        "sha256": "c99a22926b3920e589764b6746737943e3f6e5c53ffce45079df8d1cbfa97d1b"
+      }
+    ],
+    "canonical_contracts": {
+      "path": "agk-upgrade/00-input/CANONICAL_CONTRACTS.yaml",
+      "sha256": "a74478826c0d4b930f48fb7a6a424b84d075408b99f4125f87db10ee4171623d"
+    }
+  }
+}

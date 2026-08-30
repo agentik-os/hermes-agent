@@ -8,6 +8,7 @@ import {
   TITLEBAR_FALLBACK_WINDOW_BUTTON_X,
   TITLEBAR_ICON_SIZE,
   TITLEBAR_MAC_TRAFFIC_LIGHTS_Y_NUDGE,
+  titlebarContentInsetCss,
   titlebarControlsPosition,
   titlebarControlsYNudge,
   titlebarIconSizeCss,
@@ -76,5 +77,35 @@ describe('titlebarToolsRightCss', () => {
 
   it('keeps the default chrome inset otherwise', () => {
     expect(titlebarToolsRightCss(0)).toBe('0.75rem')
+  })
+})
+
+// `--titlebar-content-inset` is what stops the session title being painted
+// under the macOS traffic lights and the left tool cluster. It was declared in
+// `titlebarHeaderBaseClass` and in the chat header's max-width for a long time
+// while NOTHING ever set it, so both fell back to 0 and the header sat at its
+// bare 0.75rem — directly on top of the chrome.
+describe('titlebarContentInsetCss', () => {
+  it('clears the fixed left cluster, counting the buttons it renders', () => {
+    const inset = titlebarContentInsetCss(2)
+
+    expect(inset).toContain('var(--titlebar-controls-left')
+    expect(inset).toContain('calc(2 * var(--titlebar-control-size))')
+  })
+
+  it('grows with page-contributed left tools', () => {
+    expect(titlebarContentInsetCss(4)).toContain('calc(4 * var(--titlebar-control-size))')
+  })
+
+  it('is measured per surface, discounting how far the pane already starts in', () => {
+    expect(titlebarContentInsetCss(2)).toContain('var(--workspace-left, 0px)')
+  })
+
+  it('never pulls a pane that already cleared the chrome back to the left', () => {
+    expect(titlebarContentInsetCss(2).startsWith('max(0px,')).toBe(true)
+  })
+
+  it('falls back to the plain edge inset before the cluster reports its position', () => {
+    expect(titlebarContentInsetCss(2)).toContain(`var(--titlebar-controls-left, ${TITLEBAR_EDGE_INSET}px)`)
   })
 })

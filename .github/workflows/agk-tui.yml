@@ -1,0 +1,33 @@
+name: AGK TUI
+
+on:
+  pull_request:
+    paths:
+      - "apps/agk-tui/**"
+      - ".github/workflows/agk-tui.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/agk-tui/**"
+      - ".github/workflows/agk-tui.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/agk-tui
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/agk-tui
+      - run: cargo fmt --check
+      - run: cargo clippy --locked --all-targets -- -D warnings
+      - run: cargo test --locked

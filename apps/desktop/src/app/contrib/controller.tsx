@@ -371,10 +371,9 @@ registry.registerMany([
 // zone. Review collapses to nothing while its pane is hidden (⌘G off).
 //
 // Preview tiles are DYNAMIC panes (like session tiles), so no preset names one:
-// they're registered by watchPreviewTiles as tabs open, and dockPaneBeside lands
-// each one directly beside the file tree wherever that currently lives — so a
-// file double-click still slides a preview open as its own pane next to the
-// tree, never as a tab stacked into the files sidebar.
+// the first preview docks beside the workspace, then later files center-dock into
+// that preview zone as ordinary tabs. The file browser remains its own outer
+// sidebar, so toggling Files never hides the open preview tab group.
 const DEFAULT_TREE = split(
   'row',
   [
@@ -868,10 +867,10 @@ export function ContribController() {
               className="pointer-events-auto absolute z-10 flex w-max items-center gap-2 [-webkit-app-region:no-drag]"
               style={{
                 right:
-                  // Five static cluster buttons: four systemTools plus the
+                  // Eight static-cluster buttons: seven systemTools plus the
                   // always-present right-sidebar toggle (titlebar-controls.tsx).
                   // Keep in sync with wiring.tsx's SYSTEM_TOOL_COUNT.
-                  'max(calc(var(--workspace-right, 0px) + 0.5rem), calc(var(--titlebar-tools-right, 0.75rem) + 5 * var(--titlebar-control-size, 24px) + 0.5rem))'
+                  'max(calc(var(--workspace-right, 0px) + 0.5rem), calc(var(--titlebar-tools-right, 0.75rem) + 8 * var(--titlebar-control-size, 24px) + 0.5rem))'
               }}
             />
           </div>

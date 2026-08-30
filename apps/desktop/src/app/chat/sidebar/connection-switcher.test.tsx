@@ -42,7 +42,9 @@ vi.mock('@/store/boot', () => ({
 
 vi.mock('@/store/windows', () => ({
   isAuxiliaryWindow: vi.fn(() => false),
-  isPeerInstanceWindow: vi.fn(() => false)
+  isPeerInstanceWindow: vi.fn(() => false),
+  openNewWindow: vi.fn(async () => undefined),
+  peerWindowConnectionId: vi.fn(() => null)
 }))
 
 vi.mock('@/i18n', () => ({
@@ -80,6 +82,8 @@ const refreshConnectionsRegistry = vi.mocked(connectionStore.refreshConnectionsR
 const selectConnection = vi.mocked(connectionStore.selectConnection)
 const isAuxiliaryWindow = vi.mocked(windowStore.isAuxiliaryWindow)
 const isPeerInstanceWindow = vi.mocked(windowStore.isPeerInstanceWindow)
+const openNewWindow = vi.mocked(windowStore.openNewWindow)
+const peerWindowConnectionId = vi.mocked(windowStore.peerWindowConnectionId)
 const onConnect = vi.fn()
 
 const connection = (id: string, label: string, kind: 'local' | 'remote' = 'remote') => ({
@@ -116,6 +120,7 @@ afterEach(() => {
   $findInPage.set({ active: false, query: '', matchOrdinal: 0, matchCount: 0 })
   isAuxiliaryWindow.mockReturnValue(false)
   isPeerInstanceWindow.mockReturnValue(false)
+  peerWindowConnectionId.mockReturnValue(null)
 })
 
 describe('ConnectionSwitcher', () => {
@@ -150,6 +155,19 @@ describe('ConnectionSwitcher', () => {
     render(<ConnectionSwitcher onConnect={onConnect} />)
 
     await waitFor(() => expect(refreshConnectionsRegistry).toHaveBeenCalledTimes(1))
+    expect(initializeConnectionsRegistry).not.toHaveBeenCalled()
+  })
+
+  it('pins a new peer window to the connection encoded in its launch URL', async () => {
+    isPeerInstanceWindow.mockReturnValue(true)
+    peerWindowConnectionId.mockReturnValue('work-vps')
+    $connectionsRegistry.set(
+      registry([connection('local', 'This device', 'local'), connection('work-vps', 'Work VPS')])
+    )
+
+    render(<ConnectionSwitcher onConnect={onConnect} />)
+
+    await waitFor(() => expect(selectConnection).toHaveBeenCalledWith('work-vps'))
     expect(initializeConnectionsRegistry).not.toHaveBeenCalled()
   })
 
@@ -201,6 +219,23 @@ describe('ConnectionSwitcher', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: 'Manage gateways…' }))
     expect(onConnect).toHaveBeenCalledTimes(1)
     expect(selectConnection).toHaveBeenCalledTimes(1)
+  })
+
+  it('opens the selected machine in a dedicated window with command-click or right-click', async () => {
+    $connectionsRegistry.set(
+      registry([connection('local', 'This device', 'local'), connection('work-vps', 'Work VPS')])
+    )
+    render(<ConnectionSwitcher onConnect={onConnect} />)
+
+    const trigger = screen.getByRole('button', { name: 'Registered gateways: This device' })
+    fireEvent.click(trigger, { metaKey: true })
+    await waitFor(() => expect(openNewWindow).toHaveBeenCalledWith('local'))
+
+    fireEvent.pointerDown(trigger, { button: 0, pointerType: 'mouse' })
+    const workVps = screen.getByRole('menuitemradio', { name: 'Work VPS' })
+    fireEvent.contextMenu(workVps)
+    await waitFor(() => expect(openNewWindow).toHaveBeenCalledWith('work-vps'))
+    expect(selectConnection).not.toHaveBeenCalled()
   })
 
   it('fits the shared statusbar slot without changing its gateway identity', () => {

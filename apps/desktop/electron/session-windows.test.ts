@@ -96,6 +96,12 @@ test('buildInstanceWindowUrl marks a full peer without selecting a specialized r
   assert.ok(!url.includes('win='))
 })
 
+test('buildInstanceWindowUrl pins a peer to a requested connection', () => {
+  const url = buildInstanceWindowUrl({ devServer: 'http://localhost:5173/', connectionId: 'station-vps' })
+
+  assert.equal(url, 'http://localhost:5173/?peer=1&connection=station-vps')
+})
+
 test('buildInstanceWindowUrl marks a packaged full peer', () => {
   const url = buildInstanceWindowUrl({ rendererIndexPath: '/opt/app/index.html' })
 

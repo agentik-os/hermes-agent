@@ -70,6 +70,8 @@ const normalizeMode = (value: string | null): ThemeMode =>
 // unassigned profiles and pre-per-profile installs stay on the global value.
 const profilePref = <T extends string>(record: string, legacy: string, normalize: (v: string | null) => T) => ({
   resolve: (profile: string): T => normalize(storedStringRecord(record)[profile] ?? storedString(legacy)),
+  /** The value AS STORED, before normalization — see `useAdoptLateTheme`. */
+  raw: (profile: string): null | string => storedStringRecord(record)[profile] ?? storedString(legacy),
   assign: (profile: string, value: T): void => {
     if (profile === 'default') {
       persistString(legacy, value)
@@ -387,6 +389,36 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     setModeState(modePref.resolve(profileKey))
   }, [profileKey])
 
+  // ADOPT A THEME THAT ARRIVES LATE.
+  //
+  // `normalizeSkin` coerces any name it cannot resolve to DEFAULT_SKIN_NAME, so
+  // a name is only kept if its theme exists AT THE MOMENT IT IS READ. Built-ins
+  // and localStorage-backed user themes always do. A theme CONTRIBUTED by a
+  // desktop plugin does not: plugins are read off disk and evaluated well after
+  // the boot paint, so the persisted choice was resolved against a registry
+  // that did not contain it yet, silently downgraded to the default, and never
+  // looked at again — the effect above only re-reads on a PROFILE switch.
+  //
+  // The symptom is a plugin theme that will not stick: it paints when the
+  // plugin activates it, survives until quit, and comes back as the default
+  // skin on the next launch, which is what pushed those plugins into
+  // re-claiming the theme on EVERY boot — and that in turn overwrote anyone who
+  // deliberately switched away.
+  //
+  // So re-read the RAW stored name whenever the resolvable set grows. It is a
+  // no-op in the common case (`stored === themeName`), it cannot fight a
+  // deliberate in-session switch (setTheme persists first, so the two agree),
+  // and it never resurrects a retired skin.
+  useEffect(() => {
+    const stored = skinPref.raw(profileKey)
+
+    if (stored && stored !== themeName && !RETIRED_SKINS.has(stored) && resolveTheme(stored)) {
+      setThemeNameState(stored)
+    }
+    // userThemes / backendThemes / registryVersion ARE "the resolvable set grew":
+    // they are not read in the body, they ARE the reason to re-run it.
+  }, [profileKey, themeName, userThemes, backendThemes, registryVersion])
+
   // Appearance is per-profile localStorage, and every desktop window is another
   // renderer on the same origin — so a switch made in the HUD (or any peer
   // window) only ever repainted the window it was made in. `storage` fires in
@@ -476,8 +508,29 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const pendingSkin = useStore($pendingSkinApply)
 
   useEffect(() => {
-    if (pendingSkin) {
+    if (!pendingSkin || $pendingSkinApply.get() !== pendingSkin) {
+      return
+    }
+
+    if (typeof pendingSkin === 'string') {
       setTheme(pendingSkin)
+    } else {
+      const live = normalizeProfileKey($activeGatewayProfile.get())
+
+      // A default is an offer, never an override. Re-check at drain time so
+      // a manual choice made after the request was queued still wins. The
+      // captured profile also prevents a late plugin from writing into a
+      // workspace the user switched to while the effect was pending.
+      if (live === pendingSkin.profile && skinPref.raw(live) === null && resolveTheme(pendingSkin.name)) {
+        setTheme(pendingSkin.name)
+      }
+    }
+
+    // Layout effects can enqueue a newer request after this render captured
+    // `pendingSkin` but before this passive effect runs. Only the effect that
+    // still owns the atom value may drain it; a stale effect must not apply or
+    // clear newer intent.
+    if ($pendingSkinApply.get() === pendingSkin) {
       $pendingSkinApply.set(null)
     }
   }, [pendingSkin, setTheme])

@@ -19,6 +19,7 @@ import {
 import { triggerHaptic } from '@/lib/haptics'
 import { Cloud, Globe, Loader2, Monitor, Pencil, Plus, RefreshCw, SearchIcon, Terminal, Trash2 } from '@/lib/icons'
 import { $activeConnectionId, setConnectionsRegistry } from '@/store/connections'
+import { $gatewayPairRequest, clearGatewayPairRequest } from '@/store/gateway-pair-request'
 import { notify, notifyError } from '@/store/notifications'
 
 import { EmptyState, ListRow, Pill, SectionHeading, ToggleRow } from './primitives'
@@ -222,6 +223,7 @@ export function ConnectionsRegistrySection() {
   const { t } = useI18n()
   const s = t.settings.connections
   const activeConnectionId = useStore($activeConnectionId)
+  const gatewayPairRequest = useStore($gatewayPairRequest)
   const [registry, setRegistry] = useState<DesktopConnectionsRegistry | null>(null)
   const [loading, setLoading] = useState(true)
   const [editor, setEditor] = useState<EditorState | null>(null)
@@ -269,6 +271,31 @@ export function ConnectionsRegistrySection() {
   useEffect(() => {
     void load()
   }, [load])
+
+  useEffect(() => {
+    if (loading || !registry || !gatewayPairRequest) {
+      return
+    }
+
+    const existing = registry.connections.find(
+      connection =>
+        (connection.kind === 'remote' || connection.kind === 'cloud') &&
+        normalizeGatewayUrl(connection.url || '') === normalizeGatewayUrl(gatewayPairRequest.url)
+    )
+
+    setDupeError(null)
+    setEditor(
+      existing
+        ? editorFromConnection(existing)
+        : {
+            ...emptyEditor('remote'),
+            label: gatewayPairRequest.label,
+            url: gatewayPairRequest.url,
+            authMode: gatewayPairRequest.authMode
+          }
+    )
+    clearGatewayPairRequest()
+  }, [gatewayPairRequest, loading, registry])
 
   const openEditor = (next: EditorState | null) => {
     setDupeError(null)

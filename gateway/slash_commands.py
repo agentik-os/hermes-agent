@@ -352,6 +352,45 @@ class GatewaySlashCommandsMixin:
             return EphemeralReply(f"{header}\n\n{session_info}{_tip_line}")
         return EphemeralReply(f"{header}{_tip_line}")
 
+    async def _handle_clear_command(self, event: MessageEvent) -> Union[str, EphemeralReply]:
+        """Handle ``/clear [count]`` (alias ``/clean``) on messaging gateways.
+
+        Only messages authored by the connected bot are deleted. This keeps
+        the operation useful without requiring Manage Messages or granting a
+        chat command the power to erase other people's content.
+        """
+        raw_count = (event.get_command_args() or "").strip()
+        if raw_count:
+            try:
+                count = int(raw_count)
+            except ValueError:
+                return "Usage: `/clear [count]` — count must be between 1 and 50."
+            if count < 1 or count > 50:
+                return "Usage: `/clear [count]` — count must be between 1 and 50."
+        else:
+            count = 10
+
+        source = event.source
+        adapter = self._adapter_for_source(source)
+        deleted = 0
+        purge = getattr(adapter, "delete_recent_own_messages", None) if adapter else None
+        if callable(purge) and getattr(source, "chat_id", None):
+            try:
+                deleted = await purge(str(source.chat_id), count)
+            except Exception:
+                logger.warning("Visible transcript cleanup failed", exc_info=True)
+
+        # Do not let the numeric deletion count become a /new session title.
+        event.text = "/new"
+        reset_reply = await self._handle_reset_command(event)
+        prefix = f"🧹 {deleted} recent bot message{'s' if deleted != 1 else ''} deleted.\n\n"
+        if isinstance(reset_reply, EphemeralReply):
+            return EphemeralReply(
+                prefix + str(reset_reply),
+                ttl_seconds=reset_reply.ttl_seconds,
+            )
+        return prefix + str(reset_reply)
+
     async def _handle_profile_command(self, event: MessageEvent) -> str:
         """Handle /profile — show the profile serving this source and its home.
 
@@ -5269,6 +5308,139 @@ class GatewaySlashCommandsMixin:
             return out if len(out) > 1 else []
         except Exception:
             return []
+
+    async def _handle_account_command(self, event: MessageEvent) -> str:
+        """List or select redacted credential-pool accounts on this gateway."""
+        from agent.credential_pool import load_pool
+        from gateway.slash_access import policy_for_source
+
+        source = getattr(event, "source", None)
+        user_id = (getattr(source, "user_id", None) or "").strip()
+        chat_type = (getattr(source, "chat_type", None) or "").lower()
+        platform = getattr(
+            getattr(source, "platform", None),
+            "value",
+            getattr(source, "platform", ""),
+        )
+        platform = str(platform or "").lower()
+        # Discord native slash responses are ephemeral, so an explicit admin can
+        # safely list redacted account metadata from a guild channel. Other
+        # platforms keep the DM-only rule because their command reply may be public.
+        if chat_type not in {"dm", "direct", "private"} and platform != "discord":
+            return "For privacy, /account is available only in a direct message."
+
+        multiplexed = bool(getattr(getattr(self, "config", None), "multiplex_profiles", False))
+        profile_home = None
+        if multiplexed:
+            try:
+                from gateway.run import _multiplex_profile_homes
+
+                requested_profile = (getattr(source, "profile", None) or "").strip()
+                served_profiles = dict(_multiplex_profile_homes(self.config))
+                profile_home = served_profiles.get(requested_profile)
+                if not requested_profile or profile_home is None or not profile_home.exists():
+                    return "Unable to resolve the account profile for this chat."
+            except Exception:
+                return "Unable to resolve the account profile for this chat."
+
+        def scoped_policy():
+            if not multiplexed:
+                return policy_for_source(self.config, source)
+            from gateway.config import load_gateway_config
+            from gateway.run import _profile_runtime_scope
+
+            with _profile_runtime_scope(profile_home):
+                return policy_for_source(load_gateway_config(), source)
+
+        try:
+            policy = await asyncio.to_thread(scoped_policy)
+        except Exception:
+            return "Unable to verify administrator access for this profile."
+        if not policy.enabled or not policy.is_admin(user_id):
+            return "Admin authorization is required for /account. Configure allow_admin_from first."
+
+        text = str(getattr(event, "text", "") or "").strip()
+        parts = text.split()
+        args = parts[1:] if parts else []
+        aliases = {
+            "openai": "openai-codex",
+            "codex": "openai-codex",
+            "openai-codex": "openai-codex",
+            "claude": "anthropic",
+            "anthropic": "anthropic",
+        }
+        labels = {"openai-codex": "OpenAI", "anthropic": "Claude"}
+
+        def pool_operation(provider, operation):
+            if not multiplexed:
+                return operation(load_pool(provider))
+            from gateway.run import _profile_runtime_scope
+
+            with _profile_runtime_scope(profile_home):
+                return operation(load_pool(provider))
+
+        def preference_operation(provider, credential_id):
+            def apply():
+                from hermes_cli.auth import prefer_eligible_credential
+
+                return prefer_eligible_credential(provider, credential_id)
+
+            if not multiplexed:
+                return apply()
+            from gateway.run import _profile_runtime_scope
+
+            with _profile_runtime_scope(profile_home):
+                return apply()
+
+        if args and args[0].lower() in {"use", "switch"}:
+            if len(args) != 3:
+                return "Usage: /account use <openai|claude> <account-id>"
+            provider = aliases.get(args[1].lower())
+            if provider is None:
+                return "Unknown provider. Use openai or claude."
+            credential_id = args[2].strip()
+            if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", credential_id):
+                return "Invalid account ID."
+
+            result = await asyncio.to_thread(preference_operation, provider, credential_id)
+            if result == "missing":
+                return f"Account not found for {labels[provider]}."
+            if result == "unavailable":
+                return f"That {labels[provider]} account is unavailable and was not preferred."
+            return (
+                f"{labels[provider]} preference saved for future eligible selections. "
+                "An active turn keeps its current credential."
+            )
+
+        if args and args[0].lower() in {"list", "status"} and len(args) != 1:
+            return "Usage: /account [list | use <openai|claude> <account-id>]"
+        if args and args[0].lower() not in {"list", "status"}:
+            return "Usage: /account [list | use <openai|claude> <account-id>]"
+
+        lines = ["Accounts on this gateway"]
+        for provider in ("openai-codex", "anthropic"):
+            entries = await asyncio.to_thread(
+                pool_operation,
+                provider,
+                lambda pool: sorted(pool.entries(), key=lambda entry: entry.priority),
+            )
+            entries = [
+                entry
+                for entry in entries
+                if re.fullmatch(r"[A-Za-z0-9_-]{1,64}", str(entry.id or ""))
+            ]
+            lines.append("")
+            lines.append(labels[provider])
+            if not entries:
+                lines.append("  Not connected")
+                continue
+            for index, entry in enumerate(entries):
+                marker = "●" if entry.priority == 0 else "○"
+                raw_status = str(entry.last_status or "ok").lower()
+                status = raw_status if raw_status in {"ok", "exhausted", "dead"} else "unknown"
+                lines.append(f"  {marker} Account {index + 1} [{entry.id}] · {status}")
+        lines.extend(["", "Switch: /account use <openai|claude> <account-id>"])
+        return "\n".join(lines)
 
     async def _handle_usage_command(self, event: MessageEvent) -> str:
         """Handle /usage command -- show token usage for the current session.

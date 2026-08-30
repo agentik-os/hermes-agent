@@ -62,7 +62,7 @@ declare global {
       // Open a new full-chrome app window — a peer instance of the primary that
       // renders the complete app against the shared backend, so the user can run
       // multiple GUI windows at once.
-      openWindow: () => Promise<{ ok: boolean; error?: string }>
+      openWindow: (opts?: { connectionId?: string }) => Promise<{ ok: boolean; error?: string }>
       // Claim a one-shot cross-window ambient cue (turn-end sound / spoken
       // reply). Resolves true for the first window to claim a key, false for
       // peers — so N open windows don't all fire the same cue.
@@ -280,6 +280,7 @@ declare global {
       }
       revealLogs: () => Promise<{ ok: boolean; path: string; error?: string }>
       getRecentLogs: () => Promise<{ path: string; lines: string[] }>
+      purgeMemory?: () => Promise<{ ok: boolean }>
       /** Persist a renderer error-boundary catch to desktop.log (fire-and-forget). */
       reportRendererError?: (report: {
         label: string
@@ -302,6 +303,8 @@ declare global {
       // so one agent-plugin package can ship a desktop UI half. Optional:
       // older Electron shells predate it — the scanner then skips this root.
       agentPluginsRoot?: () => Promise<string>
+      // Create one empty file or directory. Fails if the path already exists.
+      createEntry?: (parentPath: string, name: string, isDirectory: boolean) => Promise<{ path: string }>
       // Rename a file/folder in place (new base name, same parent dir).
       renamePath?: (path: string, newName: string) => Promise<{ path: string }>
       // Write a small UTF-8 text file (hardened path, parent must exist).

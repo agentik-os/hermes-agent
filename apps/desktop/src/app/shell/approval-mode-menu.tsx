@@ -17,6 +17,7 @@ import {
   setApprovalModeForProfile,
   syncApprovalModeForProfile
 } from '@/store/approval-mode'
+import { confirm } from '@/store/confirm'
 
 export function useApprovalModeStatusbarItem(profile: string, requestGateway: ApprovalModeRequester): StatusbarItem {
   const { t } = useI18n()
@@ -55,7 +56,25 @@ export function useApprovalModeStatusbarItem(profile: string, requestGateway: Ap
         <DropdownMenuSeparator />
         <DropdownMenuRadioGroup
           onValueChange={value => {
-            void setApprovalModeForProfile(requestGateway, profile, value as ApprovalMode).catch(() => undefined)
+            void (async () => {
+              const next = value as ApprovalMode
+
+              if (
+                next === 'off' &&
+                mode !== 'off' &&
+                !(await confirm({
+                  confirmLabel: 'Enable persistent full access',
+                  destructive: true,
+                  description:
+                    'This disables approval prompts for every chat, CLI/TUI command, cron job and unattended task on this gateway, and survives restart. Hardline blocks and your explicit deny rules still apply.',
+                  title: 'Enable global autonomous full access?'
+                }))
+              ) {
+                return
+              }
+
+              await setApprovalModeForProfile(requestGateway, profile, next)
+            })().catch(() => undefined)
           }}
           value={mode}
         >

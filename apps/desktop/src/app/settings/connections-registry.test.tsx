@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { DesktopConnectionsRegistry } from '@/global'
+import { clearGatewayPairRequest, requestGatewayPair } from '@/store/gateway-pair-request'
 import { $connection } from '@/store/session'
 
 import {
@@ -62,6 +63,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  clearGatewayPairRequest()
   $connection.set(null)
   cleanup()
   vi.clearAllMocks()
@@ -77,6 +79,24 @@ describe('ConnectionsRegistrySection', () => {
     expect(screen.getByText('Current')).toBeTruthy()
     expect(screen.getAllByText('Primary').length).toBeGreaterThan(0)
     expect(list).toHaveBeenCalledTimes(1)
+  })
+
+  it('opens a reviewable OAuth editor from a gateway pairing request without auto-saving', async () => {
+    requestGatewayPair({ url: 'https://station.example:8463', label: 'Station VPS', authMode: 'oauth' })
+    render(<ConnectionsRegistrySection />)
+
+    await waitFor(() => expect(screen.getByDisplayValue('Station VPS')).toBeTruthy())
+    expect(screen.getByDisplayValue('https://station.example:8463')).toBeTruthy()
+    expect(save).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByText('Save connection').closest('button')!)
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1))
+    expect(save.mock.calls[0][0]).toMatchObject({
+      kind: 'remote',
+      label: 'Station VPS',
+      url: 'https://station.example:8463',
+      authMode: 'oauth'
+    })
   })
 
   it('opens the add-connection editor and saves with a required label', async () => {

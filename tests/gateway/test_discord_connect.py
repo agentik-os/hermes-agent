@@ -1,5 +1,6 @@
 import asyncio
 import json
+import time
 import os
 import sys
 from types import SimpleNamespace
@@ -506,6 +507,44 @@ async def test_post_connect_initialization_retries_fingerprint_after_timeout(tmp
 
 
 @pytest.mark.asyncio
+async def test_command_sync_retry_runs_without_gateway_reconnect(monkeypatch):
+    adapter = DiscordAdapter(PlatformConfig(enabled=True, token="test-token"))
+    adapter._client = SimpleNamespace()
+    adapter._running = True
+    initialize = AsyncMock()
+    sleep = AsyncMock()
+    monkeypatch.setattr(adapter, "_run_post_connect_initialization", initialize)
+    monkeypatch.setattr(asyncio, "sleep", sleep)
+
+    await adapter._retry_command_sync_after(42)
+
+    sleep.assert_awaited_once_with(42)
+    initialize.assert_awaited_once_with()
+    assert adapter._command_sync_retry_task is None
+
+
+@pytest.mark.asyncio
+async def test_post_connect_arms_retry_when_persisted_cooldown_is_active(tmp_path, monkeypatch):
+    adapter = DiscordAdapter(PlatformConfig(enabled=True, token="test-token"))
+    monkeypatch.setattr("hermes_constants.get_hermes_home", lambda: tmp_path)
+    adapter._client = SimpleNamespace(
+        tree=SimpleNamespace(get_commands=lambda: []),
+        application_id=999,
+        user=SimpleNamespace(id=999),
+    )
+    state_path = tmp_path / discord_platform._DISCORD_COMMAND_SYNC_STATE_SUBDIR / discord_platform._DISCORD_COMMAND_SYNC_STATE_FILENAME
+    state_path.parent.mkdir(parents=True)
+    state_path.write_text(json.dumps({"999": {"retry_after_until": time.time() + 120}}), encoding="utf-8")
+    schedule = MagicMock()
+    monkeypatch.setattr(adapter, "_schedule_command_sync_retry", schedule)
+
+    await adapter._run_post_connect_initialization()
+
+    schedule.assert_called_once()
+    assert 100 < schedule.call_args.args[0] <= 120
+
+
+@pytest.mark.asyncio
 async def test_safe_sync_reads_permission_attrs_from_existing_command():
     """Regression: AppCommand.to_dict() in discord.py does NOT include
     nsfw, dm_permission, or default_member_permissions — they live only
@@ -706,4 +745,3 @@ class TestPrivilegedIntentsRequiredFatal:
         assert "Message Content Intent" in (adapter.fatal_error_message or "")
         assert "discord.com/developers/applications" in (adapter.fatal_error_message or "")
         assert adapter._bot_task is None
-

@@ -1,0 +1,217 @@
+#!/usr/bin/env bash
+# AGK bootstrap: user-scoped by default, fleet-aware for operators.
+set -euo pipefail
+
+mode=user
+environment=agentik
+rmux_version=0.10.0
+source_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+target_user=$(id -un)
+
+# Claude Code fleet policy, applied per AGK identity.
+#
+# Deliberately NOT /etc/claude-code/managed-settings.json: that file is read by
+# every account on the host, root included, and managed settings outrank user
+# settings, so root could not opt out of it. root runs its own Claude sessions
+# and must keep permission prompts. The identity list is the safety boundary.
+claude_policy_users=${AGK_CLAUDE_POLICY_USERS:-"operator agentik mission private"}
+claude_default_mode=${AGK_CLAUDE_DEFAULT_MODE:-bypassPermissions}
+
+usage() {
+  cat <<'EOF'
+Usage: agk-install [--user] [--environment NAME] [--source PATH]
+       sudo agk-install --fleet [--source PATH]
+
+--user             Install AGK for the current Linux user (default; no sudo).
+--environment NAME operator|agentik|mission|private (default: agentik).
+--fleet            Configure operator/agentik/mission/private independently.
+--source PATH      Hermes/AGK checkout or immutable release root.
+
+Claude Code policy is applied per identity in --fleet mode, never machine-wide:
+root keeps its permission prompts and is rejected even if added to the list.
+Tune with AGK_CLAUDE_DEFAULT_MODE=default or AGK_CLAUDE_POLICY_USERS="a b".
+
+Credentials are never accepted as arguments or written by this installer.
+Hermes and RMUX state are never shared between Linux identities.
+EOF
+}
+
+while (($#)); do
+  case "$1" in
+    --user) mode=user; shift ;;
+    --fleet) mode=fleet; shift ;;
+    --environment) environment=${2:?missing environment}; shift 2 ;;
+    --source) source_root=$(cd "${2:?missing source}" && pwd); shift 2 ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
+  esac
+done
+
+case "$environment" in operator|agentik|mission|private) ;; *) echo "Invalid environment: $environment" >&2; exit 2;; esac
+case "$claude_default_mode" in
+  default|acceptEdits|plan|dontAsk|auto|bypassPermissions) ;;
+  *) echo "Invalid AGK_CLAUDE_DEFAULT_MODE: $claude_default_mode" >&2; exit 2 ;;
+esac
+[ -x "$source_root/scripts/agk" ] && [ -x "$source_root/scripts/agk_control.py" ] || {
+  echo "Source does not contain the AGK runtime: $source_root" >&2; exit 1;
+}
+install_rmux() {
+  local os arch artifact base tmp_dir prefix expected
+  os=$(uname -s | tr '[:upper:]' '[:lower:]')
+  case "$os" in linux) os=linux ;; darwin) os=macos ;; *) echo "Unsupported RMUX platform: $os" >&2; exit 1;; esac
+  case "$(uname -m)" in x86_64|amd64) arch=x86_64 ;; aarch64|arm64) arch=aarch64 ;; *) echo "Unsupported RMUX architecture" >&2; exit 1;; esac
+  [ "$mode" != fleet ] || [ "$os" = linux ] || { echo "Fleet install requires Linux." >&2; exit 1; }
+  artifact="rmux-${rmux_version}-${os}-${arch}.tar.gz"
+  base="https://github.com/Helvesec/rmux/releases/download/v${rmux_version}"
+  tmp_dir=$(mktemp -d)
+  trap 'rm -rf -- "$tmp_dir"' RETURN
+  curl -fsSL "$base/SHA256SUMS" -o "$tmp_dir/SHA256SUMS"
+  curl -fsSL "$base/$artifact" -o "$tmp_dir/$artifact"
+  expected=$(awk -v name="$artifact" '$2 == name || $2 == "*" name {print $1}' "$tmp_dir/SHA256SUMS")
+  [ -n "$expected" ] || { echo "RMUX checksum is missing for $artifact" >&2; exit 1; }
+  printf '%s  %s\n' "$expected" "$tmp_dir/$artifact" | sha256sum -c -
+  tar -xzf "$tmp_dir/$artifact" -C "$tmp_dir"
+  prefix="$HOME/.local"
+  [ "$mode" = fleet ] && prefix=/usr/local
+  local packaged_installer
+  packaged_installer=$(find "$tmp_dir" -mindepth 2 -maxdepth 3 -type f -name install.sh -print -quit)
+  [ -n "$packaged_installer" ] || { echo "RMUX release installer missing" >&2; exit 1; }
+  bash "$packaged_installer" --prefix "$prefix"
+  export PATH="$prefix/bin:$PATH"
+  trap - RETURN
+  rm -rf -- "$tmp_dir"
+}
+
+install_opencode() {
+  local target
+  echo "Installing OpenCode from the official opencode.ai installer..."
+  curl -fsSL https://opencode.ai/install | bash -s -- --no-modify-path
+  target="$HOME/.local/bin/opencode"
+  [ "$mode" = fleet ] && target=/usr/local/bin/opencode
+  install -d -m 755 "$(dirname "$target")"
+  install -m 755 "$HOME/.opencode/bin/opencode" "$target"
+}
+
+if ! command -v rmux >/dev/null; then
+  echo "Installing checksum-verified RMUX v${rmux_version}..."
+  install_rmux
+fi
+rmux -V
+rmux list-commands >/dev/null
+rmux diagnose --human >/dev/null
+
+if ! command -v opencode >/dev/null; then
+  install_opencode
+fi
+
+native_tui=
+if command -v cargo >/dev/null; then
+  echo "Building native AGK Mission Control..."
+  cargo build --locked --release --manifest-path "$source_root/apps/agk-tui/Cargo.toml"
+  native_tui="$source_root/apps/agk-tui/target/release/agk-tui"
+else
+  echo "Rust toolchain not found; installing the Python recovery UI only."
+  echo "Release packages normally include a prebuilt native AGK TUI."
+fi
+
+# Write one identity's Claude Code config.
+#   mode=seed  : fill in absent keys only (install time; never clobbers choices)
+#   mode=apply : force the fleet policy onto the identity (explicit policy push)
+# Credentials are never written: each identity runs its own `claude login`.
+write_claude_settings() {
+  local user=$1 home_dir=$2 how=${3:-seed} claude_dir target tmp existing filter uid
+  uid=$(id -u "$user" 2>/dev/null) || { echo "Unknown user: $user" >&2; return 1; }
+  [ "$uid" -ne 0 ] || { echo "Refusing to apply AGK Claude policy to uid 0 ($user)" >&2; return 1; }
+  claude_dir="$home_dir/.claude"
+  target="$claude_dir/settings.json"
+  install -d -m 700 -o "$user" -g "$user" "$claude_dir" "$claude_dir/skills"
+  command -v jq >/dev/null || { echo "jq is required for Claude Code policy" >&2; return 1; }
+  existing='{}'
+  if [ -f "$target" ]; then
+    existing=$(cat "$target")
+    jq -e . >/dev/null 2>&1 <<<"$existing" || {
+      echo "Refusing to rewrite malformed $target" >&2; return 1;
+    }
+  fi
+  if [ "$how" = apply ]; then
+    filter='.permissions = ((.permissions // {}) | .defaultMode = $mode)
+            | .skipDangerousModePermissionPrompt = true'
+  else
+    # Seed only absent keys. `//=` is wrong here: jq treats an explicit `false`
+    # as absent, which would silently flip an identity's opt-out back on.
+    filter='.permissions = ((.permissions // {})
+              | if has("defaultMode") then . else .defaultMode = $mode end)
+            | if has("skipDangerousModePermissionPrompt") then .
+              else .skipDangerousModePermissionPrompt = true end'
+  fi
+  tmp=$(mktemp)
+  jq --arg mode "$claude_default_mode" "$filter" <<<"$existing" > "$tmp"
+  install -m 600 -o "$user" -g "$user" "$tmp" "$target"
+  rm -f "$tmp"
+}
+
+# Push the fleet policy to every AGK identity. root is absent from the list by
+# construction and rejected by write_claude_settings even if someone adds it.
+apply_claude_policy() {
+  local user home_dir
+  for user in $claude_policy_users; do
+    home_dir=$(getent passwd "$user" | cut -d: -f6) || true
+    [ -n "$home_dir" ] || { echo "Skipping Claude policy for missing user: $user" >&2; continue; }
+    write_claude_settings "$user" "$home_dir" apply
+    echo "Claude Code policy ($claude_default_mode) applied for $user"
+  done
+}
+
+install_one() {
+  local user=$1 env=$2 home_dir bin_dir config_dir state_dir registry_dir projects tmp
+  home_dir=$(getent passwd "$user" | cut -d: -f6)
+  [ -n "$home_dir" ] || { echo "Linux user not found: $user" >&2; return 1; }
+  bin_dir="$home_dir/.local/bin"
+  config_dir="$home_dir/.config/agk"
+  state_dir="$home_dir/.local/share/agk"
+  registry_dir="$state_dir/os-registry"
+  install -d -m 700 -o "$user" -g "$user" \
+    "$config_dir" "$state_dir" "$state_dir/agents" "$home_dir/.agentik" \
+    "$registry_dir/state" "$registry_dir/incoming" "$registry_dir/quarantine"
+  install -d -m 755 -o "$user" -g "$user" "$bin_dir"
+  install -m 755 -o "$user" -g "$user" "$source_root/scripts/agk" "$bin_dir/agk"
+  install -m 755 -o "$user" -g "$user" "$source_root/scripts/agk_control.py" "$state_dir/agk_control.py"
+  if [ -d "$source_root/agents" ]; then
+    cp -a "$source_root/agents/." "$state_dir/agents/"
+    chown -R "$user:$user" "$state_dir/agents"
+  fi
+  if [ -n "$native_tui" ] && [ -x "$native_tui" ]; then
+    install -m 755 -o "$user" -g "$user" "$native_tui" "$state_dir/agk-tui"
+  fi
+  projects="$home_dir/workspace/projects"
+  [ "$env" = mission ] && projects="$home_dir/workspace/clients"
+  install -d -m 700 -o "$user" -g "$user" "$projects"
+  tmp=$(mktemp)
+  printf 'environment: %s\nprojects_root: %s\n' "$env" "$projects" > "$tmp"
+  install -m 600 -o "$user" -g "$user" "$tmp" "$config_dir/environment.yaml"
+  rm -f "$tmp"
+  write_claude_settings "$user" "$home_dir" seed
+  echo "Installed AGK for $user ($env)"
+}
+
+if [ "$mode" = fleet ]; then
+  [ "$(id -u)" -eq 0 ] || { echo "--fleet requires root." >&2; exit 1; }
+  apply_claude_policy
+  for target_user in operator agentik mission private; do
+    getent passwd "$target_user" >/dev/null || { echo "Missing canonical user: $target_user" >&2; exit 1; }
+    install_one "$target_user" "$target_user"
+  done
+else
+  install_one "$target_user" "$environment"
+  if ! command -v hermes >/dev/null; then
+    echo "Installing the bundled Hermes runtime and bundled skills..."
+    "$source_root/scripts/install.sh" --skip-setup --non-interactive \
+      --dir "$HOME/.local/share/agk/hermes-runtime" --hermes-home "$HOME/.hermes"
+  fi
+fi
+
+cat <<'EOF'
+AGK installed. Ensure ~/.local/bin is in PATH, then run:
+  agk doctor
+  agk
+EOF

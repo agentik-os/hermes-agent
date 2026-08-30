@@ -1115,6 +1115,8 @@ class DiscordAdapter(BasePlatformAdapter):
         self._typing_tasks: Dict[str, asyncio.Task] = {}
         self._bot_task: Optional[asyncio.Task] = None
         self._post_connect_task: Optional[asyncio.Task] = None
+        self._command_sync_retry_task: Optional[asyncio.Task] = None
+        self._empty_content_notice_at: Dict[str, float] = {}
         # WebSocket-level liveness probe. Discord REST and Gateway are distinct
         # transports: a REST 200 cannot prove that this client is still receiving
         # Gateway events. Sample the current Discord WebSocket's ready/open/ACK
@@ -1336,7 +1338,10 @@ class DiscordAdapter(BasePlatformAdapter):
             # a username to resolve — requesting Members for it would silently
             # fail bots that never enabled Members Intent in the Developer Portal.
             intents = Intents.default()
-            intents.message_content = True
+            # Slash-command-only gateways can opt out while an application
+            # owner is still enabling the privileged Message Content toggle.
+            # Normal conversational messages require the default ``true``.
+            intents.message_content = _env_bool("DISCORD_MESSAGE_CONTENT_INTENT", True)
             intents.dm_messages = True
             intents.guild_messages = True
             intents.members = _needs_server_members_intent(
@@ -2186,6 +2191,12 @@ class DiscordAdapter(BasePlatformAdapter):
                 await self._post_connect_task
             except asyncio.CancelledError:
                 pass
+        if self._command_sync_retry_task and not self._command_sync_retry_task.done():
+            self._command_sync_retry_task.cancel()
+            try:
+                await self._command_sync_retry_task
+            except asyncio.CancelledError:
+                pass
         if self._missed_message_backfill_task and not self._missed_message_backfill_task.done():
             self._missed_message_backfill_task.cancel()
             try:
@@ -2197,6 +2208,7 @@ class DiscordAdapter(BasePlatformAdapter):
         self._client = None
         self._ready_event.clear()
         self._post_connect_task = None
+        self._command_sync_retry_task = None
         self._liveness_task = None
         self._missed_message_backfill_task = None
 
@@ -2265,6 +2277,13 @@ class DiscordAdapter(BasePlatformAdapter):
         ):
             return "same slash-command fingerprint already synced"
         return None
+
+    def _command_sync_retry_delay(self, app_id: Any) -> Optional[float]:
+        entry = self._read_command_sync_state().get(self._command_sync_state_key(app_id))
+        if not isinstance(entry, dict):
+            return None
+        remaining = float(entry.get("retry_after_until") or 0) - time.time()
+        return remaining if remaining > 0 else None
 
     def _record_command_sync_attempt(self, app_id: Any, fingerprint: str) -> None:
         state = self._read_command_sync_state()
@@ -2396,6 +2415,23 @@ class DiscordAdapter(BasePlatformAdapter):
         if interval > 0:
             await asyncio.sleep(interval)
 
+    def _schedule_command_sync_retry(self, delay: float) -> None:
+        """Retry command reconciliation without requiring a gateway restart."""
+        if self._command_sync_retry_task and not self._command_sync_retry_task.done():
+            return
+        self._command_sync_retry_task = asyncio.create_task(
+            self._retry_command_sync_after(max(1.0, float(delay)) + 1.0),
+            name=f"discord-command-sync-retry-{self.name}",
+        )
+
+    async def _retry_command_sync_after(self, delay: float) -> None:
+        await asyncio.sleep(delay)
+        # Clear before entering initialization so a second 429 can schedule
+        # the next retry rather than being suppressed by this active task.
+        self._command_sync_retry_task = None
+        if self._client and self._running:
+            await self._run_post_connect_initialization()
+
     async def _run_post_connect_initialization(self) -> None:
         """Finish non-critical startup work after Discord is connected."""
         if not self._client:
@@ -2415,6 +2451,9 @@ class DiscordAdapter(BasePlatformAdapter):
             fingerprint = self._desired_command_sync_fingerprint()
             skip_reason = self._command_sync_skip_reason(app_id, fingerprint)
             if skip_reason:
+                retry_delay = self._command_sync_retry_delay(app_id)
+                if retry_delay is not None:
+                    self._schedule_command_sync_retry(retry_delay)
                 logger.info("[%s] Skipping Discord slash command sync: %s", self.name, skip_reason)
                 return
             self._record_command_sync_attempt(app_id, fingerprint)
@@ -2440,6 +2479,7 @@ class DiscordAdapter(BasePlatformAdapter):
                     # conservative default so we don't slam the bucket again.
                     retry_after = _DISCORD_COMMAND_SYNC_MAX_RATE_LIMIT_SLEEP_SECONDS
                 self._record_command_sync_rate_limit(app_id, fingerprint, retry_after)
+                self._schedule_command_sync_retry(retry_after)
                 logger.warning(
                     "[%s] Discord rate-limited slash command sync; retrying after %.0fs",
                     self.name,
@@ -2462,6 +2502,9 @@ class DiscordAdapter(BasePlatformAdapter):
                 summary["deleted"],
             )
         except asyncio.TimeoutError:
+            self._schedule_command_sync_retry(
+                _DISCORD_COMMAND_SYNC_MAX_RATE_LIMIT_SLEEP_SECONDS
+            )
             logger.warning(
                 "[%s] Slash command sync timed out — Discord rate-limit bucket "
                 "may be saturated; will retry on next reconnect",
@@ -3244,11 +3287,50 @@ class DiscordAdapter(BasePlatformAdapter):
             raise RuntimeError("Discord application ID is unavailable for slash command sync")
 
         desired_payloads = [command.to_dict(tree) for command in tree.get_commands()]
+        existing_commands = await tree.fetch_commands()
+
+        # Discord applies a small daily creation budget to application
+        # commands. After a large legacy tree has exhausted that budget, a
+        # 100-command bulk overwrite can never accumulate enough capacity: it
+        # retries whenever one token returns but needs dozens. Converge without
+        # growing the live tree by prioritizing Agentik + essential Hermes
+        # commands and renaming obsolete command IDs through PATCH below.
+        if existing_commands and len(desired_payloads) > len(existing_commands):
+            try:
+                from hermes_cli.commands import _iter_plugin_command_entries
+                plugin_names = {name.lower()[:32] for name, _, _ in _iter_plugin_command_entries()}
+                from hermes_cli.plugins import get_plugin_commands
+                agentik_names = {
+                    str(name).lower()[:32] for name, metadata in (get_plugin_commands() or {}).items()
+                    if isinstance(metadata, dict) and metadata.get("plugin") == "agentik-os"
+                }
+            except Exception:
+                plugin_names = set(); agentik_names = set()
+            core_priority = {
+                "clear": 0,
+                "panel": 1,
+                "account": 2,
+                "model": 3,
+                "usage": 4,
+            }
+            core_names = {
+                "help", "status", "new", "stop", "resume", "sessions", "model",
+                "sethome", "clear", "undo", "approve", "deny", "queue",
+                "background", "context", "skills", "mcp", "restart", "version", "account", "panel",
+                "usage",
+            }
+            desired_payloads.sort(key=lambda item: (
+                core_priority.get(str(item.get("name", "")).lower(), 10)
+                if str(item.get("name", "")).lower() in core_names else
+                20 if str(item.get("name", "")).lower() in agentik_names else
+                30 if str(item.get("name", "")).lower() in plugin_names else 40,
+                str(item.get("name", "")).lower(),
+            ))
+            desired_payloads = desired_payloads[:len(existing_commands)]
         desired_by_key = {
             (int(payload.get("type", 1) or 1), str(payload.get("name", "") or "").lower()): payload
             for payload in desired_payloads
         }
-        existing_commands = await tree.fetch_commands()
         existing_by_key = {
             (
                 int(getattr(getattr(command, "type", None), "value", getattr(command, "type", 1)) or 1),
@@ -3256,6 +3338,34 @@ class DiscordAdapter(BasePlatformAdapter):
             ): command
             for command in existing_commands
         }
+
+        # Large diffs are both faster and safer through Discord's atomic bulk
+        # overwrite route. The per-command POST route has a very restrictive
+        # application-command creation bucket; trying to add environment
+        # commands one by one can otherwise take hours and leaves Discord out
+        # of parity with CLI/Web. Bulk overwrite is atomic server-side and the
+        # desired tree has already been bounded below the 100-command cap.
+        differing_keys: set[tuple[int, str]] = set(existing_by_key) ^ set(desired_by_key)
+        for key in set(existing_by_key) & set(desired_by_key):
+            current_payload = self._canonicalize_app_command_payload(
+                self._existing_command_to_payload(existing_by_key[key])
+            )
+            desired_payload = self._canonicalize_app_command_payload(desired_by_key[key])
+            if current_payload != desired_payload:
+                differing_keys.add(key)
+        bulk_upsert = getattr(self._client.http, "bulk_upsert_global_commands", None)
+        if not existing_commands and len(differing_keys) > 4 and callable(bulk_upsert):
+            await bulk_upsert(app_id, desired_payloads)
+            existing_keys = set(existing_by_key)
+            desired_keys = set(desired_by_key)
+            return {
+                "total": len(desired_payloads),
+                "unchanged": len((existing_keys & desired_keys) - differing_keys),
+                "updated": len(existing_keys & desired_keys & differing_keys),
+                "recreated": 0,
+                "created": len(desired_keys - existing_keys),
+                "deleted": len(existing_keys - desired_keys),
+            }
 
         unchanged = 0
         updated = 0
@@ -3273,20 +3383,38 @@ class DiscordAdapter(BasePlatformAdapter):
             mutation_count += 1
             return result
 
-        # Delete obsolete commands FIRST to stay under Discord's 100-command
-        # limit. Discord rejects an upsert that would push the live total over
-        # 100 (error 30032), which silently breaks ALL slash commands. If a new
-        # command is created before the obsolete ones are removed, an app that
-        # is already at the cap momentarily exceeds it and the whole sync fails.
-        # Removing the no-longer-desired commands up front guarantees the live
-        # total never rises above the cap mid-sync.
+        # Preserve availability during rate limits. Delete obsolete commands
+        # up front ONLY when the missing desired commands would otherwise push
+        # the live tree over Discord's hard cap. With normal headroom, create
+        # desired commands first and remove obsolete entries last; a 429 then
+        # leaves harmless extras instead of deleting working commands without
+        # installing their replacements.
         obsolete_keys = set(existing_by_key.keys()) - set(desired_by_key.keys())
-        for key in obsolete_keys:
+        missing_keys = set(desired_by_key.keys()) - set(existing_by_key.keys())
+
+        # A global command's name is editable. Pair obsolete IDs with missing
+        # desired commands so parity can be restored without consuming the
+        # scarce command-creation bucket.
+        paired_desired: set[tuple[int, str]] = set()
+        for old_key, new_key in zip(sorted(obsolete_keys), sorted(missing_keys)):
+            current = existing_by_key.pop(old_key)
+            await mutate(http.edit_global_command, app_id, current.id, desired_by_key[new_key])
+            paired_desired.add(new_key)
+            updated += 1
+        obsolete_keys -= set(sorted(obsolete_keys)[:len(paired_desired)])
+        missing_keys -= paired_desired
+        headroom = max(0, _DISCORD_MAX_APP_COMMANDS - len(existing_by_key))
+        required_predeletes = max(0, len(missing_keys) - headroom)
+        predelete_keys = set(sorted(obsolete_keys)[:required_predeletes])
+        for key in predelete_keys:
             current = existing_by_key.pop(key)
             await mutate(http.delete_global_command, app_id, current.id)
             deleted += 1
+        obsolete_keys -= predelete_keys
 
         for key, desired in desired_by_key.items():
+            if key in paired_desired:
+                continue
             current = existing_by_key.pop(key, None)
             if current is None:
                 await mutate(http.upsert_global_command, app_id, desired)
@@ -3308,6 +3436,13 @@ class DiscordAdapter(BasePlatformAdapter):
 
             await mutate(http.edit_global_command, app_id, current.id, desired)
             updated += 1
+
+        for key in obsolete_keys:
+            current = existing_by_key.get(key)
+            if current is None:
+                continue
+            await mutate(http.delete_global_command, app_id, current.id)
+            deleted += 1
 
         return {
             "total": len(desired_payloads),
@@ -3825,6 +3960,44 @@ class DiscordAdapter(BasePlatformAdapter):
         except Exception as e:  # pragma: no cover - defensive logging
             logger.error("[%s] Failed to edit Discord message %s: %s", self.name, message_id, e, exc_info=True)
             return SendResult(success=False, error=str(e))
+
+    async def delete_message(self, chat_id: str, message_id: str) -> bool:
+        """Delete one Discord message by id (best effort)."""
+        if not self._client:
+            return False
+        try:
+            channel = self._client.get_channel(int(chat_id))
+            if not channel:
+                channel = await self._client.fetch_channel(int(chat_id))
+            await channel.get_partial_message(int(message_id)).delete()
+            return True
+        except Exception as exc:
+            logger.warning("[%s] Failed to delete Discord message %s: %s", self.name, message_id, exc)
+            return False
+
+    async def delete_recent_own_messages(self, chat_id: str, count: int = 10) -> int:
+        """Delete up to ``count`` recent messages authored by this bot only."""
+        if not self._client or not getattr(self._client, "user", None):
+            return 0
+        channel = self._client.get_channel(int(chat_id))
+        if not channel:
+            channel = await self._client.fetch_channel(int(chat_id))
+        own_id = int(self._client.user.id)
+        deleted = 0
+        # Scan more than the target because user messages are deliberately
+        # skipped. Discord permits bots to delete their own messages without
+        # granting the broad Manage Messages permission.
+        async for message in channel.history(limit=min(max(count * 5, 25), 200)):
+            if int(getattr(getattr(message, "author", None), "id", 0)) != own_id:
+                continue
+            try:
+                await message.delete()
+                deleted += 1
+            except Exception as exc:
+                logger.warning("[%s] Failed to delete own Discord message %s: %s", self.name, getattr(message, "id", "?"), exc)
+            if deleted >= count:
+                break
+        return deleted
 
     @staticmethod
     def _is_length_overflow_error(err: Exception) -> bool:
@@ -5174,6 +5347,28 @@ class DiscordAdapter(BasePlatformAdapter):
         chan_obj = getattr(interaction, "channel", None)
         in_dm = isinstance(chan_obj, discord.DMChannel) if chan_obj is not None else False
 
+        # Explicit slash administrators may control a bot from a different guild
+        # channel without widening the bot's normal text-message routing. This is
+        # intentionally scoped to slash interactions: ordinary messages still
+        # obey DISCORD_ALLOWED_CHANNELS exactly as before.
+        interaction_user = getattr(interaction, "user", None)
+        interaction_user_id = str(getattr(interaction_user, "id", "") or "")
+        extra = getattr(self.config, "extra", None)
+        extra = extra if isinstance(extra, dict) else {}
+        admin_key = "allow_admin_from" if in_dm else "group_allow_admin_from"
+        raw_admins = extra.get(admin_key)
+        if isinstance(raw_admins, str):
+            slash_admin_ids = {part.strip() for part in raw_admins.split(",") if part.strip()}
+        elif isinstance(raw_admins, (list, tuple, set, frozenset)):
+            slash_admin_ids = {str(part).strip() for part in raw_admins if str(part).strip()}
+        elif raw_admins is None:
+            slash_admin_ids = set()
+        else:
+            slash_admin_ids = {str(raw_admins).strip()}
+        explicit_slash_admin = bool(
+            interaction_user_id and interaction_user_id in slash_admin_ids
+        )
+
         channel_ids: set = set()
         channel_keys: set = set()
         # ── Channel scope (mirrors on_message lines 3374-3388) ──
@@ -5203,7 +5398,7 @@ class DiscordAdapter(BasePlatformAdapter):
             )
 
             allowed = self._get_allowed_channels()
-            if allowed:
+            if allowed and not explicit_slash_admin:
                 if "*" not in allowed:
                     if not channel_ids:
                         # Channel policy is configured but the interaction
@@ -5832,6 +6027,327 @@ class DiscordAdapter(BasePlatformAdapter):
         except Exception as e:
             logger.debug("Discord interaction cleanup failed: %s", e)
 
+    def _is_discord_owner_or_admin(self, interaction: "discord.Interaction") -> bool:
+        """Return whether an interaction may perform destructive channel actions."""
+        user = getattr(interaction, "user", None)
+        permissions = getattr(user, "guild_permissions", None)
+        if bool(getattr(permissions, "administrator", False)):
+            return True
+        user_id = str(getattr(user, "id", "") or "")
+        extra = getattr(self.config, "extra", {}) or {}
+        raw = extra.get("group_allow_admin_from", extra.get("allow_admin_from", []))
+        if isinstance(raw, str):
+            admins = {value.strip() for value in raw.split(",") if value.strip()}
+        elif isinstance(raw, (list, tuple, set, frozenset)):
+            admins = {str(value).strip() for value in raw if str(value).strip()}
+        else:
+            admins = set()
+        return bool(user_id and user_id in admins)
+
+    async def _clear_current_discord_scope(self, channel) -> tuple[int, int]:
+        """Delete every message in exactly *channel*, honoring Discord age rules."""
+        from datetime import datetime, timedelta, timezone
+
+        recent = []
+        old = []
+        cutoff = datetime.now(timezone.utc) - timedelta(days=14)
+        try:
+            async for message in channel.history(limit=None, oldest_first=False):
+                created = getattr(message, "created_at", None)
+                if created is not None and created.tzinfo is None:
+                    created = created.replace(tzinfo=timezone.utc)
+                (recent if created is not None and created > cutoff else old).append(message)
+        except Exception as exc:
+            logger.warning("[Discord] /clear could not enumerate channel %s: %s", getattr(channel, "id", "?"), type(exc).__name__)
+            return (0, 1)
+
+        deleted = failed = 0
+        for start in range(0, len(recent), 100):
+            batch = recent[start:start + 100]
+            if len(batch) == 1:
+                old.extend(batch)
+                continue
+            try:
+                await channel.delete_messages(batch)
+                deleted += len(batch)
+            except Exception as exc:
+                logger.warning("[Discord] /clear bulk delete failed in channel %s (%s); retrying individually", getattr(channel, "id", "?"), type(exc).__name__)
+                old.extend(batch)
+        for message in old:
+            try:
+                await message.delete()
+                deleted += 1
+            except Exception as exc:
+                failed += 1
+                logger.warning("[Discord] /clear individual delete failed in channel %s (%s)", getattr(channel, "id", "?"), type(exc).__name__)
+        return deleted, failed
+
+    async def _send_clear_confirmation_interaction(self, interaction: "discord.Interaction") -> None:
+        if not await self._check_slash_authorization(interaction, "/clear"):
+            return
+        if not self._is_discord_owner_or_admin(interaction):
+            await interaction.response.send_message(
+                "Administrator access is required for /clear.", ephemeral=True,
+            )
+            return
+        adapter = self
+        channel = interaction.channel
+
+        class ClearView(SlashConfirmView):
+            def __init__(self):
+                # Reuse the established confirmation view's timeout, resolved
+                # state, and component lifecycle; /clear supplies destructive-
+                # action labels and a direct scoped callback instead of the
+                # generic slash-confirm resolver's once/always semantics.
+                super().__init__(
+                    session_key="",
+                    confirm_id="discord-clear",
+                    allowed_user_ids=adapter._allowed_user_ids,
+                    allowed_role_ids=adapter._allowed_role_ids,
+                )
+                self.clear_items()
+                confirm = discord.ui.Button(label="Confirm delete all", style=discord.ButtonStyle.red, custom_id="clear_confirm")
+                cancel = discord.ui.Button(label="Cancel", style=discord.ButtonStyle.grey, custom_id="clear_cancel")
+                confirm.callback = self._confirm
+                cancel.callback = self._cancel
+                self.add_item(confirm)
+                self.add_item(cancel)
+
+            async def _authorized(self, current) -> bool:
+                return await adapter._check_slash_authorization(current, "/clear") and adapter._is_discord_owner_or_admin(current)
+
+            async def _cancel(self, current):
+                if not await self._authorized(current):
+                    return
+                if self.resolved:
+                    await current.response.send_message("This confirmation is already closed.", ephemeral=True)
+                    return
+                self.resolved = True
+                self.clear_items()
+                await current.response.edit_message(content="Channel clear cancelled.", view=self)
+
+            async def _confirm(self, current):
+                if not await self._authorized(current):
+                    return
+                if self.resolved:
+                    await current.response.send_message("This confirmation is already closed.", ephemeral=True)
+                    return
+                self.clear_items()
+                final_confirm = discord.ui.Button(
+                    label="FINAL CONFIRM — DELETE ALL",
+                    style=discord.ButtonStyle.red,
+                    custom_id="clear_final_confirm",
+                )
+                cancel = discord.ui.Button(
+                    label="Cancel",
+                    style=discord.ButtonStyle.grey,
+                    custom_id="clear_final_cancel",
+                )
+                final_confirm.callback = self._final_confirm
+                cancel.callback = self._cancel
+                self.add_item(final_confirm)
+                self.add_item(cancel)
+                await current.response.edit_message(
+                    content=(
+                        "Final confirmation: permanently delete every message in "
+                        "this channel or thread?"
+                    ),
+                    view=self,
+                )
+
+            async def _final_confirm(self, current):
+                if not await self._authorized(current):
+                    return
+                if self.resolved:
+                    await current.response.send_message("This confirmation is already closed.", ephemeral=True)
+                    return
+                self.resolved = True
+                # The channel object is captured from the original slash invocation;
+                # never resolve a parent or another channel at confirmation time.
+                deleted, failed = await adapter._clear_current_discord_scope(channel)
+                self.clear_items()
+                await current.response.edit_message(
+                    content=f"Clear complete: {deleted} deleted, {failed} failed.", view=self,
+                )
+
+        await interaction.response.send_message(
+            "Delete every message in this channel or thread? This cannot be undone.",
+            view=ClearView(),
+            ephemeral=True,
+        )
+
+    async def _send_command_panel_interaction(self, interaction: "discord.Interaction") -> None:
+        if not await self._check_slash_authorization(interaction, "/panel"):
+            return
+        from hermes_cli.commands import COMMAND_REGISTRY
+
+        commands = [command for command in COMMAND_REGISTRY if not getattr(command, "cli_only", False)]
+        adapter = self
+
+        class PanelView(discord.ui.View):
+            def __init__(self):
+                super().__init__(timeout=300)
+                self.category = None
+                self.command_page = 0
+                self._show_categories()
+
+            async def _authorized(self, current) -> bool:
+                return await adapter._check_slash_authorization(current, "/panel")
+
+            def _show_categories(self):
+                self.clear_items()
+                categories = sorted({str(command.category) for command in commands})
+                select = discord.ui.Select(
+                    placeholder="Choose a command category...",
+                    options=[discord.SelectOption(label=value[:100], value=value) for value in categories[:25]],
+                    custom_id="panel_category",
+                )
+                select.callback = self._select_category
+                self.add_item(select)
+                self._add_common(include_back=False)
+
+            def _show_commands(self, category, page=0):
+                self.clear_items()
+                eligible = [command for command in commands if str(command.category) == category]
+                page_count = max(1, (len(eligible) + 24) // 25)
+                self.command_page = min(max(0, page), page_count - 1)
+                visible = eligible[self.command_page * 25:(self.command_page + 1) * 25]
+                select = discord.ui.Select(
+                    placeholder="Choose a Hermes command...",
+                    options=[discord.SelectOption(label=f"/{c.name}"[:100], value=c.name, description=str(c.description)[:100]) for c in visible],
+                    custom_id="panel_command",
+                )
+                select.callback = self._select_command
+                self.add_item(select)
+                if page_count > 1:
+                    previous = discord.ui.Button(label="Previous", style=discord.ButtonStyle.grey, custom_id="panel_previous", disabled=self.command_page == 0)
+                    following = discord.ui.Button(label="Next", style=discord.ButtonStyle.grey, custom_id="panel_next", disabled=self.command_page >= page_count - 1)
+                    previous.callback = lambda current: self._change_page(current, -1)
+                    following.callback = lambda current: self._change_page(current, 1)
+                    self.add_item(previous)
+                    self.add_item(following)
+                self._add_common(include_back=True)
+
+            async def _change_page(self, current, delta):
+                if await self._authorized(current):
+                    self._show_commands(self.category, self.command_page + delta)
+                    await current.response.edit_message(
+                        content=f"**{self.category} commands · page {self.command_page + 1}**",
+                        view=self,
+                    )
+
+            def _add_common(self, *, include_back):
+                if include_back:
+                    back = discord.ui.Button(label="Back", style=discord.ButtonStyle.grey, custom_id="panel_back")
+                    back.callback = self._back
+                    self.add_item(back)
+                refresh = discord.ui.Button(label="Refresh", style=discord.ButtonStyle.grey, custom_id="panel_refresh")
+                refresh.callback = self._refresh
+                self.add_item(refresh)
+                close = discord.ui.Button(label="Close", style=discord.ButtonStyle.red, custom_id="panel_close")
+                close.callback = self._close
+                self.add_item(close)
+
+            async def _select_category(self, current):
+                if not await self._authorized(current):
+                    return
+                self.category = current.data["values"][0]
+                self._show_commands(self.category)
+                await current.response.edit_message(content=f"**{self.category} commands**", view=self)
+
+            async def _select_command(self, current):
+                if not await self._authorized(current):
+                    return
+                name = current.data["values"][0]
+                command = next((item for item in commands if item.name == name), None)
+                if command is None:
+                    await current.response.send_message("Command is no longer available. Refresh the panel.", ephemeral=True)
+                    return
+                hint = str(getattr(command, "args_hint", "") or "")
+                finite = re.fullmatch(r"\[?([\w-]+(?:\|[\w-]+)+)\]?", hint.replace(" ", ""))
+                if finite:
+                    self.clear_items()
+                    choice = discord.ui.Select(
+                        placeholder=f"Choose /{name} value...",
+                        options=[discord.SelectOption(label=v, value=v) for v in finite.group(1).split("|")[:25]],
+                        custom_id=f"panel_args:{name}",
+                    )
+                    async def choose(selected):
+                        if await self._authorized(selected):
+                            await adapter._run_simple_slash(selected, f"/{name} {selected.data['values'][0]}")
+                    choice.callback = choose
+                    self.add_item(choice)
+                    self._add_common(include_back=True)
+                    await current.response.edit_message(content=f"Choose arguments for `/{name}`.", view=self)
+                    return
+                if hint:
+                    modal_cls = getattr(discord.ui, "Modal", None)
+                    text_cls = getattr(discord.ui, "TextInput", None)
+                    if modal_cls is None or text_cls is None:
+                        await current.response.send_message(f"Run `/{name} {hint}` as text.", ephemeral=True)
+                        return
+                    adapter_ref = adapter
+                    panel_ref = self
+                    class ArgsModal(modal_cls, title=f"Run /{name}"):
+                        arguments = text_cls(label="Arguments", placeholder=hint[:100], required=True)
+                        async def on_submit(modal_self, submitted):
+                            if await panel_ref._authorized(submitted):
+                                await adapter_ref._run_simple_slash(submitted, f"/{name} {modal_self.arguments.value}".strip())
+                    await current.response.send_modal(ArgsModal())
+                    return
+                await adapter._run_simple_slash(current, f"/{name}")
+
+            async def _back(self, current):
+                if await self._authorized(current):
+                    self._show_categories()
+                    await current.response.edit_message(content="Choose a Hermes command category.", view=self)
+
+            async def _refresh(self, current):
+                if await self._authorized(current):
+                    self._show_categories()
+                    await current.response.edit_message(content="Command panel refreshed.", view=self)
+
+            async def _close(self, current):
+                if await self._authorized(current):
+                    self.clear_items()
+                    await current.response.edit_message(content="Command panel closed.", view=self)
+
+        await interaction.response.send_message(
+            "Choose a Hermes command category.", view=PanelView(), ephemeral=True,
+        )
+
+    async def _prefer_account_credential(self, provider: str, credential_id: str) -> str:
+        from hermes_cli.auth import prefer_eligible_credential
+        return await asyncio.to_thread(prefer_eligible_credential, provider, credential_id)
+
+    async def _remove_account_credential(self, provider: str, credential_id: str) -> bool:
+        """Use the same pool/source-removal contract as ``hermes auth remove``."""
+        def remove() -> bool:
+            from agent.credential_pool import load_pool
+            from agent.credential_sources import find_removal_step
+            from hermes_cli.auth import suppress_credential_source
+
+            pool = load_pool(provider)
+            index, matched, _error = pool.resolve_target(credential_id)
+            if index is None or matched is None:
+                return False
+            removed = pool.remove_index(index)
+            if removed is None:
+                return False
+            step = find_removal_step(provider, removed.source or "")
+            if step is not None:
+                try:
+                    result = step.remove_fn(provider, removed)
+                except Exception:
+                    # Match the dashboard's canonical sticky-removal behavior:
+                    # a failed source cleanup must not resurrect the pool entry.
+                    suppress_credential_source(provider, removed.source)
+                    return True
+                if result.suppress:
+                    suppress_credential_source(provider, removed.source)
+            return True
+        return await asyncio.to_thread(remove)
+
     def _register_slash_commands(self) -> None:
         """Register Discord slash commands on the command tree."""
         if not self._client:
@@ -5851,6 +6367,87 @@ class DiscordAdapter(BasePlatformAdapter):
         @discord.app_commands.describe(name="Model name (e.g. anthropic/claude-sonnet-4). Leave empty to see current.")
         async def slash_model(interaction: discord.Interaction, name: str = ""):
             await self._run_simple_slash(interaction, f"/model {name}".strip())
+
+        @tree.command(name="clear", description="Delete every message in this channel or thread")
+        async def slash_clear(interaction: discord.Interaction):
+            await self._send_clear_confirmation_interaction(interaction)
+
+        @tree.command(name="panel", description="Open the interactive Hermes command center")
+        async def slash_panel(interaction: discord.Interaction):
+            await self._send_command_panel_interaction(interaction)
+
+        async def account_autocomplete(interaction: discord.Interaction, current: str):
+            allowed, _reason = self._evaluate_slash_authorization(interaction)
+            if not allowed:
+                return []
+            namespace = getattr(interaction, "namespace", None)
+            provider_value = str(getattr(namespace, "provider", "") or "").lower()
+            provider = {
+                "openai": "openai-codex",
+                "claude": "anthropic",
+                "openrouter": "openrouter",
+                "nous": "nous",
+            }.get(
+                provider_value
+            )
+            if provider is None:
+                return []
+            try:
+                from agent.credential_pool import load_pool
+
+                entries = sorted(
+                    load_pool(provider).entries(), key=lambda entry: entry.priority
+                )
+            except Exception:
+                return []
+            query = str(current or "").lower()
+            choices = []
+            for index, entry in enumerate(entries):
+                credential_id = str(getattr(entry, "id", "") or "")
+                if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", credential_id):
+                    continue
+                raw_status = str(getattr(entry, "last_status", None) or "ok").lower()
+                status = (
+                    raw_status
+                    if raw_status in {"ok", "exhausted", "dead"}
+                    else "unknown"
+                )
+                label = f"Account {index + 1} [{credential_id}] · {status}"
+                if query and query not in label.lower():
+                    continue
+                choices.append(
+                    discord.app_commands.Choice(
+                        name=label[:100], value=credential_id
+                    )
+                )
+                if len(choices) >= 25:
+                    break
+            return choices
+
+        @tree.command(name="account", description="List or switch provider accounts")
+        @discord.app_commands.describe(
+            provider="Provider account pool",
+            account="Choose an eligible account; leave empty to list all accounts",
+        )
+        @discord.app_commands.choices(provider=[
+            discord.app_commands.Choice(name="OpenAI / ChatGPT", value="openai"),
+            discord.app_commands.Choice(name="Claude / Anthropic", value="claude"),
+            discord.app_commands.Choice(name="OpenRouter", value="openrouter"),
+            discord.app_commands.Choice(name="Nous", value="nous"),
+        ])
+        @discord.app_commands.autocomplete(account=account_autocomplete)
+        async def slash_account(
+            interaction: discord.Interaction,
+            provider: str = "",
+            account: str = "",
+        ):
+            if not provider and not account:
+                await self._send_account_picker_interaction(interaction)
+                return
+            command = "/account"
+            if provider and account:
+                command = f"/account use {provider} {account}"
+            await self._run_simple_slash(interaction, command)
 
         @tree.command(name="reasoning", description="Show/change reasoning effort, or toggle showing it")
         @discord.app_commands.describe(effort="Pick a level, reset the override, or show/hide reasoning. Leave empty to see current.")
@@ -5920,9 +6517,19 @@ class DiscordAdapter(BasePlatformAdapter):
         async def slash_resume(interaction: discord.Interaction, name: str = ""):
             await self._run_simple_slash(interaction, f"/resume {name}".strip())
 
-        @tree.command(name="usage", description="Show token usage for this session")
-        async def slash_usage(interaction: discord.Interaction):
-            await self._run_simple_slash(interaction, "/usage")
+        @tree.command(name="usage", description="Show session tokens and account limits")
+        @discord.app_commands.describe(
+            args="Optional legacy action, such as reset or reset --force",
+        )
+        async def slash_usage(interaction: discord.Interaction, args: str = ""):
+            normalized_args = str(args or "").strip()
+            if not normalized_args:
+                await self._send_usage_panel_interaction(interaction)
+                return
+            await self._run_simple_slash(
+                interaction,
+                f"/usage {normalized_args}",
+            )
 
         @tree.command(name="help", description="Show available commands")
         async def slash_help(interaction: discord.Interaction):
@@ -6045,6 +6652,7 @@ class DiscordAdapter(BasePlatformAdapter):
         # slot for the consolidated ``/skill`` group registered further below.
         slot_cap = _DISCORD_MAX_APP_COMMANDS - 1
         dropped_over_cap = 0
+        plugin_entries: list[tuple[str, str, str]] = []
         try:
             from hermes_cli.commands import COMMAND_REGISTRY, _is_gateway_available, _resolve_config_gates
 
@@ -6055,6 +6663,30 @@ class DiscordAdapter(BasePlatformAdapter):
 
             config_overrides = _resolve_config_gates()
 
+            # Reserve capacity for environment-specific Agentik/plugin commands
+            # before filling the remaining slots with the large native registry.
+            # Otherwise the first 90+ generic Hermes commands consume the cap
+            # and the commands that define Operator/Agentik/Mission/Private are
+            # silently missing from Discord.
+            try:
+                from hermes_cli.plugins import discover_plugins
+                discover_plugins()  # idempotent
+                from hermes_cli.commands import _iter_plugin_command_entries
+                all_plugin_entries = list(_iter_plugin_command_entries())
+                registry_names = {item.name.lower()[:32] for item in COMMAND_REGISTRY}
+                plugin_entries = [
+                    item for item in all_plugin_entries
+                    if item[0].lower()[:32] not in already_registered
+                    and item[0].lower()[:32] not in registry_names
+                ]
+            except Exception as e:
+                logger.warning("Discord plugin command discovery failed: %s", e)
+
+            reserved_plugin_slots = min(
+                len(plugin_entries), max(0, slot_cap - len(already_registered))
+            )
+            native_slot_cap = slot_cap - reserved_plugin_slots
+
             for cmd_def in COMMAND_REGISTRY:
                 if not _is_gateway_available(cmd_def, config_overrides):
                     continue
@@ -6062,7 +6694,7 @@ class DiscordAdapter(BasePlatformAdapter):
                 discord_name = cmd_def.name.lower()[:32]
                 if discord_name in already_registered:
                     continue
-                if len(already_registered) >= slot_cap:
+                if len(already_registered) >= native_slot_cap:
                     dropped_over_cap += 1
                     continue
                 auto_cmd = _build_auto_slash_command(
@@ -6091,9 +6723,7 @@ class DiscordAdapter(BasePlatformAdapter):
         # autocomplete UX as for built-in commands. No per-platform plugin
         # API needed — plugin commands are platform-agnostic.
         try:
-            from hermes_cli.commands import _iter_plugin_command_entries
-
-            for plugin_name, plugin_desc, plugin_args_hint in _iter_plugin_command_entries():
+            for plugin_name, plugin_desc, plugin_args_hint in plugin_entries:
                 discord_name = plugin_name.lower()[:32]
                 if discord_name in already_registered:
                     continue
@@ -7746,6 +8376,303 @@ class DiscordAdapter(BasePlatformAdapter):
         except Exception as e:
             return SendResult(success=False, error=str(e))
 
+    async def _send_usage_panel_interaction(
+        self,
+        interaction: "discord.Interaction",
+    ) -> None:
+        from .usage_panel import send_usage_panel_interaction
+
+        await send_usage_panel_interaction(self, interaction)
+
+    async def _send_account_picker_interaction(
+        self,
+        interaction: "discord.Interaction",
+    ) -> None:
+        """Open an ephemeral provider/account control panel for the owner."""
+        if not await self._check_slash_authorization(interaction, "/account"):
+            return
+
+        def load_entries(provider: str) -> list:
+            try:
+                from agent.credential_pool import load_pool
+
+                return sorted(
+                    [
+                        entry
+                        for entry in load_pool(provider).entries()
+                        if re.fullmatch(
+                            r"[A-Za-z0-9_-]{1,64}",
+                            str(getattr(entry, "id", "") or ""),
+                        )
+                    ],
+                    key=lambda entry: entry.priority,
+                )
+            except Exception:
+                return []
+
+        def entry_status(entry) -> str:
+            raw = str(getattr(entry, "last_status", None) or "ok").lower()
+            return raw if raw in {"ok", "exhausted", "dead"} else "unknown"
+
+        def snapshot() -> dict[str, list]:
+            return {
+                "openai-codex": load_entries("openai-codex"),
+                "anthropic": load_entries("anthropic"),
+                "openrouter": load_entries("openrouter"),
+                "nous": load_entries("nous"),
+            }
+
+        def panel_embed(entries_by_provider: dict[str, list]):
+            lines = []
+            for provider, label in (
+                ("openai-codex", "OpenAI / ChatGPT"),
+                ("anthropic", "Anthropic / Claude"),
+                ("openrouter", "OpenRouter"),
+                ("nous", "Nous"),
+            ):
+                lines.append(f"**{label}**")
+                entries = entries_by_provider.get(provider) or []
+                if not entries:
+                    lines.append("• Not connected")
+                for index, entry in enumerate(entries):
+                    marker = "●" if int(getattr(entry, "priority", index) or 0) == 0 else "○"
+                    lines.append(
+                        f"{marker} Account {index + 1} "
+                        f"[`{entry.id}`] · `{entry_status(entry)}`"
+                    )
+                lines.append("")
+            return discord.Embed(
+                title="🔐 Provider Accounts",
+                description="\n".join(lines).strip(),
+                color=discord.Color.blue(),
+            )
+
+        adapter = self
+
+        class AccountPanelView(discord.ui.View):
+            def __init__(self):
+                super().__init__(timeout=180)
+                self.entries = snapshot()
+                self._build_provider_controls()
+
+            async def _authorized(self, component_interaction) -> bool:
+                return await adapter._check_slash_authorization(
+                    component_interaction, "/account"
+                )
+
+            async def _reject(self, component_interaction) -> None:
+                await component_interaction.response.send_message(
+                    "You're not authorized to use this panel.", ephemeral=True
+                )
+
+            def _build_provider_controls(self):
+                self.clear_items()
+                options = []
+                for provider, label in (
+                    ("openai-codex", "OpenAI / ChatGPT"),
+                    ("anthropic", "Anthropic / Claude"),
+                    ("openrouter", "OpenRouter"),
+                    ("nous", "Nous"),
+                ):
+                    count = len(self.entries.get(provider) or [])
+                    options.append(
+                        discord.SelectOption(
+                            label=label,
+                            value=provider,
+                            description=f"{count} connected account(s)",
+                        )
+                    )
+                provider_select = discord.ui.Select(
+                    placeholder="Choose a provider...",
+                    options=options,
+                    custom_id="account_provider_select",
+                )
+                provider_select.callback = self._on_provider
+                self.add_item(provider_select)
+
+                refresh = discord.ui.Button(
+                    label="Refresh",
+                    emoji="🔄",
+                    style=discord.ButtonStyle.grey,
+                    custom_id="account_refresh",
+                )
+                refresh.callback = self._on_refresh
+                self.add_item(refresh)
+
+                close = discord.ui.Button(
+                    label="Close",
+                    style=discord.ButtonStyle.red,
+                    custom_id="account_close",
+                )
+                close.callback = self._on_close
+                self.add_item(close)
+
+            def _build_account_controls(self, provider: str):
+                self.clear_items()
+                entries = self.entries.get(provider) or []
+                self.selected_id = None
+                if entries:
+                    options = []
+                    for index, entry in enumerate(entries[:25]):
+                        options.append(
+                            discord.SelectOption(
+                                label=f"Account {index + 1} · {entry_status(entry)}",
+                                value=str(entry.id),
+                                description=(
+                                    "current priority"
+                                    if int(getattr(entry, "priority", index) or 0) == 0
+                                    else str(entry.id)
+                                )[:100],
+                            )
+                        )
+                    account_select = discord.ui.Select(
+                        placeholder="Choose an account...",
+                        options=options,
+                        custom_id=f"account_select:{provider}",
+                    )
+
+                    async def select_callback(component_interaction):
+                        if not await adapter._check_slash_authorization(component_interaction, "/account"):
+                            return
+                        credential_id = component_interaction.data["values"][0]
+                        self.selected_id = credential_id
+                        self._build_selected_controls(provider)
+                        await component_interaction.response.edit_message(
+                            embed=discord.Embed(
+                                title="🔐 Provider Accounts",
+                                description=f"Account `{credential_id}` selected. Choose Switch or Delete.",
+                                color=discord.Color.blue(),
+                            ),
+                            view=self,
+                        )
+
+                    account_select.callback = select_callback
+                    self.add_item(account_select)
+
+                back = discord.ui.Button(
+                    label="Back",
+                    emoji="◀️",
+                    style=discord.ButtonStyle.grey,
+                    custom_id="account_back",
+                )
+                back.callback = self._on_back
+                self.add_item(back)
+
+                add = discord.ui.Button(
+                    label="Secure setup",
+                    style=discord.ButtonStyle.blurple,
+                    custom_id=f"account_add:{provider}",
+                )
+                add.callback = lambda current: self._on_add(current, provider)
+                self.add_item(add)
+
+            def _build_selected_controls(self, provider: str):
+                self.clear_items()
+                switch = discord.ui.Button(label="Switch", style=discord.ButtonStyle.green, custom_id=f"account_switch:{provider}")
+                delete = discord.ui.Button(label="Delete", style=discord.ButtonStyle.red, custom_id=f"account_delete:{provider}")
+                back = discord.ui.Button(label="Back", style=discord.ButtonStyle.grey, custom_id="account_back")
+                switch.callback = lambda current: self._on_switch(current, provider)
+                delete.callback = lambda current: self._on_delete(current, provider)
+                back.callback = self._on_back
+                self.add_item(switch); self.add_item(delete); self.add_item(back)
+
+            async def _on_switch(self, component_interaction, provider):
+                if not await adapter._check_slash_authorization(component_interaction, "/account"):
+                    return
+                result = await adapter._prefer_account_credential(provider, self.selected_id)
+                text = "Account preference saved." if result == "saved" else "That account is unavailable or missing."
+                await component_interaction.response.edit_message(content=text, embed=None, view=self)
+
+            async def _on_delete(self, component_interaction, provider):
+                if not await adapter._check_slash_authorization(component_interaction, "/account"):
+                    return
+                self.clear_items()
+                confirm = discord.ui.Button(label="Confirm delete", style=discord.ButtonStyle.red, custom_id=f"account_delete_confirm:{provider}")
+                cancel = discord.ui.Button(label="Cancel", style=discord.ButtonStyle.grey, custom_id="account_delete_cancel")
+                confirm.callback = lambda current: self._on_delete_confirm(current, provider)
+                cancel.callback = self._on_back
+                self.add_item(confirm); self.add_item(cancel)
+                await component_interaction.response.edit_message(content="Delete this credential? This cannot be undone.", embed=None, view=self)
+
+            async def _on_delete_confirm(self, component_interaction, provider):
+                if not await adapter._check_slash_authorization(component_interaction, "/account"):
+                    return
+                removed = await adapter._remove_account_credential(provider, self.selected_id)
+                self.entries = snapshot()
+                self._build_provider_controls()
+                text = "Credential deleted." if removed else "Credential was not found."
+                await component_interaction.response.edit_message(content=text, embed=panel_embed(self.entries), view=self)
+
+            async def _on_add(self, component_interaction, provider):
+                if not await adapter._check_slash_authorization(component_interaction, "/account"):
+                    return
+                # OAuth/device flows are interactive and may open a browser on the
+                # gateway host. Never collect provider secrets in channel content.
+                command = f"hermes auth add {provider}"
+                await component_interaction.response.send_message(
+                    f"For secure setup, run `{command}` locally or use the local Hermes Dashboard credential setup. No secret is accepted in Discord messages.",
+                    ephemeral=True,
+                )
+
+            async def _on_provider(self, component_interaction):
+                if not await self._authorized(component_interaction):
+                    return
+                provider = component_interaction.data["values"][0]
+                self._build_account_controls(provider)
+                label = dict((
+                    ("openai-codex", "OpenAI / ChatGPT"),
+                    ("anthropic", "Anthropic / Claude"),
+                    ("openrouter", "OpenRouter"),
+                    ("nous", "Nous"),
+                )).get(provider, "Provider")
+                entries = self.entries.get(provider) or []
+                description = (
+                    "Select the account to prefer. Automatic quota rotation remains enabled."
+                    if entries
+                    else "No connected account in this pool yet."
+                )
+                await component_interaction.response.edit_message(
+                    embed=discord.Embed(
+                        title=f"🔐 {label}",
+                        description=description,
+                        color=discord.Color.blue(),
+                    ),
+                    view=self,
+                )
+
+            async def _on_refresh(self, component_interaction):
+                if not await self._authorized(component_interaction):
+                    return
+                self.entries = snapshot()
+                self._build_provider_controls()
+                await component_interaction.response.edit_message(
+                    embed=panel_embed(self.entries), view=self
+                )
+
+            async def _on_back(self, component_interaction):
+                await self._on_refresh(component_interaction)
+
+            async def _on_close(self, component_interaction):
+                if not await self._authorized(component_interaction):
+                    return
+                self.clear_items()
+                await component_interaction.response.edit_message(
+                    embed=discord.Embed(
+                        title="🔐 Provider Accounts",
+                        description="Panel closed.",
+                        color=discord.Color.greyple(),
+                    ),
+                    view=self,
+                )
+                self.stop()
+
+        view = AccountPanelView()
+        await interaction.response.send_message(
+            embed=panel_embed(view.entries),
+            view=view,
+            ephemeral=True,
+        )
+
     async def send_model_picker(
         self,
         chat_id: str,
@@ -8479,6 +9406,33 @@ class DiscordAdapter(BasePlatformAdapter):
                     self.name,
                     getattr(message.author, "display_name", getattr(message.author, "name", "unknown")),
                     getattr(message.channel, "id", "unknown"),
+                )
+                return False
+            if not media_urls and not pending_text_injection:
+                channel_id = str(getattr(message.channel, "id", "unknown"))
+                now = time.monotonic()
+                previous = self._empty_content_notice_at.get(channel_id, 0.0)
+                if now - previous >= 300:
+                    self._empty_content_notice_at[channel_id] = now
+                    try:
+                        await message.channel.send(
+                            "⚠️ Discord ne transmet pas le texte de ce message au bot. "
+                            "Active **Message Content Intent** dans Discord Developer "
+                            "Portal → Bot → Privileged Gateway Intents. Les slash "
+                            "commands restent disponibles entre-temps."
+                        )
+                    except Exception:
+                        logger.debug(
+                            "[%s] Could not send missing Message Content Intent notice",
+                            self.name,
+                            exc_info=True,
+                        )
+                logger.warning(
+                    "[%s] Dropped empty Discord text payload from user=%s channel=%s; "
+                    "Message Content Intent is probably unavailable",
+                    self.name,
+                    getattr(message.author, "id", "unknown"),
+                    channel_id,
                 )
                 return False
             event_text = "(The user sent a message with no text content)"

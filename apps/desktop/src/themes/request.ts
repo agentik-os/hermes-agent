@@ -10,6 +10,8 @@
  * exactly like a manual pick — one policy, one owner.
  */
 
+import { $activeGatewayProfile, normalizeProfileKey } from '@/store/profile'
+
 import { $pendingSkinApply } from './backend-sync'
 import { resolveTheme } from './user-themes'
 
@@ -29,6 +31,29 @@ export function requestTheme(name: string): boolean {
   }
 
   $pendingSkinApply.set(name)
+
+  return true
+}
+
+/**
+ * Offer a theme as the first-run default without competing with user intent.
+ *
+ * The ThemeProvider performs the persisted-preference check when it drains the
+ * request, not here. That closes the race where a person picks a theme after a
+ * late runtime plugin queues its default but before React handles the queue.
+ * The active profile is captured with the request so a profile switch cannot
+ * make the default land in a different workspace.
+ */
+export function requestDefaultTheme(name: string): boolean {
+  if (!resolveTheme(name)) {
+    return false
+  }
+
+  $pendingSkinApply.set({
+    kind: 'default',
+    name,
+    profile: normalizeProfileKey($activeGatewayProfile.get())
+  })
 
   return true
 }

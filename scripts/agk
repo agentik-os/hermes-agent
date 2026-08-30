@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# Stable human entrypoint. All implementation lives in the active release.
+set -euo pipefail
+
+self_user=$(id -un)
+if [ "${1:-}" = "--user" ]; then
+  [ "$self_user" = operator ] || {
+    echo "Only operator can target another Linux identity." >&2
+    exit 1
+  }
+  target=${2:-}
+  case "$target" in
+    operator|agentik|mission|private) ;;
+    *) echo "Unknown AGK user: $target" >&2; exit 2 ;;
+  esac
+  shift 2
+  exec sudo -iu "$target" /usr/local/bin/agk "$@"
+fi
+
+case "$self_user" in
+  operator|agentik|mission|private) ;;
+  *)
+    config="${AGK_ENV_CONFIG:-$HOME/.config/agk/environment.yaml}"
+    [ -f "$config" ] || {
+      echo "AGK is not initialized for $self_user. Run: agk-install --user" >&2
+      exit 1
+    }
+    ;;
+esac
+
+if [ "$#" -eq 0 ]; then
+  native=${AGK_TUI_BIN:-/opt/agentik/hermes/current/bin/agk-tui}
+  [ -x "$native" ] || native=${AGK_INSTALL_ROOT:-$HOME/.local/share/agk}/agk-tui
+  if [ -x "$native" ]; then
+    exec "$native"
+  fi
+fi
+
+control=${AGK_CONTROL_SCRIPT:-/opt/agentik/hermes/current/scripts/agk_control.py}
+if [ ! -x "$control" ]; then
+  control=${AGK_INSTALL_ROOT:-$HOME/.local/share/agk}/agk_control.py
+fi
+[ -x "$control" ] || {
+  echo "AGK Control Shell is missing from the active Hermes release." >&2
+  exit 1
+}
+exec "$control" "$@"

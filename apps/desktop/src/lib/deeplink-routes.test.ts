@@ -29,6 +29,33 @@ describe('resolveDeepLinkAction', () => {
     ).toMatchObject({ type: 'plugin-install', legacyHint: 'agent' })
   })
 
+  it('routes a credential-free HTTPS gateway pairing link for confirmation', () => {
+    expect(
+      resolveDeepLinkAction({
+        kind: 'gateway',
+        name: 'add',
+        params: { url: 'https://station.example:8463', label: 'Station VPS', auth: 'oauth' }
+      })
+    ).toEqual({ type: 'gateway-pair', url: 'https://station.example:8463', label: 'Station VPS', authMode: 'oauth' })
+  })
+
+  it('rejects unsafe gateway pairing links', () => {
+    expect(
+      resolveDeepLinkAction({
+        kind: 'gateway',
+        name: 'add',
+        params: { url: 'http://station.example:8463', label: 'Station VPS', auth: 'oauth' }
+      })
+    ).toEqual({ type: 'ignore' })
+    expect(
+      resolveDeepLinkAction({
+        kind: 'gateway',
+        name: 'add',
+        params: { url: 'https://user:pass@station.example', label: 'Station VPS', auth: 'oauth' }
+      })
+    ).toEqual({ type: 'ignore' })
+  })
+
   it('routes blueprint composer inserts', () => {
     expect(
       resolveDeepLinkAction({

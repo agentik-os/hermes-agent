@@ -277,6 +277,21 @@ def _(rid, params: dict) -> dict:
         return _ok(rid, {"value": "fast" if tier == "priority" else "normal"})
     if key == "busy":
         return _ok(rid, {"value": _load_busy_input_mode()})
+    if key == "yolo.authorities":
+        try:
+            from tools.approval import _YOLO_MODE_FROZEN
+
+            mode = _load_approval_mode()
+            return _ok(
+                rid,
+                {
+                    "approval_mode": mode,
+                    "process_yolo": bool(_YOLO_MODE_FROZEN),
+                    "yolo": bool(_YOLO_MODE_FROZEN) or mode == "off",
+                },
+            )
+        except Exception as e:
+            return _err(rid, 5001, str(e))
     if key in {"approval_mode", "approvals.mode"}:
         try:
             return _ok(rid, {"value": _load_approval_mode()})

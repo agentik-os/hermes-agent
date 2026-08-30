@@ -328,6 +328,7 @@ function PluginRow({ record }: { record: PluginRecord }) {
           <Switch
             aria-label={`${record.status === 'disabled' ? p.enable : p.disable} ${record.name}`}
             checked={record.status !== 'disabled'}
+            disabled={record.required}
             onCheckedChange={on => {
               triggerHaptic('selection')
               void setPluginEnabled(record.id, on)

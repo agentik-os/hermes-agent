@@ -59,6 +59,7 @@ import {
   resolveLinuxPasswordStore
 } from './bootstrap-platform'
 import { decideBootstrapRepair } from './bootstrap-repair-guard'
+import { purgeDesktopCaches } from './maintenance-purge'
 import { runBootstrap } from './bootstrap-runner'
 import { detectBundleSkew } from './bundle-skew'
 import { applyConnectionChange } from './connection-apply'
@@ -294,6 +295,7 @@ import {
 } from './update-count'
 import { waitForUpdateClearance } from './update-gate'
 import { readLiveUpdateMarker, updateHandoffConflict, writeUpdateMarker } from './update-marker'
+import { customBuildUpdateBlock } from './update-policy'
 import { isOfficialSshRemote, OFFICIAL_REPO_HTTPS_URL } from './update-remote'
 import {
   collectRelaunchArgs,
@@ -390,10 +392,11 @@ const PRELOAD_PATH = path.join(APP_ROOT, 'dist', 'electron-preload.js')
 // compositor flicker — accelerated layers can't be presented cleanly over the
 // wire, so the window flashes during scroll/streaming/animation. Local
 // Windows/macOS (and WSLg, which renders locally via vGPU) composite on the
-// GPU and never see it. Fall back to software rendering when a remote display
-// is detected; it's rock-steady over the wire and the CPU cost is negligible
-// next to the connection's latency. Must run before app `ready` — these
-// switches only apply pre-launch. Override with HERMES_DESKTOP_DISABLE_GPU
+// GPU and never see it. Fall back to software rendering only when a genuinely
+// remote display is detected. On native macOS, software compositing is costly
+// and SSH_* merely describes the parent shell, not the WindowServer display.
+// Must run before app `ready` — these switches only apply pre-launch. Override
+// with HERMES_DESKTOP_DISABLE_GPU
 // (1/true → always disable, 0/false → keep GPU on).
 const REMOTE_DISPLAY_REASON = detectRemoteDisplay()
 
@@ -2732,6 +2735,19 @@ async function resolveHealedBranch(updateRoot, branch) {
 
 async function checkUpdates() {
   const updateRoot = resolveUpdateRoot()
+  const customBlock = customBuildUpdateBlock(INSTALL_STAMP)
+
+  if (customBlock) {
+    return {
+      supported: false,
+      reason: 'protected-custom-build',
+      message: customBlock,
+      hermesRoot: updateRoot,
+      branch: INSTALL_STAMP?.branch || readDesktopUpdateConfig().branch,
+      fetchedAt: Date.now()
+    }
+  }
+
   let { branch } = readDesktopUpdateConfig()
   const gitDir = path.join(updateRoot, '.git')
 
@@ -3456,6 +3472,12 @@ async function releaseBackendLock(updateRoot, tag) {
 // Detection (checkUpdates / commit changelog / "N behind") stays in the UI;
 // only this apply action changed.
 async function applyUpdates(opts: { stopSafeBlockers?: boolean } = {}) {
+  const customBlock = customBuildUpdateBlock(INSTALL_STAMP)
+
+  if (customBlock) {
+    throw new Error(customBlock)
+  }
+
   if (updateInFlight) {
     throw new Error('An update is already in progress.')
   }
@@ -10291,7 +10313,10 @@ async function spawnPoolBackend(profile, entry, opts: { forceLocal?: boolean; po
   backend.args = getBackendArgsForRuntime(backend)
   const hermesCwd = resolveHermesCwd()
   const webDist = resolveWebDist()
-  const readyFile = backend.readyFile ? makeDashboardReadyFile() : null
+  // Always provide the ready-file fallback. GUI/Dock launches can lose the
+  // stdout sentinel even though the backend is already listening; racing both
+  // channels prevents an otherwise permanent CONNECTING screen.
+  const readyFile = makeDashboardReadyFile()
 
   // Guard BEFORE the "Starting" line: a profile that only exists on a remote
   // backend (remote-primary desktop asked for a forced-local child) rejects
@@ -10657,7 +10682,10 @@ async function startHermes() {
     backend.args = getBackendArgsForRuntime(backend)
     const hermesCwd = resolveHermesCwd()
     const webDist = resolveWebDist()
-    const readyFile = backend.readyFile ? makeDashboardReadyFile() : null
+    // Always provide the ready-file fallback. GUI/Dock launches can lose the
+    // stdout sentinel even though the backend is already listening; racing both
+    // channels prevents an otherwise permanent CONNECTING screen.
+    const readyFile = makeDashboardReadyFile()
 
     await advanceBootProgress('backend.spawn', `Starting Hermes backend via ${backend.label}`, 84)
     rememberLog(`Starting Hermes backend via ${backend.label}`)
@@ -11112,7 +11140,7 @@ function nextInstanceBounds() {
 // primary: it never overwrites the mainWindow global, doesn't start the backend
 // (the renderer's getConnection() joins the already-running one), and loads the
 // plain renderer URL so the full app renders.
-function createInstanceWindow() {
+function createInstanceWindow(options: { connectionId?: string } = {}) {
   const icon = getAppIconPath()
 
   const win = new BrowserWindow({
@@ -11173,7 +11201,8 @@ function createInstanceWindow() {
     win,
     buildInstanceWindowUrl({
       devServer: DEV_SERVER,
-      rendererIndexPath: DEV_SERVER ? undefined : resolveRendererIndex()
+      rendererIndexPath: DEV_SERVER ? undefined : resolveRendererIndex(),
+      connectionId: options.connectionId
     }),
     'Instance window'
   )
@@ -12279,8 +12308,14 @@ ipcMain.handle('hermes:window:openSession', async (_event, sessionId, opts) => {
 
   return { ok: true }
 })
-ipcMain.handle('hermes:window:openInstance', async () => {
-  createInstanceWindow()
+ipcMain.handle('hermes:window:openInstance', async (_event, opts) => {
+  const rawConnectionId = typeof opts?.connectionId === 'string' ? opts.connectionId.trim() : ''
+
+  if (rawConnectionId && !/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(rawConnectionId)) {
+    return { ok: false, error: 'invalid-connection-id' }
+  }
+
+  createInstanceWindow(rawConnectionId ? { connectionId: rawConnectionId } : {})
 
   return { ok: true }
 })
@@ -14461,6 +14496,13 @@ ipcMain.handle('hermes:logs:reveal', async () => {
 })
 
 ipcMain.handle('hermes:logs:recent', async () => ({ path: DESKTOP_LOG_PATH, lines: hermesLog.slice(-200) }))
+
+ipcMain.handle('hermes:maintenance:purge', async event =>
+  purgeDesktopCaches({
+    clearCache: () => event.sender.session.clearCache(),
+    collectGarbage: () => (globalThis as typeof globalThis & { gc?: () => void }).gc?.()
+  })
+)
 
 // Renderer error-boundary catches (#79428 defect B): the component stack only
 // exists in renderer memory, so the boundary posts it here and we persist it

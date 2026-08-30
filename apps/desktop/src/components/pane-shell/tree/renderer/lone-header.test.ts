@@ -27,8 +27,8 @@ describe('forceLoneHeaderForPanes', () => {
     ).toBe(true)
   })
 
-  it('leaves a lone uncloseable workspace headerless', () => {
-    expect(forceLoneHeaderForPanes(['workspace'], chrome('main', true), noCollapse)).toBe(false)
+  it('forces the session-navigation header for the uncloseable root workspace', () => {
+    expect(forceLoneHeaderForPanes(['workspace'], chrome('main', true), noCollapse)).toBe(true)
   })
 
   it('leaves standing side chrome (files / sessions) headerless', () => {

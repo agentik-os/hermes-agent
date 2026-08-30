@@ -121,6 +121,8 @@ import { PluginInstallModal } from '../settings/plugin-install-modal'
 import { useOverlayRouting } from '../shell/hooks/use-overlay-routing'
 import { useWindowControlsOverlayWidth } from '../shell/hooks/use-window-controls-overlay-width'
 import {
+  TITLEBAR_LEFT_STATIC_TOOL_COUNT,
+  titlebarContentInsetCss,
   titlebarControlsPosition,
   titlebarControlsYNudge,
   titlebarToolsRightCss,
@@ -1037,17 +1039,26 @@ export function ContribWiring({ children }: { children: ReactNode }) {
   // Pane-registered tools (preview's monitor/devtools cluster) anchor flush
   // against the static system cluster — in the tree layout the titlebar band
   // sits ABOVE the grid, so AppShell's pane-width anchoring doesn't apply.
-  // Count every button the static cluster actually renders: four systemTools
-  // (layout, haptics, keybinds, settings) PLUS the always-present
-  // right-sidebar toggle (see titlebar-controls.tsx). A shared width that
-  // under-counts leaves the find bar, the titlebar header padding, and the
-  // pane-cluster anchor overlapping the fifth button.
-  const SYSTEM_TOOL_COUNT = 5
+  // Count every button the static cluster actually renders: seven systemTools
+  // (terminal, purge, layout, HUD, haptics, settings, theme) PLUS the
+  // always-present right-sidebar toggle (see titlebar-controls.tsx). A shared
+  // width that under-counts leaves the find bar, the titlebar header padding,
+  // and the pane-cluster anchor overlapping the eighth button.
+  const SYSTEM_TOOL_COUNT = 8
   const paneToolCount = rightTitlebarTools.filter(tool => !tool.hidden).length
   const systemToolsWidth = titlebarToolsWidthCss(SYSTEM_TOOL_COUNT)
 
   const titlebarToolsWidth =
     paneToolCount > 0 ? `calc(${systemToolsWidth} + ${titlebarToolsWidthCss(paneToolCount)})` : systemToolsWidth
+
+  // Left-edge twin of `--titlebar-tools-width`. The left cluster is `fixed` at
+  // `--titlebar-controls-left`, so the header's in-flow content has to be told
+  // how much of its own left edge is already spoken for — otherwise the session
+  // title paints under the macOS traffic lights and the sidebar/flip toggles.
+  // Same shape as the right side: count the buttons the cluster actually
+  // renders (two static ones plus whatever a page contributed), never a
+  // hardcoded width that silently under-counts.
+  const leftToolCount = TITLEBAR_LEFT_STATIC_TOOL_COUNT + leftTitlebarTools.filter(tool => !tool.hidden).length
 
   return (
     <ContribWiringContext.Provider value={api}>
@@ -1058,6 +1069,7 @@ export function ContribWiring({ children }: { children: ReactNode }) {
             '--titlebar-controls-left': `${controlsPos.left}px`,
             '--titlebar-controls-top': `${controlsPos.top}px`,
             '--titlebar-controls-y-nudge': titlebarControlsYNudge(titlebarChrome),
+            '--titlebar-content-inset': titlebarContentInsetCss(leftToolCount),
             '--titlebar-tools-right': titlebarToolsRight,
             '--titlebar-tools-width': titlebarToolsWidth,
             '--shell-preview-toolbar-gap': systemToolsWidth

@@ -37,7 +37,8 @@ export function WorkspaceAddButton({ label, onClick }: { label: string; onClick:
     <Tip label={label}>
       <button
         aria-label={label}
-        className="grid size-4 shrink-0 place-items-center rounded-sm bg-transparent text-(--ui-text-quaternary) opacity-0 transition-opacity hover:bg-(--ui-control-hover-background) hover:text-foreground group-hover/workspace:opacity-100"
+        className="mr-1 grid size-5 shrink-0 place-items-center rounded-md bg-transparent text-(--ui-text-quaternary) opacity-0 transition-opacity hover:bg-(--ui-control-hover-background) hover:text-foreground group-hover/workspace:opacity-100"
+        data-sidebar-compact-action=""
         onClick={onClick}
         type="button"
       >
@@ -67,6 +68,7 @@ export function WorkspaceShowMoreButton({
       <button
         aria-label={text}
         className="mr-2 ml-auto grid size-5 place-items-center rounded-sm bg-transparent text-(--ui-text-tertiary) transition-colors hover:bg-(--ui-control-hover-background) hover:text-foreground"
+        data-sidebar-compact-action=""
         onClick={onClick}
         type="button"
       >
@@ -122,6 +124,7 @@ export function WorkspaceMenu({ path, onRemove }: { path: null | string; onRemov
       <button
         aria-label={p.menu}
         className="grid size-4 shrink-0 place-items-center rounded-sm bg-transparent text-(--ui-text-quaternary) opacity-0 transition-opacity hover:bg-(--ui-control-hover-background) hover:text-foreground group-hover/workspace:opacity-100 data-[state=open]:opacity-100"
+        data-sidebar-compact-action=""
         onClick={event => event.stopPropagation()}
         type="button"
       >
@@ -166,7 +169,8 @@ export function StartWorkButton({ repoPath }: { repoPath: string }) {
     <Tip label={p.startWork}>
       <button
         aria-label={p.startWork}
-        className="grid size-4 shrink-0 place-items-center rounded-sm bg-transparent text-(--ui-text-quaternary) opacity-0 transition-opacity hover:bg-(--ui-control-hover-background) hover:text-foreground group-hover/section:opacity-100 focus-visible:opacity-100"
+        className="grid size-6 shrink-0 place-items-center rounded-md bg-transparent text-(--ui-text-quaternary) opacity-0 transition-opacity hover:bg-(--ui-control-hover-background) hover:text-foreground group-hover/section:opacity-100 focus-visible:opacity-100"
+        data-sidebar-compact-action=""
         // Publish the intent. The one WorktreeDialog in the sidebar renders it.
         // This button pins its own repo, so it targets this section.
         onClick={() => void openWorktreeDialog({ repoPath })}

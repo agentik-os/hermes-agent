@@ -1,12 +1,14 @@
 import { act, cleanup, render } from '@testing-library/react'
+import { useLayoutEffect } from 'react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { registry } from '@/contrib/registry'
+import { $activeGatewayProfile } from '@/store/profile'
 
 import { __resetBackendSkinSync } from './backend-sync'
 import { skinPref, ThemeProvider, useTheme } from './context'
 import { midnightTheme } from './presets'
-import { requestTheme } from './request'
+import { requestDefaultTheme, requestTheme } from './request'
 import type { DesktopTheme } from './types'
 import { THEMES_AREA } from './user-themes'
 
@@ -31,6 +33,7 @@ describe('requestTheme', () => {
   beforeEach(() => {
     window.localStorage.clear()
     __resetBackendSkinSync()
+    $activeGatewayProfile.set('default')
   })
 
   afterEach(cleanup)
@@ -90,5 +93,83 @@ describe('requestTheme', () => {
     expect(ctx.themeName).toBe('zeus')
 
     dispose()
+  })
+
+  describe('requestDefaultTheme', () => {
+    const openAiShadcn: DesktopTheme = {
+      ...midnightTheme,
+      description: 'OpenAI Shadcn',
+      label: 'OpenAI Shadcn',
+      name: 'openai-shadcn'
+    }
+
+    it('claims an unassigned new profile and persists the default there', () => {
+      const dispose = registry.register({ area: THEMES_AREA, data: openAiShadcn, id: 'openai-shadcn' })
+      $activeGatewayProfile.set('new-profile')
+      renderProbe()
+
+      act(() => void requestDefaultTheme('openai-shadcn'))
+
+      expect(ctx.themeName).toBe('openai-shadcn')
+      expect(skinPref.raw('new-profile')).toBe('openai-shadcn')
+      dispose()
+    })
+
+    it('never overwrites an existing persisted preference', () => {
+      const dispose = registry.register({ area: THEMES_AREA, data: openAiShadcn, id: 'openai-shadcn' })
+      skinPref.assign('default', 'mono')
+      renderProbe()
+
+      act(() => void requestDefaultTheme('openai-shadcn'))
+
+      expect(ctx.themeName).toBe('mono')
+      expect(skinPref.raw('default')).toBe('mono')
+      dispose()
+    })
+
+    it('does not let a queued default race a newer explicit preference', () => {
+      const dispose = registry.register({ area: THEMES_AREA, data: openAiShadcn, id: 'openai-shadcn' })
+
+      expect(requestDefaultTheme('openai-shadcn')).toBe(true)
+      skinPref.assign('default', 'mono')
+      renderProbe()
+
+      expect(ctx.themeName).toBe('mono')
+      expect(skinPref.raw('default')).toBe('mono')
+      dispose()
+    })
+
+    it('does not let a stale passive drain erase a newer explicit request', () => {
+      const dispose = registry.register({ area: THEMES_AREA, data: openAiShadcn, id: 'openai-shadcn' })
+
+      function ExplicitOverride() {
+        useLayoutEffect(() => void requestTheme('mono'), [])
+
+        return null
+      }
+
+      expect(requestDefaultTheme('openai-shadcn')).toBe(true)
+      render(
+        <ThemeProvider>
+          <ExplicitOverride />
+          <Probe />
+        </ThemeProvider>
+      )
+
+      expect(ctx.themeName).toBe('mono')
+      expect(skinPref.raw('default')).toBe('mono')
+      dispose()
+    })
+
+    it('does not persist a fallback if the offered theme disappears before the request drains', () => {
+      const dispose = registry.register({ area: THEMES_AREA, data: openAiShadcn, id: 'openai-shadcn' })
+
+      expect(requestDefaultTheme('openai-shadcn')).toBe(true)
+      dispose()
+      renderProbe()
+
+      expect(ctx.themeName).toBe('nous')
+      expect(skinPref.raw('default')).toBeNull()
+    })
   })
 })

@@ -115,6 +115,90 @@ def adapter():
 
 
 # ------------------------------------------------------------------
+# /account interactive registration
+# ------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_registers_interactive_account_command(adapter):
+    adapter._run_simple_slash = AsyncMock()
+    adapter._send_account_picker_interaction = AsyncMock()
+    adapter._register_slash_commands()
+
+    command = adapter._client.tree.commands["account"]
+    assert callable(command) and not hasattr(command, "callback")
+
+    interaction = SimpleNamespace()
+    await command(interaction, provider="openai", account="oa-2")
+    adapter._run_simple_slash.assert_awaited_once_with(
+        interaction, "/account use openai oa-2"
+    )
+    adapter._send_account_picker_interaction.assert_not_awaited()
+
+    adapter._run_simple_slash.reset_mock()
+    await command(interaction, provider="", account="")
+    adapter._send_account_picker_interaction.assert_awaited_once_with(interaction)
+    adapter._run_simple_slash.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_account_panel_is_ephemeral_and_lists_redacted_accounts(adapter, monkeypatch):
+    class Entry:
+        def __init__(self, credential_id, priority=0, status=None):
+            self.id = credential_id
+            self.priority = priority
+            self.last_status = status
+
+    class Pool:
+        def __init__(self, entries):
+            self._entries = entries
+
+        def entries(self):
+            return list(self._entries)
+
+    pools = {
+        "openai-codex": Pool([Entry("oa-1")]),
+        "anthropic": Pool([Entry("cl-1", status="exhausted")]),
+    }
+    monkeypatch.setattr(
+        "agent.credential_pool.load_pool", lambda provider: pools[provider]
+    )
+    interaction = SimpleNamespace(
+        response=SimpleNamespace(send_message=AsyncMock()),
+    )
+
+    await adapter._send_account_picker_interaction(interaction)
+
+    kwargs = interaction.response.send_message.await_args.kwargs
+    assert kwargs["ephemeral"] is True
+    assert "oa-1" in kwargs["embed"].description
+    assert "cl-1" in kwargs["embed"].description
+    assert "exhausted" in kwargs["embed"].description
+    assert len(kwargs["view"].children) == 3
+
+
+@pytest.mark.asyncio
+async def test_usage_registration_routes_empty_to_panel_and_args_to_legacy(adapter):
+    adapter._run_simple_slash = AsyncMock()
+    adapter._send_usage_panel_interaction = AsyncMock()
+    adapter._register_slash_commands()
+
+    command = adapter._client.tree.commands["usage"]
+    interaction = SimpleNamespace()
+
+    await command(interaction, args="")
+    adapter._send_usage_panel_interaction.assert_awaited_once_with(interaction)
+    adapter._run_simple_slash.assert_not_awaited()
+
+    adapter._send_usage_panel_interaction.reset_mock()
+    await command(interaction, args="reset --force")
+    adapter._run_simple_slash.assert_awaited_once_with(
+        interaction, "/usage reset --force"
+    )
+    adapter._send_usage_panel_interaction.assert_not_awaited()
+
+
+# ------------------------------------------------------------------
 # /thread slash command registration
 # ------------------------------------------------------------------
 
@@ -204,6 +288,35 @@ async def test_auto_registers_plugin_commands_for_discord(adapter):
 
 
 @pytest.mark.asyncio
+async def test_discovers_plugins_before_building_native_command_tree(adapter):
+    """Discord must not depend on a previous agent turn to discover plugins."""
+    discovered = False
+
+    def fake_discover():
+        nonlocal discovered
+        discovered = True
+
+    def fake_commands():
+        assert discovered, "plugin commands were read before discovery"
+        return {
+            "client": {
+                "handler": lambda _a: "ok",
+                "description": "Manage clients",
+                "args_hint": "<action> [target]",
+                "plugin": "agentik-os",
+            }
+        }
+
+    with (
+        patch("hermes_cli.plugins.discover_plugins", side_effect=fake_discover),
+        patch("hermes_cli.plugins.get_plugin_commands", side_effect=fake_commands),
+    ):
+        adapter._register_slash_commands()
+
+    assert "client" in adapter._client.tree.commands
+
+
+@pytest.mark.asyncio
 async def test_plugin_command_name_conflict_skipped(adapter):
     """A plugin command that collides with a built-in must not override it."""
     adapter._run_simple_slash = AsyncMock()
@@ -282,6 +395,28 @@ async def test_slash_command_registration_stays_under_discord_limit(adapter):
     # The cap must actually have dropped overflow — not every plugin fit.
     registered_plugins = [n for n in tree_names if n.startswith("plug")]
     assert len(registered_plugins) < 200, "cap did not drop any overflow commands"
+
+
+@pytest.mark.asyncio
+async def test_environment_plugin_commands_are_reserved_before_generic_overflow(adapter):
+    """Agentik environment commands must not disappear behind the global cap."""
+    commands = {
+        name: {
+            "handler": lambda _a: "ok",
+            "description": f"Agentik command {name}",
+            "args_hint": "<action> [target]",
+            "plugin": "agentik-os",
+        }
+        for name in (
+            "client", "project", "mission", "task", "run", "os", "active",
+            "deliverable", "deploy", "report",
+        )
+    }
+    with patch("hermes_cli.plugins.get_plugin_commands", return_value=commands):
+        adapter._register_slash_commands()
+
+    tree_names = set(adapter._client.tree.commands)
+    assert set(commands) <= tree_names
 
 
 # ------------------------------------------------------------------
@@ -600,5 +735,3 @@ def test_register_skill_command_payload_fits_discord_8kb_limit(adapter):
         f"Flat /skill command payload is ~{len(payload)} bytes — the whole "
         f"point of this design is that it stays small regardless of skill count"
     )
-
-

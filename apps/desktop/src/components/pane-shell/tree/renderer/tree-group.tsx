@@ -263,16 +263,29 @@ export function TreeGroup({
   //    tile in its own zone is unclosable (the "3rd tile has no tab" trap);
   //  - a TOOL PANEL (terminal/logs — a collapse pane) dragged out of the main
   //    stack, else it's a dead zone with no tab to grab or ✕ to close.
-  // The uncloseable workspace and side chrome (sessions/files) keep the clean
-  // no-tab default. Double-click toggles it either way; a minimized group
-  // always shows its header (it IS the header).
+  // The root workspace is also forced: its header owns session navigation and
+  // the trailing + action even though the workspace itself is uncloseable.
+  // Standing side chrome (sessions/files) keeps the clean no-tab default.
   // Session-tile ids force the header even before chrome registers — cycling
   // onto a freshly-split tile used to land headerless ("name card missing").
   const forceLoneHeader = forceLoneHeaderForPanes(shown, id => paneChrome(paneFor(id)), isCollapsePane)
 
+  const forceRootWorkspaceHeader = shown.some(id => {
+    const chrome = paneChrome(paneFor(id))
+
+    return chrome.placement === 'main' && chrome.uncloseable
+  })
+
   // A full-page view (headerVeto) suppresses the strip while it's the active
   // pane — a page is not a tab-able surface; the bar returns with the chat.
-  const headerHidden = paneChrome(active).headerVeto || (node.headerHidden ?? (shown.length <= 1 && !forceLoneHeader))
+  // Multi-pane stacks and the root workspace are navigation surfaces: their
+  // tab strip must stay visible. A persisted double-click hide may still apply
+  // to other lone panes, but never to the root session stack.
+  const headerHidden =
+    paneChrome(active).headerVeto ||
+    (forceRootWorkspaceHeader || shown.length > 1
+      ? false
+      : (node.headerHidden ?? (shown.length <= 1 && !forceLoneHeader)))
 
   // A group collapses ALONG its parent split's axis. In a row that means the
   // WIDTH collapses — a full-width horizontal header would strand a tall

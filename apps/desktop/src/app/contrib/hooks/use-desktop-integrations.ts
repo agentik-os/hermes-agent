@@ -6,6 +6,7 @@ import { openSession } from '@/app/open-session'
 import { resolveDeepLinkAction } from '@/lib/deeplink-routes'
 import { pathFromHermesDeepLink, resolveHermesOpenPath } from '@/lib/hermes-open-target'
 import { storedSessionIdForNotification } from '@/lib/session-ids'
+import { requestGatewayPair } from '@/store/gateway-pair-request'
 import { requestMcpInstallFromDeepLink } from '@/store/mcp-deeplink-install'
 import { startMcpHealthChecker, stopMcpHealthChecker } from '@/store/mcp-health'
 import {
@@ -29,7 +30,14 @@ import { isHudWindow, isSecondaryWindow } from '@/store/windows'
 import type { SessionInfo } from '@/types/hermes'
 
 import { requestComposerFocus, requestComposerInsert } from '../../chat/composer/focus'
-import { appViewForPath, isOverlayView, NEW_CHAT_ROUTE, routeSessionId, sessionRoute } from '../../routes'
+import {
+  appViewForPath,
+  isOverlayView,
+  NEW_CHAT_ROUTE,
+  routeSessionId,
+  sessionRoute,
+  SETTINGS_ROUTE
+} from '../../routes'
 
 type RememberedSession = Pick<SessionInfo, '_lineage_root_id' | 'id' | 'profile'>
 
@@ -254,6 +262,13 @@ export function useDesktopIntegrations({
       }
 
       const action = resolveDeepLinkAction(payload)
+
+      if (action.type === 'gateway-pair') {
+        requestGatewayPair({ url: action.url, label: action.label, authMode: action.authMode })
+        navigate(`${SETTINGS_ROUTE}?tab=connections`)
+
+        return
+      }
 
       if (action.type === 'composer-blueprint') {
         const slots = Object.entries(action.params || {})

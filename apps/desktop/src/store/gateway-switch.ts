@@ -3,6 +3,8 @@ import { atom } from 'nanostores'
 import { resetLiveRuntimeTracking } from '@/app/contrib/hooks/use-background-sync'
 import { resetSidebarBatchCapability } from '@/hermes'
 import { invalidateProfileScopedQueries } from '@/lib/query-client'
+import { resetSessionYoloReconciliation } from '@/lib/yolo-session'
+import { resetApprovalModeState } from '@/store/approval-mode'
 import { clearArtifactRegistry } from '@/store/artifacts'
 import { invalidateCronJobsRequests, setCronJobs } from '@/store/cron'
 import { resetSessionsLimit } from '@/store/layout'
@@ -17,11 +19,16 @@ import {
   setMessagingPlatformTotals,
   setMessagingSessions,
   setMessagingTruncated,
+  setProcessYoloActive,
   setSelectedStoredSessionId,
   setSessionProfilesTruncated,
   setSessionProfilesUsage,
   setSessions,
-  setSessionsLoading
+  setSessionsLoading,
+  setSessionYoloActive,
+  setYoloActive,
+  setYoloAuthorityKnown,
+  setYoloAuthorityReady
 } from '@/store/session'
 import { resetSessionPinMirror } from '@/store/session-pin-sync'
 import { clearAllSessionStates } from '@/store/session-states'
@@ -84,6 +91,13 @@ export function wipeSessionListsForGatewaySwitch(): void {
   setActiveSessionId(null)
   setSelectedStoredSessionId(null)
   setMessages([])
+  setProcessYoloActive(false)
+  setSessionYoloActive(false)
+  setYoloActive(false)
+  setYoloAuthorityKnown(false)
+  setYoloAuthorityReady(false)
+  resetSessionYoloReconciliation()
+  resetApprovalModeState()
   setFreshDraftReady(true)
 
   // Artifacts are keyed by sessions on the previous backend, so both the

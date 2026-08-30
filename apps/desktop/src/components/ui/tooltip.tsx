@@ -87,12 +87,17 @@ function TooltipTrigger({ onFocus, ...props }: React.ComponentProps<typeof Toolt
   )
 }
 
+type TooltipContentProps = React.ComponentProps<typeof TooltipPrimitive.Content> & {
+  variant?: 'marker' | 'surface'
+}
+
 function TooltipContent({
   className,
   sideOffset = 6,
+  variant = 'marker',
   children,
   ...props
-}: React.ComponentProps<typeof TooltipPrimitive.Content>) {
+}: TooltipContentProps) {
   return (
     <TooltipPrimitive.Portal>
       <TooltipPrimitive.Content
@@ -105,6 +110,7 @@ function TooltipContent({
         // chrome underneath (titlebar tools, adjacent tabs, etc.).
         className={cn('pointer-events-none z-(--z-over-modal) w-fit max-w-64 select-none', className)}
         data-slot="tooltip-content"
+        data-variant={variant}
         sideOffset={sideOffset}
         {...props}
       >
@@ -115,7 +121,13 @@ function TooltipContent({
             this inline decoration's geometry, so Radix measures a zero-size chip
             and parks an empty rectangle in the corner (#62022). Force any direct
             child inline-flex so every call site stays safe. */}
-        <span className="box-decoration-clone inline bg-foreground px-1.5 py-1 text-[11px] font-bold leading-normal text-background [font-family:Arial,sans-serif] [&>*]:!inline-flex">
+        <span
+          className={cn(
+            variant === 'surface'
+              ? 'inline-block max-w-64 text-pretty rounded-md border border-(--ui-stroke-secondary) bg-(--dt-popover) px-2 py-1.5 text-[0.6875rem] font-medium leading-snug text-(--dt-popover-foreground) shadow-md [font-family:var(--dt-font-sans)] [overflow-wrap:anywhere]'
+              : 'box-decoration-clone inline bg-foreground px-1.5 py-1 text-[11px] font-bold leading-normal text-background [font-family:Arial,sans-serif] [&>*]:!inline-flex'
+          )}
+        >
           {children}
         </span>
       </TooltipPrimitive.Content>
@@ -123,7 +135,7 @@ function TooltipContent({
   )
 }
 
-interface TipProps extends Omit<React.ComponentProps<typeof TooltipPrimitive.Content>, 'content'> {
+interface TipProps extends Omit<TooltipContentProps, 'content'> {
   label: React.ReactNode
   children: React.ReactNode
   delayDuration?: number

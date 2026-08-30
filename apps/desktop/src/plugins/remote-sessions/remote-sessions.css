@@ -1,0 +1,526 @@
+.remote-sessions-page {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  gap: 12px;
+  overflow: hidden;
+  padding: 18px;
+  background: var(--ui-surface-background);
+  color: var(--ui-text-primary);
+}
+.remote-sessions-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+.remote-sessions-header h1 {
+  margin: 3px 0 4px;
+  font-size: 22px;
+  letter-spacing: -0.025em;
+}
+.remote-sessions-header p {
+  margin: 0;
+  max-width: 760px;
+  color: var(--ui-text-secondary);
+  font-size: 12px;
+}
+.remote-sessions-eyebrow {
+  color: var(--ui-accent);
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 0.13em;
+}
+.remote-sessions-totals {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.remote-sessions-total {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--ui-stroke-secondary);
+  border-radius: 999px;
+  padding: 6px 11px;
+  color: var(--ui-text-secondary);
+  font-size: 11px;
+}
+.remote-sessions-grid {
+  display: grid;
+  grid-template-columns: minmax(200px, 250px) minmax(260px, 340px) minmax(0, 1fr);
+  min-height: 0;
+  flex: 1;
+  gap: 10px;
+}
+.remote-sessions-col,
+.remote-sessions-terminal-card {
+  min-height: 0;
+  overflow: hidden auto;
+  border: 1px solid var(--ui-stroke-secondary);
+  border-radius: 14px;
+  background: var(--ui-widget-surface-background);
+}
+.remote-sessions-col {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px;
+}
+.remote-sessions-list-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 5px 9px;
+  font-size: 11px;
+  color: var(--ui-text-tertiary);
+}
+.remote-sessions-list-title strong {
+  color: var(--ui-text-primary);
+  font-size: 12px;
+}
+
+/* ── machines ── */
+.remote-sessions-machine {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) 10px;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  border: 0;
+  border-radius: 10px;
+  padding: 8px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.remote-sessions-machine:hover {
+  background: var(--ui-bg-quaternary);
+}
+.remote-sessions-machine[data-active='true'] {
+  background: var(--ui-row-active-background);
+}
+.remote-sessions-machine-icon {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--ui-bg-quaternary);
+  color: var(--ui-text-secondary);
+  font-size: 13px;
+}
+.remote-sessions-machine-icon[data-kind='local'] {
+  color: var(--ui-accent);
+}
+.remote-sessions-machine-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+.remote-sessions-machine-copy strong {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.remote-sessions-machine-copy small {
+  overflow: hidden;
+  color: var(--ui-text-tertiary);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.remote-sessions-primary {
+  flex-shrink: 0;
+  border-radius: 4px;
+  background: var(--ui-accent);
+  color: var(--theme-elevated-seed, #fff);
+  font-size: 7.5px;
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  padding: 1px 4px;
+}
+.remote-sessions-footnote {
+  margin-top: auto;
+  padding: 10px 5px 2px;
+  color: var(--ui-text-tertiary);
+  font-size: 9.5px;
+  line-height: 1.5;
+}
+
+/* ── sessions ── */
+.remote-sessions-create {
+  display: grid;
+  gap: 5px;
+  margin-bottom: 8px;
+}
+.remote-sessions-create input {
+  min-width: 0;
+  border: 1px solid var(--ui-stroke-secondary);
+  border-radius: 8px;
+  padding: 6px 7px;
+  background: var(--ui-editor-background);
+  color: var(--ui-text-primary);
+  font: inherit;
+  font-size: 10px;
+  outline: none;
+}
+.remote-sessions-create input:focus {
+  border-color: var(--ui-accent);
+}
+.remote-sessions-create button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border: 0;
+  border-radius: 8px;
+  padding: 6px 8px;
+  background: var(--ui-control-active-background);
+  color: var(--ui-text-primary);
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+}
+.remote-sessions-create button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+.remote-sessions-empty {
+  padding: 24px 10px;
+  text-align: center;
+  color: var(--ui-text-tertiary);
+  font-size: 11px;
+  line-height: 1.45;
+}
+.remote-sessions-row-wrap {
+  position: relative;
+}
+.remote-sessions-row {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border: 0;
+  border-radius: 9px;
+  padding: 8px 64px 8px 8px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.remote-sessions-row:hover {
+  background: var(--ui-bg-quaternary);
+}
+.remote-sessions-row[data-active='true'] {
+  background: var(--ui-row-active-background);
+}
+.remote-sessions-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--ui-text-tertiary);
+}
+.remote-sessions-dot[data-attached='true'] {
+  background: var(--ui-green);
+}
+.remote-sessions-dot[data-attached='unknown'] {
+  background: var(--ui-orange);
+}
+.remote-sessions-row-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+.remote-sessions-row-copy strong {
+  font-size: 12px;
+}
+.remote-sessions-row-copy small {
+  overflow: hidden;
+  color: var(--ui-text-tertiary);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.remote-sessions-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+}
+.remote-sessions-meta em {
+  font-style: normal;
+}
+.remote-sessions-row-actions {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  z-index: 1;
+  display: none;
+  transform: translateY(-50%);
+}
+.remote-sessions-row-wrap:hover .remote-sessions-row-actions,
+.remote-sessions-row-wrap:focus-within .remote-sessions-row-actions {
+  display: inline-flex;
+  gap: 3px;
+}
+.remote-sessions-row-actions button {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 1px solid var(--ui-stroke-secondary);
+  border-radius: 7px;
+  background: var(--ui-widget-surface-background);
+  color: var(--ui-text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+}
+.remote-sessions-row-actions button:hover {
+  color: var(--ui-text-primary);
+}
+.remote-sessions-row-actions .remote-sessions-kill[data-armed='true'] {
+  background: var(--ui-red);
+  border-color: var(--ui-red);
+  color: #fff;
+}
+.remote-sessions-row-actions .remote-sessions-kill:not([data-armed='true']):hover {
+  color: var(--ui-red);
+}
+
+/* ── CLI auth bar ── */
+.remote-sessions-authbar {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--ui-stroke-secondary);
+  border-radius: 12px;
+  padding: 8px;
+  background: var(--ui-widget-surface-background);
+}
+.remote-sessions-authbar > div {
+  display: flex;
+  min-width: 180px;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+.remote-sessions-authbar strong {
+  font-size: 11px;
+}
+.remote-sessions-authbar span {
+  color: var(--ui-text-tertiary);
+  font-size: 9px;
+}
+.remote-sessions-authbar span b {
+  color: var(--ui-text-secondary);
+  font-weight: 600;
+}
+.remote-sessions-authbar input,
+.remote-sessions-auth-modal input {
+  border: 1px solid var(--ui-stroke-secondary);
+  border-radius: 8px;
+  padding: 6px 8px;
+  background: var(--ui-editor-background);
+  color: var(--ui-text-primary);
+  font: inherit;
+  font-size: 10px;
+  outline: none;
+}
+.remote-sessions-authbar button,
+.remote-sessions-auth-modal button {
+  border: 1px solid var(--ui-stroke-secondary);
+  border-radius: 8px;
+  padding: 6px 8px;
+  background: var(--ui-control-active-background);
+  color: var(--ui-text-primary);
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+}
+.remote-sessions-authbar button:disabled,
+.remote-sessions-auth-modal button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+.remote-sessions-auth-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgb(0 0 0 / 42%);
+}
+.remote-sessions-auth-modal {
+  position: relative;
+  display: grid;
+  gap: 12px;
+  width: min(480px, calc(100vw - 40px));
+  border: 1px solid var(--ui-stroke-secondary);
+  border-radius: 16px;
+  padding: 18px;
+  background: var(--theme-elevated-seed, var(--dt-background));
+  box-shadow: 0 20px 60px rgb(0 0 0 / 28%);
+  color: var(--ui-text-primary);
+}
+.remote-sessions-auth-modal h2 {
+  margin: 3px 0 4px;
+  font-size: 17px;
+}
+.remote-sessions-auth-modal p {
+  margin: 0;
+  color: var(--ui-text-secondary);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.remote-sessions-auth-close {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  font-size: 18px !important;
+}
+.remote-sessions-auth-status,
+.remote-sessions-auth-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.remote-sessions-auth-status {
+  justify-content: space-between;
+  color: var(--ui-text-tertiary);
+  font-size: 10px;
+}
+.remote-sessions-auth-waiting {
+  border-radius: 8px;
+  padding: 8px;
+  background: var(--ui-bg-quaternary);
+  color: var(--ui-text-tertiary);
+  font-size: 10px;
+}
+.remote-sessions-auth-modal label {
+  color: var(--ui-text-tertiary);
+  font-size: 10px;
+}
+
+/* ── terminal ── */
+.remote-sessions-terminal-card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #101011;
+}
+.remote-sessions-terminal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid #2b2b2b;
+  padding: 8px 10px;
+  background: #171717;
+  color: #f4f4f5;
+}
+.remote-sessions-terminal-head > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+.remote-sessions-terminal-head strong {
+  font-size: 12px;
+}
+.remote-sessions-terminal-head span {
+  overflow: hidden;
+  color: #a1a1aa;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.remote-sessions-terminal-head button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 5px 8px;
+  background: transparent;
+  color: #d4d4d8;
+  font-size: 10px;
+  cursor: pointer;
+}
+.remote-sessions-xterm {
+  min-height: 0;
+  flex: 1;
+  padding: 8px;
+}
+.remote-sessions-xterm .xterm {
+  height: 100%;
+}
+.remote-sessions-placeholder {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 8px;
+  padding: 24px;
+  color: #71717a;
+  text-align: center;
+}
+.remote-sessions-placeholder strong {
+  color: #d4d4d8;
+  font-size: 13px;
+}
+.remote-sessions-placeholder span {
+  max-width: 420px;
+  font-size: 11px;
+  line-height: 1.45;
+}
+@media (max-width: 1080px) {
+  .remote-sessions-grid {
+    grid-template-columns: minmax(180px, 220px) minmax(0, 1fr);
+    grid-template-rows: minmax(140px, 30%) minmax(0, 1fr);
+    grid-template-areas:
+      'machines inventory'
+      'terminal terminal';
+  }
+  .remote-sessions-machines {
+    grid-area: machines;
+  }
+  .remote-sessions-inventory {
+    grid-area: inventory;
+  }
+  .remote-sessions-terminal-card {
+    grid-area: terminal;
+  }
+}
+@media (max-width: 760px) {
+  .remote-sessions-grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(120px, 26%) minmax(120px, 30%) minmax(0, 1fr);
+    grid-template-areas:
+      'machines'
+      'inventory'
+      'terminal';
+  }
+  .remote-sessions-header {
+    flex-direction: column;
+  }
+}

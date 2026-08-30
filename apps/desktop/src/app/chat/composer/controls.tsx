@@ -1,13 +1,31 @@
 import { useStore } from '@nanostores/react'
+import { useEffect, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Codicon } from '@/components/ui/codicon'
 import { Tip, TipKeybindLabel } from '@/components/ui/tooltip'
 import { useI18n } from '@/i18n'
 import { triggerHaptic } from '@/lib/haptics'
-import { AudioLines, Ear, EarOff, iconSize, Layers3, Loader2, Square, Volume2, VolumeX } from '@/lib/icons'
+import { AudioLines, Ear, EarOff, iconSize, Layers3, Loader2, Square, Volume2, VolumeX, Zap, ZapFilled } from '@/lib/icons'
 import { cn } from '@/lib/utils'
+import { type GatewayRequester, setGlobalYoloForTarget, setYoloEnabled } from '@/lib/yolo-session'
+import { $approvalModes, syncApprovalModeForProfile } from '@/store/approval-mode'
+import { confirm } from '@/store/confirm'
+import { $gateway } from '@/store/gateway'
 import { $hudMode, closeHud } from '@/store/hud'
+import { notify, notifyError } from '@/store/notifications'
+import { $activeGatewayProfile } from '@/store/profile'
+import {
+  $processYoloActive,
+  $sessionYoloActive,
+  $yoloActive,
+  $yoloAuthorityKnown,
+  $yoloAuthorityReady,
+  setProcessYoloActive,
+  setYoloActive,
+  setYoloAuthorityKnown,
+  setYoloAuthorityReady
+} from '@/store/session'
 import { $wakeWord, toggleWakeWord } from '@/store/wake-word'
 
 import { ACTIVE_ICON_BTN, GHOST_ICON_BTN, PRIMARY_ICON_BTN } from './control-classes'
@@ -72,7 +90,14 @@ export function ComposerControls({
     return <ConversationPill {...conversation} disabled={disabled} />
   }
 
-  const showVoicePrimary = !busy && !hasComposerPayload
+  // The primary slot is a FIXED slot that always holds the submit button —
+  // Send, or Stop while a turn runs on an empty composer. It is never swapped
+  // out for another control: an empty composer renders Send DISABLED rather
+  // than replacing it, so the row's geometry is identical in every state and
+  // nothing reflows the moment the first character lands. Starting a voice
+  // conversation is a peer of dictation/auto-speak/wake and lives with them in
+  // the voice cluster (and inside `VoiceMenu` once that cluster folds).
+  //
   // Steer is just send: a payload keeps the Send affordance mid-turn. Stop
   // only when the composer is empty and a turn is running.
   const showStop = busy && !hasComposerPayload
@@ -92,12 +117,14 @@ export function ComposerControls({
       onDictate={onDictate}
       onStartConversation={conversation.onStart}
       onToggleAutoSpeak={onToggleAutoSpeak}
+      startConversationDisabled={disabled || busy}
       state={state}
       voiceStatus={voiceStatus}
     />
   ) : (
     <>
       <DictationButton disabled={disabled} onToggle={onDictate} state={state.voice} status={voiceStatus} />
+      <StartVoiceButton disabled={disabled || busy} onStart={conversation.onStart} />
       <AutoSpeakButton active={autoSpeak} disabled={disabled} onToggle={onToggleAutoSpeak} />
       <WakeWordButton disabled={disabled} />
     </>
@@ -109,6 +136,7 @@ export function ComposerControls({
         <>
           <ModelPill compact={compactModelPill} disabled={disabled} model={state.model} />
           {voiceControls}
+          <AutonomyButton disabled={disabled} />
         </>
       )}
       {showQueueButton ? (
@@ -126,46 +154,28 @@ export function ComposerControls({
           </Button>
         </Tip>
       ) : null}
-      {showVoicePrimary ? (
-        <Tip label={c.startVoice}>
-          <Button
-            aria-label={c.startVoice}
-            className={PRIMARY_ICON_BTN}
-            disabled={disabled}
-            onClick={() => {
-              triggerHaptic('open')
-              conversation.onStart()
-            }}
-            size="icon"
-            type="button"
-          >
-            <AudioLines className={iconSize.sm} />
-          </Button>
-        </Tip>
-      ) : (
-        <Tip
-          label={
-            showStop ? (
-              <TipKeybindLabel actionId="composer.send" text={c.stop} />
-            ) : (
-              <TipKeybindLabel actionId="composer.send" text={c.send} />
-            )
-          }
+      <Tip
+        label={
+          showStop ? (
+            <TipKeybindLabel actionId="composer.send" text={c.stop} />
+          ) : (
+            <TipKeybindLabel actionId="composer.send" text={c.send} />
+          )
+        }
+      >
+        <Button
+          aria-label={showStop ? c.stop : c.send}
+          className={PRIMARY_ICON_BTN}
+          disabled={disabled || !canSubmit}
+          type="submit"
         >
-          <Button
-            aria-label={showStop ? c.stop : c.send}
-            className={PRIMARY_ICON_BTN}
-            disabled={disabled || !canSubmit}
-            type="submit"
-          >
-            {showStop ? (
-              <span className="block size-2.5 rounded-[0.1875rem] bg-current" />
-            ) : (
-              <Codicon name="arrow-up" size="0.875rem" />
-            )}
-          </Button>
-        </Tip>
-      )}
+          {showStop ? (
+            <span className="block size-2.5 rounded-[0.1875rem] bg-current" />
+          ) : (
+            <Codicon name="arrow-up" size="0.875rem" />
+          )}
+        </Button>
+      </Tip>
       {/* The way out of HUD mode, riding the controls row rather than floating
           above the bar. The old chip lived in a 26px transparent strip reserved
           over the composer (--hud-chip-strip), which under glass is bare
@@ -175,6 +185,209 @@ export function ComposerControls({
           things you can press. */}
       {hudMode ? <ExitHudButton /> : null}
     </div>
+  )
+}
+
+function AutonomyButton({ disabled }: { disabled: boolean }) {
+  const sessionActive = useStore($sessionYoloActive)
+  const processActive = useStore($processYoloActive)
+  const legacyEffective = useStore($yoloActive)
+  const authorityKnown = useStore($yoloAuthorityKnown)
+  const authorityReady = useStore($yoloAuthorityReady)
+  const approvalModes = useStore($approvalModes)
+  const gateway = useStore($gateway)
+  const profile = useStore($activeGatewayProfile)
+  const globalActive = (approvalModes[profile.trim() || 'default'] ?? 'smart') === 'off'
+  const legacyUnknownActive = !authorityKnown && legacyEffective
+  const effectiveActive = sessionActive || globalActive || processActive || legacyUnknownActive
+  const [pending, setPending] = useState(false)
+
+  useEffect(() => {
+    if (!gateway) {
+      return
+    }
+
+    const targetGateway = gateway
+    const targetProfile = profile
+    setYoloAuthorityReady(false)
+    const request: GatewayRequester = (method, params) => targetGateway.request(method, params)
+
+    void Promise.all([
+      syncApprovalModeForProfile(request, targetProfile),
+      request('config.get', { key: 'yolo.authorities' }) as Promise<{
+        process_yolo?: boolean
+        yolo?: boolean
+      }>
+    ])
+      .then(([, authorities]) => {
+        if (
+          $gateway.get() !== targetGateway ||
+          $activeGatewayProfile.get() !== targetProfile
+        ) {
+          return
+        }
+
+        if (typeof authorities.process_yolo === 'boolean') {
+          setProcessYoloActive(authorities.process_yolo)
+          setYoloAuthorityKnown(true)
+          setYoloAuthorityReady(true)
+        }
+
+        if (typeof authorities.yolo === 'boolean') {
+          setYoloActive(authorities.yolo || $sessionYoloActive.get())
+        }
+      })
+      .catch(() => undefined)
+  }, [gateway, profile])
+
+  const label = !authorityReady
+    ? 'Loading full-access authority…'
+    : legacyUnknownActive
+    ? 'Full access is active on a legacy gateway; scope cannot be changed safely here'
+    : processActive
+      ? 'Process-wide full access is forced by --yolo and cannot be disabled here'
+    : globalActive
+      ? 'Global autonomous full access on · Shift+click to disable globally'
+      : sessionActive
+        ? 'Autonomous full access on for this chat · click to disable'
+        : 'Enable autonomous full access for this chat · Shift+click applies globally'
+
+  const toggle = async (global: boolean) => {
+    if (legacyUnknownActive) {
+      notify({ kind: 'warning', message: 'Legacy gateway reports full access active; upgrade it to change scope safely' })
+
+      return
+    }
+
+    if (processActive) {
+      notify({ kind: 'warning', message: 'Process-wide --yolo is active and must be changed at restart' })
+
+      return
+    }
+
+    if (!global && globalActive) {
+      notify({ kind: 'info', message: 'Global autonomous full access is active · Shift+click to change it' })
+
+      return
+    }
+
+    if (pending) {
+      return
+    }
+
+    setPending(true)
+
+    try {
+      let enabled: boolean
+
+      if (global) {
+        if (!gateway) {
+          throw new Error('Hermes gateway unavailable')
+        }
+
+        const targetGateway = gateway
+        const targetProfile = profile.trim() || 'default'
+
+        const request: GatewayRequester = (method, params) => targetGateway.request(method, params)
+
+        const current = await syncApprovalModeForProfile(request, targetProfile)
+
+        const next = current !== 'off'
+
+        if (
+          next &&
+          !(await confirm({
+            confirmLabel: 'Enable persistent full access',
+            destructive: true,
+            description:
+              'This disables approval prompts for every chat, CLI/TUI command, cron job and unattended task on this gateway, and survives restart. Hardline blocks and your explicit deny rules still apply.',
+            title: 'Enable global autonomous full access?'
+          }))
+        ) {
+          return
+        }
+
+        if (
+          $gateway.get() !== targetGateway ||
+          ($activeGatewayProfile.get().trim() || 'default') !== targetProfile
+        ) {
+          throw new Error('Gateway or profile changed while confirming; no full-access change was applied')
+        }
+
+        enabled = await setGlobalYoloForTarget(request, targetProfile, next)
+
+        if (
+          $gateway.get() !== targetGateway ||
+          ($activeGatewayProfile.get().trim() || 'default') !== targetProfile
+        ) {
+          throw new Error('Gateway or profile changed before the full-access update completed')
+        }
+      } else {
+        enabled = await setYoloEnabled(!sessionActive)
+      }
+
+      notify({
+        kind: enabled ? 'warning' : 'info',
+        message: enabled
+          ? global
+            ? 'Global autonomous full access enabled'
+            : 'Autonomous full access enabled for this chat'
+          : global
+            ? 'Global autonomous full access disabled'
+            : 'Autonomous full access disabled for this chat'
+      })
+      triggerHaptic(enabled ? 'warning' : 'tap')
+    } catch (error) {
+      notifyError(error, 'Could not change autonomous mode')
+    } finally {
+      setPending(false)
+    }
+  }
+
+  return (
+    <Tip label={label}>
+      <Button
+        aria-label={label}
+        aria-pressed={effectiveActive}
+        className={cn(GHOST_ICON_BTN, effectiveActive && ACTIVE_ICON_BTN)}
+        disabled={disabled || pending || !authorityReady}
+        onClick={event => void toggle(event.shiftKey)}
+        size="icon"
+        type="button"
+        variant="ghost"
+      >
+        {effectiveActive ? <ZapFilled className={iconSize.sm} /> : <Zap className={iconSize.sm} />}
+      </Button>
+    </Tip>
+  )
+}
+
+// Start a voice conversation. Used to occupy the PRIMARY slot whenever the
+// composer was empty, which is what made Send look like it appeared on typing:
+// the two controls swapped in and out of the same box. It is a voice control,
+// so it rides with the other voice controls and leaves the primary slot to the
+// one action that must never move. Folded widths reach it through `VoiceMenu`.
+function StartVoiceButton({ disabled, onStart }: { disabled: boolean; onStart: () => void }) {
+  const { t } = useI18n()
+  const c = t.composer
+
+  return (
+    <Tip label={c.startVoice}>
+      <Button
+        aria-label={c.startVoice}
+        className={cn(GHOST_ICON_BTN, 'p-0')}
+        disabled={disabled}
+        onClick={() => {
+          triggerHaptic('open')
+          onStart()
+        }}
+        size="icon"
+        type="button"
+        variant="ghost"
+      >
+        <AudioLines className={iconSize.sm} />
+      </Button>
+    </Tip>
   )
 }
 

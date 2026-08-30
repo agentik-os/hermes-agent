@@ -1,0 +1,490 @@
+{
+  "schema_version": "1.0.0",
+  "implementation_allowed": false,
+  "tasks": [
+    {
+      "id": "001",
+      "title": "Architecture Validation Harness",
+      "priority": "P0",
+      "file": "001-architecture-validation.md",
+      "dependencies": [],
+      "status": "PLANNED"
+    },
+    {
+      "id": "002",
+      "title": "Universal Object and Relationship Contract",
+      "priority": "P0",
+      "file": "002-universal-object-contract.md",
+      "dependencies": [
+        "001"
+      ],
+      "status": "PLANNED"
+    },
+    {
+      "id": "003",
+      "title": "Identity and Organization Foundation",
+      "priority": "P0",
+      "file": "003-identity-organization.md",
+      "dependencies": [
+        "002"
+      ],
+      "status": "PLANNED"
+    },
+    {
+      "id": "004",
+      "title": "Authorization Decision Engine",
+      "priority": "P0",
+      "file": "004-authorization-engine.md",
+      "dependencies": [
+        "002",
+        "003"
+      ],
+      "status": "PLANNED"
+    },
+    {
+      "id": "005",
+      "title": "Semantic Event Envelope and Ledger",
+      "priority": "P0",
+      "file": "005-event-ledger.md",
+      "dependencies": [
+        "002",
+        "003",
+        "004"
+      ],
+      "status": "PLANNED"
+    },
+    {
+      "id": "006",
+      "title": "Artifact and Provenance Foundation",
+      "priority": "P0",
+      "file": "006-artifact-system.md",
+      "dependencies": [
+        "002",
+        "005"
+      ],
+      "status": "PLANNED"
+    },
+    {
+      "id": "007",
+      "title": "Knowledge, Memory and Context Firewall",
+      "priority": "P0",
+      "file": "007-knowledge-memory-context.md",
+      "dependencies": [
+        "002",
+        "003",
+        "004",
+        "005"
+      ],
+      "status": "PLANNED"
+    },
+    {
+      "id": "008",
+      "title": "AgentRuntime Interface",
+      "priority": "P0",
+      "file": "008-runtime-interface.md",
+      "dependencies": [
+        "004",
+        "005",
+        "007",
+        "021",
+        "031"
+      ],
+      "status": "PLANNED"
+    },
+    {
+      "id": "009",
+      "title": "HermesRuntimeAdapter",
+      "priority": "P0",
+      "file": "009-hermes-runtime-adapter.md",
+      "dependencies": [
+        "008",
+        "010",
+        "011",
+        "012",
+        "013",
+        "027",
+        "031",
+        "032",
+        "033",
+        "034",
+        "035",
+        "036"
+      ],
+      "status": "PLANNED"
+    },
+    {
+      "id": "010",
+      "title": "Hermes Profile and Whole-Process Sandbox Lifecycle",
+      "priority": "P0",
+      "file": "010-sandbox-profile-lifecycle.md",
+      "dependencies": [
+        "003",
+        "004",
+        "008"
+      ],
+      "status": "PLANNED"
+    },
+    {
+      "id": "011",
+      "title": "Model Routing and Budget Adapter",
+      "priority": "P0",
+      "file": "011-routing-budget-adapter.md",
+      "dependencies": [
+        "004",
+        "005",
+        "008",
+        "010",
+        "032",
+        "033"
+      ],
+      "status": "PLANNED"
+    },
+    {
+      "id": "012",
+      "title": "Tool, Skill and MCP Mapping",
+      "priority": "P0",
+      "file": "012-tool-skill-mcp-mapping.md",
+      "dependencies": [
+        "004",
+        "005",
+        "008",
+        "010",
+        "032",
+        "033",
+        "036"
+      ],
+      "status": "PLANNED"
+    },
+    {
+      "id": "013",
+      "title": "Session Binding, Checkpoint and Recovery",
+      "priority": "P0",
+      "file": "013-session-checkpoint-recovery.md",
+      "dependencies": [
+        "005",
+        "008",
+        "010",
+        "031",
+        "032",
+        "035"
+      ],
+      "status": "PLANNED"
+    },
+    {
+      "id": "014",
+      "title": "Outcome-Oriented Project",
+      "priority": "P0",
+      "file": "014-project-schema.md",
+      "dependencies": [
+        "002",
+        "003",
+        "004",
+        "005"
+      ],
+      "status": "PLANNED"
+    },
+    {
+      "id": "015",
+      "title": "Agent Definition and Instance",
+      "priority": "P0",
+      "file": "015-agent-extension.md",
+      "dependencies": [
+        "002",
+        "004",
+        "007",
+        "014"
+      ],
+      "status": "PLANNED"
+    },
+    {
+      "id": "016",
+      "title": "OS Definition and Installation",
+      "priority": "P0",
+      "file": "016-os-definition-installation.md",
+      "dependencies": [
+        "002",
+        "004",
+        "005",
+        "007",
+        "014",
+        "015"
+      ],
+      "status": "PLANNED"
+    },
+    {
+      "id": "017",
+      "title": "Oracle Persistent Domain Owner",
+      "priority": "P0",
+      "file": "017-oracle-schema.md",
+      "dependencies": [
+        "005",
+        "014",
+        "015",
+        "016"
+      ],
+      "status": "PLANNED"
+    },
+    {
+      "id": "018",
+      "title": "Team Membership and Routing",
+      "priority": "P1",
+      "file": "018-team-schema.md",
+      "dependencies": [
+        "003",
+        "004",
+        "014",
+        "015",
+        "017"
+      ],
+      "status": "PLANNED"
+    },
+    {
+      "id": "019",
+      "title": "Workforce Definition, Instance and Deployment",
+      "priority": "P1",
+      "file": "019-workforce-schema.md",
+      "dependencies": [
+        "016",
+        "017",
+        "018"
+      ],
+      "status": "PLANNED"
+    },
+    {
+      "id": "020",
+      "title": "Eval, Audit and Verification Foundation",
+      "priority": "P1",
+      "file": "020-eval-verification.md",
+      "dependencies": [
+        "005",
+        "006",
+        "031"
+      ],
+      "status": "PLANNED"
+    },
+    {
+      "id": "021",
+      "title": "Package, Snapshot and Compatibility Foundation",
+      "priority": "P0",
+      "file": "021-package-foundation.md",
+      "dependencies": [
+        "002",
+        "004",
+        "006"
+      ],
+      "status": "PLANNED"
+    },
+    {
+      "id": "022",
+      "title": "AGK Reference Shell and Surface Switcher",
+      "priority": "P1",
+      "file": "022-desktop-surface-switcher.md",
+      "dependencies": [
+        "014",
+        "016",
+        "017",
+        "019",
+        "021"
+      ],
+      "status": "PLANNED"
+    },
+    {
+      "id": "023",
+      "title": "Context Inspector and Stax Surface Model",
+      "priority": "P1",
+      "file": "023-context-inspector-layouts.md",
+      "dependencies": [
+        "022"
+      ],
+      "status": "PLANNED"
+    },
+    {
+      "id": "024",
+      "title": "Recursive Organization Canvas",
+      "priority": "P1",
+      "file": "024-organization-canvas.md",
+      "dependencies": [
+        "002",
+        "014",
+        "016",
+        "017",
+        "018",
+        "019",
+        "022",
+        "023"
+      ],
+      "status": "PLANNED"
+    },
+    {
+      "id": "025",
+      "title": "AGK Architect Proposal and Apply Foundation",
+      "priority": "P1",
+      "file": "025-architect-foundation.md",
+      "dependencies": [
+        "016",
+        "019",
+        "020",
+        "021",
+        "024"
+      ],
+      "status": "PLANNED"
+    },
+    {
+      "id": "026",
+      "title": "Bounded Collective, Learn, Deals and Evolve Foundations",
+      "priority": "P2",
+      "file": "026-product-bridges.md",
+      "dependencies": [
+        "003",
+        "004",
+        "005",
+        "006",
+        "007",
+        "014",
+        "020",
+        "021",
+        "025"
+      ],
+      "status": "PLANNED"
+    },
+    {
+      "id": "027",
+      "title": "Hermes Runtime Baseline Pin and Update Guard",
+      "priority": "P0",
+      "file": "027-hermes-runtime-baseline-pin.md",
+      "dependencies": [
+        "001",
+        "008",
+        "010"
+      ],
+      "status": "PLANNED"
+    },
+    {
+      "id": "028",
+      "title": "Automation and Trigger Adapter",
+      "priority": "P1",
+      "file": "028-automation-trigger-adapter.md",
+      "dependencies": [
+        "005",
+        "008",
+        "010",
+        "013",
+        "032",
+        "033",
+        "035"
+      ],
+      "status": "PLANNED"
+    },
+    {
+      "id": "029",
+      "title": "Hermes UI Behavior Extraction Spike",
+      "priority": "P1",
+      "file": "029-hermes-ui-extraction-spike.md",
+      "dependencies": [
+        "008",
+        "022",
+        "027"
+      ],
+      "status": "PLANNED"
+    },
+    {
+      "id": "030",
+      "title": "Mobile Observe and Decide Surface",
+      "priority": "P2",
+      "file": "030-mobile-observe-decide.md",
+      "dependencies": [
+        "005",
+        "022",
+        "023",
+        "024",
+        "026"
+      ],
+      "status": "PLANNED"
+    },
+    {
+      "id": "031",
+      "title": "Mission, Plan, Task and Run Spine",
+      "priority": "P0",
+      "file": "031-mission-plan-task-run.md",
+      "dependencies": [
+        "002",
+        "003",
+        "004",
+        "005",
+        "006",
+        "014",
+        "015"
+      ],
+      "status": "PLANNED"
+    },
+    {
+      "id": "032",
+      "title": "Runtime Host, Supervisor and Authenticated Transport",
+      "priority": "P0",
+      "file": "032-runtime-host-supervisor-transport.md",
+      "dependencies": [
+        "008",
+        "010",
+        "027",
+        "031"
+      ],
+      "status": "PLANNED"
+    },
+    {
+      "id": "033",
+      "title": "External Effect and Authorization Broker",
+      "priority": "P0",
+      "file": "033-external-effect-broker.md",
+      "dependencies": [
+        "004",
+        "008",
+        "010",
+        "031",
+        "032"
+      ],
+      "status": "PLANNED"
+    },
+    {
+      "id": "034",
+      "title": "Hermes Memory and Context Firewall Adapter",
+      "priority": "P0",
+      "file": "034-hermes-memory-context-adapter.md",
+      "dependencies": [
+        "007",
+        "008",
+        "010",
+        "032",
+        "033"
+      ],
+      "status": "PLANNED"
+    },
+    {
+      "id": "035",
+      "title": "Runtime Event Journal, ACK and Replay",
+      "priority": "P0",
+      "file": "035-runtime-event-journal.md",
+      "dependencies": [
+        "005",
+        "008",
+        "010",
+        "031",
+        "032"
+      ],
+      "status": "PLANNED"
+    },
+    {
+      "id": "036",
+      "title": "Hermes Generic Security Remediation",
+      "priority": "P0",
+      "file": "036-hermes-generic-security-remediation.md",
+      "dependencies": [
+        "001",
+        "004",
+        "010",
+        "032",
+        "033"
+      ],
+      "status": "PLANNED"
+    }
+  ]
+}

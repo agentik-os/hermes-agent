@@ -14,7 +14,7 @@
  */
 
 import { createPluginContext, type HermesPlugin } from './plugin'
-import { pluginActive, publishPlugin } from './plugins-store'
+import { enforceRequiredPluginDecision, pluginActive, publishPlugin } from './plugins-store'
 import { watchRuntimePlugins } from './runtime-loader'
 
 const modules = import.meta.glob<{ default: HermesPlugin }>('../plugins/*/plugin.{js,ts,tsx}', { eager: true })
@@ -41,6 +41,10 @@ export function discoverBundledPlugins(): void {
       continue
     }
 
+    if (plugin.required) {
+      enforceRequiredPluginDecision(plugin.id)
+    }
+
     // Same inventory + live-toggle contract as runtime plugins: each bundled
     // plugin publishes a record with activate/deactivate handles, and a
     // persisted disable survives boots by skipping registration here.
@@ -48,7 +52,8 @@ export function discoverBundledPlugins(): void {
       id: plugin.id,
       name: plugin.name ?? plugin.id,
       description: plugin.description,
-      kind: 'bundled' as const
+      kind: 'bundled' as const,
+      required: plugin.required
     }
 
     let disposers: (() => void)[] = []
@@ -73,7 +78,7 @@ export function discoverBundledPlugins(): void {
 
     publishPlugin({ ...record, status: 'disabled' }, { activate, deactivate })
 
-    if (pluginActive(plugin.id, plugin.defaultEnabled ?? true)) {
+    if (plugin.required || pluginActive(plugin.id, plugin.defaultEnabled ?? true)) {
       activate()
     }
   }

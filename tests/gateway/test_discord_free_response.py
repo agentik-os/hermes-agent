@@ -205,6 +205,36 @@ async def test_discord_free_response_in_server_channels(adapter, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_empty_discord_payload_is_not_sent_to_agent(adapter, monkeypatch):
+    monkeypatch.setenv("DISCORD_REQUIRE_MENTION", "false")
+    monkeypatch.setenv("DISCORD_AUTO_THREAD", "false")
+    channel = FakeTextChannel(channel_id=123)
+    channel.send = AsyncMock()
+    message = make_message(channel=channel, content="")
+
+    handled = await adapter._handle_message(message)
+
+    assert handled is False
+    adapter.handle_message.assert_not_awaited()
+    channel.send.assert_awaited_once()
+    assert "Message Content Intent" in channel.send.await_args.args[0]
+
+
+@pytest.mark.asyncio
+async def test_empty_discord_payload_notice_is_throttled(adapter, monkeypatch):
+    monkeypatch.setenv("DISCORD_REQUIRE_MENTION", "false")
+    monkeypatch.setenv("DISCORD_AUTO_THREAD", "false")
+    channel = FakeTextChannel(channel_id=123)
+    channel.send = AsyncMock()
+
+    await adapter._handle_message(make_message(channel=channel, content=""))
+    await adapter._handle_message(make_message(channel=channel, content=""))
+
+    assert channel.send.await_count == 1
+    adapter.handle_message.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_discord_accepts_and_strips_bot_mentions_when_required(adapter, monkeypatch):
     monkeypatch.setenv("DISCORD_REQUIRE_MENTION", "true")
     monkeypatch.delenv("DISCORD_FREE_RESPONSE_CHANNELS", raising=False)
@@ -825,5 +855,3 @@ async def test_discord_reply_in_free_channel_triggers_backfill(adapter, monkeypa
     assert event.channel_context == (
         "[Context around the replied-to message]\n[Hermes [bot]] earlier answer"
     )
-
-

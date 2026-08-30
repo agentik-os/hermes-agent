@@ -1096,7 +1096,7 @@ export { useTheme } from '@/themes/context'
  *  up, any callback with no component around it). Returns false and leaves the
  *  appearance alone when the name doesn't resolve, so it doubles as the "is
  *  this theme installed?" check. */
-export { requestTheme } from '@/themes/request'
+export { requestDefaultTheme, requestTheme } from '@/themes/request'
 export { retintTheme, themeHue } from '@/themes/retint'
 export type { DesktopTheme, DesktopThemeColors } from '@/themes/types'
 export { THEMES_AREA } from '@/themes/user-themes'

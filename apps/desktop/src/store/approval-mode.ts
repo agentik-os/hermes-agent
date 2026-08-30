@@ -6,6 +6,7 @@ export type ApprovalModeRequester = (method: string, params?: Record<string, unk
 const APPROVAL_MODES = new Set<ApprovalMode>(['manual', 'smart', 'off'])
 const revisions = new Map<string, number>()
 const confirmedModes = new Map<string, ApprovalMode>()
+let approvalStateGeneration = 0
 
 export const $approvalModes = atom<Record<string, ApprovalMode>>({})
 
@@ -47,16 +48,24 @@ export function reconcileApprovalModeForProfile(profile: string, value: unknown)
   return mode
 }
 
+export function resetApprovalModeState(): void {
+  approvalStateGeneration += 1
+  revisions.clear()
+  confirmedModes.clear()
+  $approvalModes.set({})
+}
+
 export async function syncApprovalModeForProfile(
   requestGateway: ApprovalModeRequester,
   profile: string
 ): Promise<ApprovalMode> {
   const key = profileKey(profile)
+  const generation = approvalStateGeneration
   const revision = nextRevision(key)
   const result = (await requestGateway('config.get', { key: 'approvals.mode' })) as { value?: string }
   const mode = normalizeApprovalMode(result?.value)
 
-  if (revisions.get(key) === revision) {
+  if (approvalStateGeneration === generation && revisions.get(key) === revision) {
     confirmedModes.set(key, mode)
     cacheApprovalMode(key, mode)
   }
@@ -70,6 +79,7 @@ export async function setApprovalModeForProfile(
   mode: ApprovalMode
 ): Promise<ApprovalMode> {
   const key = profileKey(profile)
+  const generation = approvalStateGeneration
   const revision = nextRevision(key)
   cacheApprovalMode(key, mode)
 
@@ -81,14 +91,14 @@ export async function setApprovalModeForProfile(
 
     const authoritative = normalizeApprovalMode(result?.value)
 
-    if (revisions.get(key) === revision) {
+    if (approvalStateGeneration === generation && revisions.get(key) === revision) {
       confirmedModes.set(key, authoritative)
       cacheApprovalMode(key, authoritative)
     }
 
     return authoritative
   } catch (error) {
-    if (revisions.get(key) === revision) {
+    if (approvalStateGeneration === generation && revisions.get(key) === revision) {
       cacheApprovalMode(key, confirmedModes.get(key) ?? 'smart')
     }
 

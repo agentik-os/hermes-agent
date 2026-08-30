@@ -16126,6 +16126,7 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
                 "start": self._busy_start_command,
                 "stop": self._busy_stop_command,
                 "new": self._busy_new_command,
+                "clear": self._busy_clear_command,
                 "queue": self._busy_queue_command,
                 "steer": self._busy_steer_command,
                 "egress": self._busy_egress_command,
@@ -16250,6 +16251,16 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
         # Clean up the running agent entry so the reset handler
         # doesn't think an agent is still active.
         return await self._handle_reset_command(event)
+
+    async def _busy_clear_command(self, event: MessageEvent, quick_key: str, source):
+        """Interrupt active work, clean the visible bot transcript, and reset."""
+        await self._interrupt_and_clear_session(
+            quick_key,
+            source,
+            interrupt_reason=_INTERRUPT_REASON_RESET,
+            invalidation_reason="clear_command",
+        )
+        return await self._handle_clear_command(event)
 
     async def _busy_queue_command(self, event: MessageEvent, quick_key: str, source):
         # /queue <prompt> — queue without interrupting.
@@ -16948,8 +16959,10 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
             # can't bypass gating just because an agent happens to be busy.
             # /status above is intentionally pre-gate so users always see
             # session state. /help and /whoami fall under the always-allowed
-            # floor inside _check_slash_access.
-            if _evt_cmd and _cmd_def_inner is not None:
+            # floor inside _check_slash_access. /account owns a stricter,
+            # profile-scoped admin+DM check in its handler; the process-level
+            # gate would incorrectly deny valid secondary-profile admins.
+            if _evt_cmd and _cmd_def_inner is not None and _cmd_def_inner.name != "account":
                 _denied = self._check_slash_access(source, _cmd_def_inner.name)
                 if _denied is not None:
                     return _denied
@@ -17174,7 +17187,9 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
         # run every command. When set → non-admins can run only commands in
         # ``user_allowed_commands`` (plus the always-allowed floor: /help,
         # /whoami). Plain chat is unaffected — only slash commands gate.
-        if command and canonical and is_gateway_known_command(canonical):
+        # /account bypasses only this process-level policy because its handler
+        # enforces a mandatory admin+DM policy from the exact served profile.
+        if command and canonical and is_gateway_known_command(canonical) and canonical != "account":
             _denied = self._check_slash_access(source, canonical)
             if _denied is not None:
                 return _denied
@@ -17281,6 +17296,9 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
                 ),
                 execute=_do_reset,
             )
+
+        if canonical == "clear":
+            return await self._handle_clear_command(event)
 
         if canonical == "topic":
             return await self._handle_topic_command(event)
@@ -17482,6 +17500,9 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
         if canonical == "compress":
             return await self._handle_compress_command(event)
 
+        if canonical == "account":
+            return await self._handle_account_command(event)
+
         if canonical == "usage":
             return await self._handle_usage_command(event)
 
@@ -17681,17 +17702,33 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
         # Plugin-registered slash commands
         if command:
             try:
-                from hermes_cli.plugins import get_plugin_command_handler
+                from hermes_cli.plugins import (
+                    get_plugin_command_handler,
+                    reset_plugin_command_invocation_context,
+                    set_plugin_command_invocation_context,
+                )
                 # Normalize underscores to hyphens so Telegram's underscored
                 # autocomplete form matches plugin commands registered with
                 # hyphens. See hermes_cli/commands.py:_build_telegram_menu.
                 plugin_handler = get_plugin_command_handler(command.replace("_", "-"))
                 if plugin_handler:
                     user_args = event.get_command_args().strip()
-                    result = plugin_handler(user_args)
-                    if asyncio.iscoroutine(result):
-                        result = await result
-                    return str(result) if result else None
+                    source = event.source
+                    token = set_plugin_command_invocation_context({
+                        "surface": getattr(getattr(source, "platform", None), "value", getattr(source, "platform", "unknown")),
+                        "scope_id": getattr(source, "scope_id", None),
+                        "chat_id": getattr(source, "chat_id", None),
+                        "parent_chat_id": getattr(source, "parent_chat_id", None),
+                        "thread_id": getattr(source, "thread_id", None),
+                        "actor_id": event.user_id or getattr(source, "user_id", None),
+                    })
+                    try:
+                        result = plugin_handler(user_args)
+                        if asyncio.iscoroutine(result):
+                            result = await result
+                        return str(result) if result else None
+                    finally:
+                        reset_plugin_command_invocation_context(token)
             except Exception as e:
                 logger.warning("Plugin command dispatch failed: %s", e)
 

@@ -3,6 +3,12 @@
 </p>
 
 # Hermes Agent ☤
+
+> **AGK distribution:** this fork also ships the Agentik control plane,
+> persistent RMUX integration, Discord gateway contracts and the session-first
+> `agk` terminal interface. Start with the
+> [AGK distribution contract](docs/agentik-os/distribution.md).
+
 <p align="center">
   <a href="https://hermes-agent.nousresearch.com/">Hermes Agent</a> | <a href="https://hermes-agent.nousresearch.com/">Hermes Desktop</a>
 </p>
